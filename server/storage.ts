@@ -5,11 +5,13 @@ import {
   type WheelSpin,
   type TapSession,
   type OtpCode,
+  type Deposit,
   users,
   tapSessions,
   predictions,
   wheelSpins,
   otpCodes,
+  deposits,
 } from "@shared/schema";
 import { eq, desc, sql, and, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -40,6 +42,10 @@ export interface IStorage {
   createOtpCode(email: string, code: string, expiresAt: Date): Promise<OtpCode>;
   getValidOtp(email: string, code: string): Promise<OtpCode | undefined>;
   markOtpUsed(id: string): Promise<void>;
+  createDeposit(data: { userId: string; amount: number; network: string; txHash?: string }): Promise<Deposit>;
+  getUserDeposits(userId: string): Promise<Deposit[]>;
+  getDepositById(id: string): Promise<Deposit | undefined>;
+  updateDeposit(id: string, data: Partial<Deposit>): Promise<Deposit | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -150,6 +156,29 @@ export class DatabaseStorage implements IStorage {
 
   async markOtpUsed(id: string): Promise<void> {
     await db.update(otpCodes).set({ used: true }).where(eq(otpCodes.id, id));
+  }
+
+  async createDeposit(data: { userId: string; amount: number; network: string; txHash?: string }): Promise<Deposit> {
+    const [deposit] = await db.insert(deposits).values(data).returning();
+    return deposit;
+  }
+
+  async getUserDeposits(userId: string): Promise<Deposit[]> {
+    return db
+      .select()
+      .from(deposits)
+      .where(eq(deposits.userId, userId))
+      .orderBy(desc(deposits.createdAt));
+  }
+
+  async getDepositById(id: string): Promise<Deposit | undefined> {
+    const [deposit] = await db.select().from(deposits).where(eq(deposits.id, id));
+    return deposit;
+  }
+
+  async updateDeposit(id: string, data: Partial<Deposit>): Promise<Deposit | undefined> {
+    const [deposit] = await db.update(deposits).set(data).where(eq(deposits.id, id)).returning();
+    return deposit;
   }
 }
 

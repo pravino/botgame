@@ -16,6 +16,7 @@ export const users = pgTable("users", {
   correctPredictions: integer("correct_predictions").notNull().default(0),
   totalPredictions: integer("total_predictions").notNull().default(0),
   totalWheelWinnings: real("total_wheel_winnings").notNull().default(0),
+  walletBalance: real("wallet_balance").notNull().default(0),
 });
 
 export const otpCodes = pgTable("otp_codes", {
@@ -55,6 +56,17 @@ export const wheelSpins = pgTable("wheel_spins", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const deposits = pgTable("deposits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  amount: real("amount").notNull(),
+  network: text("network").notNull(),
+  txHash: text("tx_hash"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  confirmedAt: timestamp("confirmed_at"),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -84,3 +96,4 @@ export type OtpCode = typeof otpCodes.$inferSelect;
 export type TapSession = typeof tapSessions.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
 export type WheelSpin = typeof wheelSpins.$inferSelect;
+export type Deposit = typeof deposits.$inferSelect;

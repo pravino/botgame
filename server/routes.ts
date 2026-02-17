@@ -329,6 +329,34 @@ export async function registerRoutes(
     }
   });
 
+  const DEPOSIT_ADDRESSES: Record<string, string> = {
+    ton: "UQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJKZ",
+    trc20: "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb",
+  };
+
+  app.get("/api/wallet", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      res.json({
+        balance: user.walletBalance,
+        addresses: DEPOSIT_ADDRESSES,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get wallet info" });
+    }
+  });
+
+  app.get("/api/deposits", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const deposits = await storage.getUserDeposits(req.session.userId!);
+      res.json(deposits);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get deposits" });
+    }
+  });
+
   app.get("/api/leaderboard/:type", async (req: Request, res: Response) => {
     try {
       const { type } = req.params;

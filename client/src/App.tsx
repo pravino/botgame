@@ -14,6 +14,7 @@ import TapToEarn from "@/pages/tap-to-earn";
 import PricePrediction from "@/pages/price-prediction";
 import LuckyWheel from "@/pages/lucky-wheel";
 import Leaderboard from "@/pages/leaderboard";
+import WalletPage from "@/pages/wallet";
 import Welcome from "@/pages/welcome";
 import type { User } from "@shared/schema";
 
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/tap" component={TapToEarn} />
       <Route path="/predict" component={PricePrediction} />
       <Route path="/wheel" component={LuckyWheel} />
+      <Route path="/wallet" component={WalletPage} />
       <Route path="/leaderboard" component={Leaderboard} />
       <Route component={NotFound} />
     </Switch>
