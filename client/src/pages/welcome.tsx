@@ -63,46 +63,51 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
     sendOtpMutation.mutate(trimmed);
   };
 
-  const handleOtpChange = useCallback((index: number, value: string) => {
+  const handleOtpChange = (index: number, value: string) => {
     if (value.length > 1) {
       const digits = value.replace(/\D/g, "").slice(0, 6).split("");
-      const newOtp = [...otp];
-      digits.forEach((d, i) => {
-        if (index + i < 6) newOtp[index + i] = d;
+      setOtp(prev => {
+        const newOtp = [...prev];
+        digits.forEach((d, i) => {
+          if (index + i < 6) newOtp[index + i] = d;
+        });
+        return newOtp;
       });
-      setOtp(newOtp);
       const nextIndex = Math.min(index + digits.length, 5);
       inputRefs.current[nextIndex]?.focus();
       return;
     }
 
     if (!/^\d*$/.test(value)) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
+    setOtp(prev => {
+      const newOtp = [...prev];
+      newOtp[index] = value;
+      return newOtp;
+    });
 
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
-  }, [otp]);
+  };
 
-  const handleOtpKeyDown = useCallback((index: number, e: React.KeyboardEvent) => {
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
-  }, [otp]);
+  };
 
-  const otpCode = otp.join("");
+  const submitOtpRef = useRef(false);
 
   useEffect(() => {
-    if (otpCode.length === 6) {
-      verifyOtpMutation.mutate({
-        email: email.trim().toLowerCase(),
-        code: otpCode,
-        username: username.trim(),
-      });
+    const code = otp.join("");
+    if (code.length === 6 && !submitOtpRef.current) {
+      submitOtpRef.current = true;
+      verifyOtpMutation.mutate(
+        { email: email.trim().toLowerCase(), code, username: username.trim() },
+        { onSettled: () => { submitOtpRef.current = false; } }
+      );
     }
-  }, [otpCode]);
+  }, [otp]);
 
   useEffect(() => {
     if (step === "otp") {
