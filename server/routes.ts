@@ -66,11 +66,14 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const dbUrl = process.env.PRODUCTION_DATABASE_URL || process.env.DATABASE_URL;
+  const isProduction = process.env.NODE_ENV === "production";
   const PgStore = connectPgSimple(session);
+  app.set("trust proxy", 1);
   app.use(
     session({
       store: new PgStore({
-        conString: process.env.DATABASE_URL,
+        conString: dbUrl,
         createTableIfMissing: true,
       }),
       secret: process.env.SESSION_SECRET || "crypto-games-secret-key",
@@ -78,6 +81,8 @@ export async function registerRoutes(
       saveUninitialized: false,
       cookie: {
         maxAge: 30 * 24 * 60 * 60 * 1000,
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
       },
     })
   );
