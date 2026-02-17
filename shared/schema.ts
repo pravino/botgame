@@ -5,7 +5,8 @@ import { z } from "zod";
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
+  username: text("username").notNull(),
+  email: text("email").notNull().unique(),
   totalCoins: integer("total_coins").notNull().default(0),
   energy: integer("energy").notNull().default(1000),
   maxEnergy: integer("max_energy").notNull().default(1000),
@@ -15,6 +16,15 @@ export const users = pgTable("users", {
   correctPredictions: integer("correct_predictions").notNull().default(0),
   totalPredictions: integer("total_predictions").notNull().default(0),
   totalWheelWinnings: real("total_wheel_winnings").notNull().default(0),
+});
+
+export const otpCodes = pgTable("otp_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull(),
+  code: text("code").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
 export const tapSessions = pgTable("tap_sessions", {
@@ -28,7 +38,7 @@ export const tapSessions = pgTable("tap_sessions", {
 export const predictions = pgTable("predictions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  prediction: text("prediction").notNull(), // 'higher' or 'lower'
+  prediction: text("prediction").notNull(),
   btcPriceAtPrediction: real("btc_price_at_prediction").notNull(),
   resolvedPrice: real("resolved_price"),
   resolved: boolean("resolved").notNull().default(false),
@@ -47,6 +57,7 @@ export const wheelSpins = pgTable("wheel_spins", {
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
+  email: true,
 });
 
 export const insertTapSessionSchema = createInsertSchema(tapSessions).pick({
@@ -69,6 +80,7 @@ export const insertWheelSpinSchema = createInsertSchema(wheelSpins).pick({
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type OtpCode = typeof otpCodes.$inferSelect;
 export type TapSession = typeof tapSessions.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
 export type WheelSpin = typeof wheelSpins.$inferSelect;

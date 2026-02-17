@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
+import { sendOtpEmail } from "./email";
 import { log } from "./index";
 
 const WHEEL_SLICES = [
@@ -48,6 +49,10 @@ async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
     const fallbackPrice = 95000 + Math.random() * 5000;
     return { price: fallbackPrice, change24h: 1.5 };
   }
+}
+
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 declare module "express-session" {
@@ -107,27 +112,69 @@ export async function registerRoutes(
     next();
   }
 
-  app.post("/api/login", async (req: Request, res: Response) => {
+  app.post("/api/send-otp", async (req: Request, res: Response) => {
     try {
-      const { username } = req.body;
-      if (!username || typeof username !== "string" || username.trim().length < 1) {
-        return res.status(400).json({ message: "Username is required" });
+      const { email } = req.body;
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ message: "Email is required" });
       }
 
-      const trimmed = username.trim().slice(0, 20);
-      let user = await storage.getUserByUsername(trimmed);
+      const trimmedEmail = email.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        return res.status(400).json({ message: "Invalid email address" });
+      }
+
+      const code = generateOtp();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await storage.createOtpCode(trimmedEmail, code, expiresAt);
+
+      try {
+        await sendOtpEmail(trimmedEmail, code);
+      } catch (emailError: any) {
+        log(`Email send error: ${emailError.message}`);
+        return res.status(500).json({ message: "Failed to send verification email. Please try again." });
+      }
+
+      res.json({ message: "OTP sent successfully" });
+    } catch (error: any) {
+      log(`Send OTP error: ${error.message}`);
+      res.status(500).json({ message: "Failed to send OTP" });
+    }
+  });
+
+  app.post("/api/verify-otp", async (req: Request, res: Response) => {
+    try {
+      const { email, code, username } = req.body;
+      if (!email || !code) {
+        return res.status(400).json({ message: "Email and code are required" });
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+      const trimmedCode = code.trim();
+
+      const otp = await storage.getValidOtp(trimmedEmail, trimmedCode);
+      if (!otp) {
+        return res.status(400).json({ message: "Invalid or expired code. Please try again." });
+      }
+
+      await storage.markOtpUsed(otp.id);
+
+      let user = await storage.getUserByEmail(trimmedEmail);
 
       if (!user) {
-        user = await storage.createUser({ username: trimmed });
+        const displayName = username?.trim().slice(0, 20) || trimmedEmail.split("@")[0];
+        user = await storage.createUser({ username: displayName, email: trimmedEmail });
       }
 
       user = await refillUserResources(user);
 
-      req.session.userId = user.id;
+      req.session.userId = user!.id;
       res.json(user);
     } catch (error: any) {
-      log(`Login error: ${error.message}`);
-      res.status(500).json({ message: "Failed to login" });
+      log(`Verify OTP error: ${error.message}`);
+      res.status(500).json({ message: "Failed to verify OTP" });
     }
   });
 
@@ -144,6 +191,15 @@ export async function registerRoutes(
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get user" });
     }
+  });
+
+  app.post("/api/logout", (req: Request, res: Response) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ message: "Failed to logout" });
+      }
+      res.json({ message: "Logged out" });
+    });
   });
 
   app.post("/api/tap", requireAuth, async (req: Request, res: Response) => {
@@ -349,15 +405,15 @@ export async function registerRoutes(
       if (existingUsers.length > 0) return;
 
       const seedUsers = [
-        { username: "CryptoKing", totalCoins: 15420, correctPredictions: 18, totalPredictions: 25, totalWheelWinnings: 12.50, totalSpins: 8 },
-        { username: "MoonShot", totalCoins: 12800, correctPredictions: 14, totalPredictions: 20, totalWheelWinnings: 8.30, totalSpins: 6 },
-        { username: "DiamondHands", totalCoins: 9500, correctPredictions: 22, totalPredictions: 30, totalWheelWinnings: 105.10, totalSpins: 12 },
-        { username: "SatoshiFan", totalCoins: 7200, correctPredictions: 11, totalPredictions: 18, totalWheelWinnings: 3.60, totalSpins: 5 },
-        { username: "BlockRunner", totalCoins: 5800, correctPredictions: 9, totalPredictions: 15, totalWheelWinnings: 6.20, totalSpins: 7 },
+        { username: "CryptoKing", email: "cryptoking@demo.local", totalCoins: 15420, correctPredictions: 18, totalPredictions: 25, totalWheelWinnings: 12.50, totalSpins: 8 },
+        { username: "MoonShot", email: "moonshot@demo.local", totalCoins: 12800, correctPredictions: 14, totalPredictions: 20, totalWheelWinnings: 8.30, totalSpins: 6 },
+        { username: "DiamondHands", email: "diamondhands@demo.local", totalCoins: 9500, correctPredictions: 22, totalPredictions: 30, totalWheelWinnings: 105.10, totalSpins: 12 },
+        { username: "SatoshiFan", email: "satoshifan@demo.local", totalCoins: 7200, correctPredictions: 11, totalPredictions: 18, totalWheelWinnings: 3.60, totalSpins: 5 },
+        { username: "BlockRunner", email: "blockrunner@demo.local", totalCoins: 5800, correctPredictions: 9, totalPredictions: 15, totalWheelWinnings: 6.20, totalSpins: 7 },
       ];
 
       for (const userData of seedUsers) {
-        const user = await storage.createUser({ username: userData.username });
+        const user = await storage.createUser({ username: userData.username, email: userData.email });
         await storage.updateUser(user.id, {
           totalCoins: userData.totalCoins,
           correctPredictions: userData.correctPredictions,

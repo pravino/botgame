@@ -4,12 +4,14 @@ import {
   type Prediction,
   type WheelSpin,
   type TapSession,
+  type OtpCode,
   users,
   tapSessions,
   predictions,
   wheelSpins,
+  otpCodes,
 } from "@shared/schema";
-import { eq, desc, sql, and, isNull } from "drizzle-orm";
+import { eq, desc, sql, and, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
@@ -21,7 +23,7 @@ export const db = drizzle(pool);
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
   getTopUsersByCoins(limit?: number): Promise<User[]>;
@@ -35,6 +37,9 @@ export interface IStorage {
   resolvePrediction(id: string, resolvedPrice: number, correct: boolean): Promise<void>;
   createWheelSpin(data: { userId: string; reward: number; sliceLabel: string }): Promise<WheelSpin>;
   getUserWheelHistory(userId: string): Promise<WheelSpin[]>;
+  createOtpCode(email: string, code: string, expiresAt: Date): Promise<OtpCode>;
+  getValidOtp(email: string, code: string): Promise<OtpCode | undefined>;
+  markOtpUsed(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -43,8 +48,8 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
@@ -121,6 +126,30 @@ export class DatabaseStorage implements IStorage {
       .from(wheelSpins)
       .where(eq(wheelSpins.userId, userId))
       .orderBy(desc(wheelSpins.createdAt));
+  }
+
+  async createOtpCode(email: string, code: string, expiresAt: Date): Promise<OtpCode> {
+    const [otp] = await db.insert(otpCodes).values({ email, code, expiresAt }).returning();
+    return otp;
+  }
+
+  async getValidOtp(email: string, code: string): Promise<OtpCode | undefined> {
+    const [otp] = await db
+      .select()
+      .from(otpCodes)
+      .where(
+        and(
+          eq(otpCodes.email, email),
+          eq(otpCodes.code, code),
+          eq(otpCodes.used, false),
+          gt(otpCodes.expiresAt, new Date())
+        )
+      );
+    return otp;
+  }
+
+  async markOtpUsed(id: string): Promise<void> {
+    await db.update(otpCodes).set({ used: true }).where(eq(otpCodes.id, id));
   }
 }
 
