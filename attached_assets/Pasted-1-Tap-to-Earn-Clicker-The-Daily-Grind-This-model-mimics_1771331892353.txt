@@ -1,0 +1,31 @@
+1. Tap-to-Earn Clicker (The Daily Grind)
+This model mimics viral games like Notcoin by rewarding daily consistency. 
+CoinDCX
+CoinDCX
+ +1
+The Game Mechanic: Members open your Mini App and "tap" a central icon (e.g., your group's logo) to mine virtual "Group Coins". Use an Energy Bar that depletes with taps and refills every 24 hours to prevent cheating and ensure daily returns.
+Earnings: At the end of each week, the 5,000 USDT pool is distributed proportionally to how many coins each user mined.
+How to Build:
+Tool: Use Replit or Shipper to build a simple HTML5/JavaScript clicker.
+Integration: Connect the app to your bot via BotFather using the /newapp command.
+Logic: Set up a simple database to track user IDs and their total taps. 
+CoinDCX
+CoinDCX
+ +7
+2. Price Prediction Competition (The Skill-Based Game)
+Turn your group's collective knowledge into a competition. 
+The Game Mechanic: Every 24 hours, the bot asks: "Will BTC be higher or lower in 12 hours?" Users select their choice via inline buttons.
+Earnings: Only correct predictors earn "Points." At the end of the month, the top 100 on the leaderboard split a 1,000 USDT "Winner's Circle" bonus, while everyone else splits a smaller "Base Pool".
+How to Build:
+Bot: Use a no-code bot builder like Telewer or Manychat to create the "If-This-Then-That" logic for predictions.
+Price Feed: Use a free API (like CoinGecko) to let the bot automatically verify the price at the deadline. 
+TON
+TON
+ +4
+3. Lucky Wheel / Gacha (The High-Stakes Thrill)
+This replaces the fixed $0.19 weekly payout with a chance-based reward. 
+The Game Mechanic: Paying the 5 USDT monthly deposit grants the user 4 "Wheel Spins" (one for each Sunday). Users open the Mini App and spin a colorful wheel.
+Earnings: Slices on the wheel include 0.10 USDT (common), 0.50 USDT (uncommon), 5 USDT (rare), and a 100 USDT "Jackpot" (ultra-rare).
+How to Build:
+Tool: Use Adalo or Bubble to design a visual "Wheel" interface.
+Payouts: Use Binance Pay Merchant API to automate the reward. When the wheel stops on a USDT value, the bot sends that amount instantly to the user's Binance ID. 
