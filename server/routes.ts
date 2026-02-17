@@ -69,12 +69,24 @@ export async function registerRoutes(
   const dbUrl = process.env.PRODUCTION_DATABASE_URL || process.env.DATABASE_URL;
   const isProduction = process.env.NODE_ENV === "production";
   const PgStore = connectPgSimple(session);
+
+  const sessionPool = new (await import("pg")).default.Pool({ connectionString: dbUrl });
+  await sessionPool.query(`
+    CREATE TABLE IF NOT EXISTS "session" (
+      "sid" varchar NOT NULL COLLATE "default",
+      "sess" json NOT NULL,
+      "expire" timestamp(6) NOT NULL,
+      CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+    ) WITH (OIDS=FALSE);
+    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+  `);
+
   app.set("trust proxy", 1);
   app.use(
     session({
       store: new PgStore({
-        conString: dbUrl,
-        createTableIfMissing: true,
+        pool: sessionPool,
+        createTableIfMissing: false,
       }),
       secret: process.env.SESSION_SECRET || "crypto-games-secret-key",
       resave: false,
