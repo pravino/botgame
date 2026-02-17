@@ -24,8 +24,10 @@ A gamified web app with three mini-games: Tap-to-Earn, Price Prediction, and Luc
 4. **Leaderboard**: Top players by coins, predictions, and wheel winnings
 
 ## API Routes
-- POST /api/login - Create/login user by username (session-based)
+- POST /api/send-otp - Send 6-digit OTP to email via Resend
+- POST /api/verify-otp - Verify OTP code and login/create user
 - GET /api/user - Get current user
+- POST /api/logout - Destroy session
 - POST /api/tap - Record taps
 - GET /api/btc-price - Live BTC price
 - POST /api/predict - Make a prediction
@@ -41,4 +43,5 @@ A gamified web app with three mini-games: Tap-to-Earn, Price Prediction, and Luc
 - Inter font family
 
 ## Recent Changes
+- 2026-02-17: Switched login from username-only to email OTP via Resend integration
 - 2026-02-17: Initial build with all three games, leaderboard, seed data
