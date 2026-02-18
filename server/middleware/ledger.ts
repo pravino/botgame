@@ -27,7 +27,13 @@ export type LedgerEntryType =
   | "tier_upgrade"
   | "tier_downgrade"
   | "refund"
-  | "leaderboard_reward";
+  | "leaderboard_reward"
+  | "daily_tap_payout"
+  | "energy_reset"
+  | "withdrawal_promoted"
+  | "withdrawal_batch"
+  | "subscription_expiry_warning"
+  | "subscription_expired_kick";
 
 export type LedgerDirection = "credit" | "debit";
 export type LedgerCurrency = "COINS" | "USDT" | "TICKETS";

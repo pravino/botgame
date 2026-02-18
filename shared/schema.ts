@@ -175,6 +175,38 @@ export const userLedger = pgTable("user_ledger", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const dailyTaps = pgTable("daily_taps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  tapsToday: integer("taps_today").notNull().default(0),
+  coinsEarned: integer("coins_earned").notNull().default(0),
+  tierAtTime: text("tier_at_time").notNull().default("FREE"),
+  date: text("date").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const withdrawalBatches = pgTable("withdrawal_batches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  totalWithdrawals: integer("total_withdrawals").notNull().default(0),
+  totalGross: decimal("total_gross", { precision: 12, scale: 4 }).notNull().default("0"),
+  totalFees: decimal("total_fees", { precision: 12, scale: 4 }).notNull().default("0"),
+  totalNet: decimal("total_net", { precision: 12, scale: 4 }).notNull().default("0"),
+  status: text("status").notNull().default("pending"),
+  withdrawalIds: text("withdrawal_ids").notNull().default("[]"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  processedAt: timestamp("processed_at"),
+});
+
+export const subscriptionAlerts = pgTable("subscription_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  alertType: text("alert_type").notNull(),
+  telegramSent: boolean("telegram_sent").notNull().default(false),
+  actionTaken: boolean("action_taken").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -212,3 +244,6 @@ export type JackpotVault = typeof jackpotVault.$inferSelect;
 export type UnclaimedFund = typeof unclaimedFunds.$inferSelect;
 export type UserLedgerEntry = typeof userLedger.$inferSelect;
 export type Withdrawal = typeof withdrawals.$inferSelect;
+export type DailyTap = typeof dailyTaps.$inferSelect;
+export type WithdrawalBatch = typeof withdrawalBatches.$inferSelect;
+export type SubscriptionAlert = typeof subscriptionAlerts.$inferSelect;

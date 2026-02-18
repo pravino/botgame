@@ -9,6 +9,7 @@ import { processSubscriptionPayment } from "./middleware/transactionSplit";
 import { getActivePools, getAllTierPools, expireStaleAllocations, processDailyDrip } from "./middleware/poolLogic";
 import { recordLedgerEntry, getUserLedger, verifyLedgerIntegrity } from "./middleware/ledger";
 import { runGuardianChecks, updateCoinsSinceChallenge, resolveChallenge, checkWalletUnique, detectBotPattern } from "./middleware/guardian";
+import { midnightPulse, batchWithdrawalSettlement, subscriberRetentionCheck } from "./cron/settlementCron";
 
 const WHEEL_SLICES = [
   { label: "0.10 USDT", value: 0.10, probability: 0.35 },
@@ -271,6 +272,7 @@ export async function registerRoutes(
         energy: user.energy - actualTaps,
       });
 
+      await storage.upsertDailyTap(user.id, actualTaps, coinsEarned, user.tier);
       await updateCoinsSinceChallenge(user.id, coinsEarned);
 
       await recordLedgerEntry({
@@ -895,6 +897,15 @@ export async function registerRoutes(
 
   setInterval(processDailyDrip, 24 * 60 * 60 * 1000);
   setTimeout(processDailyDrip, 15000);
+
+  setInterval(midnightPulse, 24 * 60 * 60 * 1000);
+  setTimeout(midnightPulse, 20000);
+
+  setInterval(batchWithdrawalSettlement, 24 * 60 * 60 * 1000);
+  setTimeout(batchWithdrawalSettlement, 25000);
+
+  setInterval(subscriberRetentionCheck, 24 * 60 * 60 * 1000);
+  setTimeout(subscriberRetentionCheck, 35000);
 
   app.get("/api/tiers", async (_req: Request, res: Response) => {
     try {

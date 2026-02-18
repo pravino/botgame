@@ -12,6 +12,9 @@ import {
   type JackpotVault,
   type UnclaimedFund,
   type Withdrawal,
+  type DailyTap,
+  type WithdrawalBatch,
+  type SubscriptionAlert,
   users,
   tapSessions,
   predictions,
@@ -24,6 +27,9 @@ import {
   jackpotVault,
   unclaimedFunds,
   withdrawals,
+  dailyTaps,
+  withdrawalBatches,
+  subscriptionAlerts,
 } from "@shared/schema";
 import { eq, desc, sql, and, gt, lte, lt, or, inArray, sum } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -479,6 +485,138 @@ export class DatabaseStorage {
       totalUsers: parseInt(userCount?.count || "0"),
       activeSubscriptions: parseInt(subCount?.count || "0"),
     };
+  }
+
+  async upsertDailyTap(userId: string, taps: number, coins: number, tier: string): Promise<DailyTap> {
+    const now = new Date();
+    const dateKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
+
+    const [existing] = await db
+      .select()
+      .from(dailyTaps)
+      .where(and(eq(dailyTaps.userId, userId), eq(dailyTaps.date, dateKey)));
+
+    if (existing) {
+      const [updated] = await db
+        .update(dailyTaps)
+        .set({
+          tapsToday: existing.tapsToday + taps,
+          coinsEarned: existing.coinsEarned + coins,
+          tierAtTime: tier,
+          updatedAt: now,
+        })
+        .where(eq(dailyTaps.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(dailyTaps)
+      .values({ userId, tapsToday: taps, coinsEarned: coins, tierAtTime: tier, date: dateKey })
+      .returning();
+    return created;
+  }
+
+  async getDailyTapsForDate(dateKey: string): Promise<DailyTap[]> {
+    return db.select().from(dailyTaps).where(eq(dailyTaps.date, dateKey));
+  }
+
+  async getTotalDailyTaps(dateKey: string): Promise<number> {
+    const [result] = await db
+      .select({ total: sql<string>`COALESCE(SUM(taps_today), 0)` })
+      .from(dailyTaps)
+      .where(eq(dailyTaps.date, dateKey));
+    return parseInt(result?.total || "0");
+  }
+
+  async truncateDailyTaps(dateKey: string): Promise<void> {
+    await db.delete(dailyTaps).where(eq(dailyTaps.date, dateKey));
+  }
+
+  async getAllActiveSubscribers(): Promise<User[]> {
+    return db
+      .select()
+      .from(users)
+      .where(
+        and(
+          sql`${users.tier} != 'FREE'`,
+          gt(users.subscriptionExpiry!, new Date())
+        )
+      );
+  }
+
+  async resetAllUserEnergy(): Promise<void> {
+    await db
+      .update(users)
+      .set({ energy: users.maxEnergy, lastEnergyRefill: new Date() });
+  }
+
+  async getReadyWithdrawals(): Promise<Withdrawal[]> {
+    return db
+      .select()
+      .from(withdrawals)
+      .where(eq(withdrawals.status, "ready"))
+      .orderBy(desc(withdrawals.createdAt));
+  }
+
+  async createWithdrawalBatch(data: {
+    totalWithdrawals: number;
+    totalGross: string;
+    totalFees: string;
+    totalNet: string;
+    withdrawalIds: string;
+  }): Promise<WithdrawalBatch> {
+    const [batch] = await db.insert(withdrawalBatches).values(data).returning();
+    return batch;
+  }
+
+  async createSubscriptionAlert(data: {
+    userId: string;
+    alertType: string;
+  }): Promise<SubscriptionAlert> {
+    const [alert] = await db.insert(subscriptionAlerts).values(data).returning();
+    return alert;
+  }
+
+  async getExistingAlert(userId: string, alertType: string): Promise<SubscriptionAlert | undefined> {
+    const [alert] = await db
+      .select()
+      .from(subscriptionAlerts)
+      .where(
+        and(
+          eq(subscriptionAlerts.userId, userId),
+          eq(subscriptionAlerts.alertType, alertType)
+        )
+      );
+    return alert;
+  }
+
+  async getExpiringSubscriptions(hoursAhead: number): Promise<User[]> {
+    const now = new Date();
+    const futureDate = new Date(now.getTime() + hoursAhead * 60 * 60 * 1000);
+    return db
+      .select()
+      .from(users)
+      .where(
+        and(
+          sql`${users.tier} != 'FREE'`,
+          gt(users.subscriptionExpiry!, now),
+          lte(users.subscriptionExpiry!, futureDate)
+        )
+      );
+  }
+
+  async getExpiredSubscriptions(): Promise<User[]> {
+    const now = new Date();
+    return db
+      .select()
+      .from(users)
+      .where(
+        and(
+          sql`${users.tier} != 'FREE'`,
+          lte(users.subscriptionExpiry!, now)
+        )
+      );
   }
 }
 
