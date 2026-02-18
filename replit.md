@@ -179,6 +179,7 @@ shared/
 - Dark mode preferred as default theme
 
 ## Recent Changes
+- 2026-02-18: Hybrid Recharge energy system: Replaced 24-hour bulk energy reset with passive time-based regeneration (1 energy per 2 seconds, ~33 min full tank). Added daily free full-tank refill button (1 per 24 hours, lastFreeRefill field on users). Frontend shows real-time energy ticker and Free Refill button. Midnight cron no longer resets energy.
 - 2026-02-18: Auto-migration system: Drizzle migrations run on server startup to keep production DB schema in sync. Handles both fresh DBs (creates tables) and existing DBs (syncs journal). New schema changes just need `npx drizzle-kit generate` then push to git.
 - 2026-02-18: Subscription UI page: Tier cards (Free/Bronze/Silver/Gold) with prices from backend config, current plan indicator with founder badge and pro-rate notes, sandbox auto-confirm flow, payment history section with invoice statuses. Added to sidebar navigation.
 - 2026-02-18: TON Pay SDK sandbox integration: Invoice-based payment flow for tier subscriptions (Bronze $5, Silver $15, Gold $50). HMAC-SHA256 webhook verification, sandbox-confirm endpoint for testnet testing, automatic 60/40 split at source via processSubscriptionPayment. New paymentInvoices table tracks all invoices. Environment: TON_PAY_MODE=testnet, TON_PAY_SECRET for webhook signing.
