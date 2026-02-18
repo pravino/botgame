@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import { log } from "../index";
+import { recordLedgerEntry } from "./ledger";
 
 const ADMIN_SPLIT = 0.40;
 const TREASURY_SPLIT = 0.60;
@@ -145,6 +146,35 @@ export async function processSubscriptionPayment(
   });
 
   log(`User ${userId}: ${normalizedTier} tier activated (Founder: ${isFounder}), ${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted, expires ${subscriptionExpiry.toISOString()}`);
+
+  const user = await storage.getUser(userId);
+  const walletBefore = user ? user.walletBalance : 0;
+
+  await recordLedgerEntry({
+    userId,
+    entryType: "subscription_payment",
+    direction: "debit",
+    amount: verifiedAmount,
+    currency: "USDT",
+    balanceBefore: walletBefore,
+    balanceAfter: walletBefore,
+    game: undefined,
+    refId: tx.id,
+    note: `${normalizedTier} tier subscription: $${verifiedAmount} (Admin: $${adminAmount}, Treasury: $${treasuryAmount})`,
+  });
+
+  await recordLedgerEntry({
+    userId,
+    entryType: "spin_ticket_grant",
+    direction: "credit",
+    amount: SPIN_TICKETS_PER_SUBSCRIPTION,
+    currency: "TICKETS",
+    balanceBefore: 0,
+    balanceAfter: SPIN_TICKETS_PER_SUBSCRIPTION,
+    game: "wheelVault",
+    refId: tx.id,
+    note: `${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted with ${normalizedTier} subscription`,
+  });
 
   return {
     success: true,

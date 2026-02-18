@@ -136,6 +136,24 @@ export const unclaimedFunds = pgTable("unclaimed_funds", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const userLedger = pgTable("user_ledger", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  entryType: text("entry_type").notNull(),
+  direction: text("direction").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 4 }).notNull(),
+  currency: text("currency").notNull().default("COINS"),
+  balanceBefore: decimal("balance_before", { precision: 12, scale: 4 }).notNull(),
+  balanceAfter: decimal("balance_after", { precision: 12, scale: 4 }).notNull(),
+  game: text("game"),
+  refId: text("ref_id"),
+  tierAtTime: text("tier_at_time"),
+  note: text("note"),
+  prevHash: text("prev_hash"),
+  entryHash: text("entry_hash").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -171,3 +189,4 @@ export type Transaction = typeof transactions.$inferSelect;
 export type PoolAllocation = typeof poolAllocations.$inferSelect;
 export type JackpotVault = typeof jackpotVault.$inferSelect;
 export type UnclaimedFund = typeof unclaimedFunds.$inferSelect;
+export type UserLedgerEntry = typeof userLedger.$inferSelect;

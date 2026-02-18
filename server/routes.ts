@@ -7,6 +7,7 @@ import { sendOtpEmail } from "./email";
 import { log } from "./index";
 import { processSubscriptionPayment } from "./middleware/transactionSplit";
 import { getActivePools, getAllTierPools, expireStaleAllocations, processDailyDrip } from "./middleware/poolLogic";
+import { recordLedgerEntry, getUserLedger, verifyLedgerIntegrity } from "./middleware/ledger";
 
 const WHEEL_SLICES = [
   { label: "0.10 USDT", value: 0.10, probability: 0.35 },
@@ -235,7 +236,7 @@ export async function registerRoutes(
 
       const coinsEarned = actualTaps;
 
-      await storage.createTapSession({
+      const session = await storage.createTapSession({
         userId: user.id,
         taps: actualTaps,
         coinsEarned,
@@ -244,6 +245,19 @@ export async function registerRoutes(
       const updated = await storage.updateUser(user.id, {
         totalCoins: user.totalCoins + coinsEarned,
         energy: user.energy - actualTaps,
+      });
+
+      await recordLedgerEntry({
+        userId: user.id,
+        entryType: "tap_earn",
+        direction: "credit",
+        amount: coinsEarned,
+        currency: "COINS",
+        balanceBefore: user.totalCoins,
+        balanceAfter: user.totalCoins + coinsEarned,
+        game: "tapPot",
+        refId: session?.id,
+        note: `Earned ${coinsEarned} coins from ${actualTaps} taps`,
       });
 
       res.json(updated);
@@ -339,7 +353,7 @@ export async function registerRoutes(
 
       const result = pickWheelSlice();
 
-      await storage.createWheelSpin({
+      const spin = await storage.createWheelSpin({
         userId: user.id,
         reward: result.value,
         sliceLabel: result.label,
@@ -357,6 +371,34 @@ export async function registerRoutes(
       }
 
       await storage.updateUser(user.id, updates);
+
+      await recordLedgerEntry({
+        userId: user.id,
+        entryType: "wheel_win",
+        direction: "credit",
+        amount: result.value,
+        currency: "USDT",
+        balanceBefore: user.totalWheelWinnings,
+        balanceAfter: user.totalWheelWinnings + result.value,
+        game: "wheelVault",
+        refId: spin?.id,
+        note: `Wheel spin: ${result.label}`,
+      });
+
+      if (isPaidTier) {
+        await recordLedgerEntry({
+          userId: user.id,
+          entryType: "wheel_win",
+          direction: "debit",
+          amount: 1,
+          currency: "TICKETS",
+          balanceBefore: user.spinTickets,
+          balanceAfter: user.spinTickets - 1,
+          game: "wheelVault",
+          refId: spin?.id,
+          note: "Used 1 spin ticket",
+        });
+      }
 
       res.json({
         reward: result.value,
@@ -450,13 +492,26 @@ export async function registerRoutes(
 
           await storage.resolvePrediction(pred.id, currentPrice, correct);
 
-          if (correct) {
-            const user = await storage.getUser(pred.userId);
-            if (user) {
+          const user = await storage.getUser(pred.userId);
+          if (user) {
+            if (correct) {
               await storage.updateUser(user.id, {
                 correctPredictions: user.correctPredictions + 1,
               });
             }
+
+            await recordLedgerEntry({
+              userId: user.id,
+              entryType: correct ? "predict_win" : "predict_loss",
+              direction: correct ? "credit" : "debit",
+              amount: correct ? 1 : 0,
+              currency: "COINS",
+              balanceBefore: user.correctPredictions,
+              balanceAfter: correct ? user.correctPredictions + 1 : user.correctPredictions,
+              game: "predictPot",
+              refId: pred.id,
+              note: `Prediction ${correct ? "correct" : "wrong"}: BTC ${pred.prediction} from $${pred.btcPriceAtPrediction} → $${currentPrice}`,
+            });
           }
 
           log(`Resolved prediction ${pred.id}: ${correct ? "correct" : "wrong"}`);
@@ -577,6 +632,25 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get subscription info" });
+    }
+  });
+
+  app.get("/api/my-ledger", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), 200);
+      const entries = await getUserLedger(req.session.userId!, limit);
+      res.json(entries);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get ledger" });
+    }
+  });
+
+  app.get("/api/my-ledger/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const result = await verifyLedgerIntegrity(req.session.userId!);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to verify ledger" });
     }
   });
 
