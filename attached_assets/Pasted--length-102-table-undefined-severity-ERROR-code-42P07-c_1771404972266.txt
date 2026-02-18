@@ -1,0 +1,108 @@
+  length: 102,
+  table: undefined,
+  severity: 'ERROR',
+  code: '42P07',
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'heap.c',
+  line: '1160',
+  routine: 'heap_create_with_catalog'
+}
+FATAL: Cannot start with failed migrations in production
+npm warn config production Use `--omit=dev` instead.
+> rest-express@1.0.0 start
+> NODE_ENV=production node dist/index.cjs
+Running database migrations from /app/migrations...
+  internalPosition: undefined,
+  line: '1160',
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+  internalQuery: undefined,
+  routine: 'heap_create_with_catalog'
+}
+  where: undefined,
+    at async /app/dist/index.cjs:80:336
+FATAL: Cannot start with failed migrations in production
+  schema: undefined,
+    at async t.transaction (/app/dist/index.cjs:80:114084)
+  table: undefined,
+  column: undefined,
+    at async Xr.migrate (/app/dist/index.cjs:80:222)
+  dataType: undefined,
+  constraint: undefined,
+    at async sT (/app/dist/index.cjs:92:24476)
+  file: 'heap.c',
+    at async cT (/app/dist/index.cjs:92:24847)
+    at async /app/dist/index.cjs:98:1147 {
+  length: 102,
+  severity: 'ERROR',
+  code: '42P07',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+Migration failed: error: relation "deposits" already exists
+    at /app/dist/index.cjs:74:11658
+npm warn config production Use `--omit=dev` instead.
+> rest-express@1.0.0 start
+> NODE_ENV=production node dist/index.cjs
+Running database migrations from /app/migrations...
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'heap.c',
+  line: '1160',
+  routine: 'heap_create_with_catalog'
+Migration failed: error: relation "deposits" already exists
+}
+    at /app/dist/index.cjs:74:11658
+FATAL: Cannot start with failed migrations in production
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /app/dist/index.cjs:80:336
+    at async t.transaction (/app/dist/index.cjs:80:114084)
+    at async Xr.migrate (/app/dist/index.cjs:80:222)
+    at async sT (/app/dist/index.cjs:92:24476)
+    at async cT (/app/dist/index.cjs:92:24847)
+    at async /app/dist/index.cjs:98:1147 {
+  length: 102,
+  severity: 'ERROR',
+  code: '42P07',
+  detail: undefined,
+npm warn config production Use `--omit=dev` instead.
+> rest-express@1.0.0 start
+> NODE_ENV=production node dist/index.cjs
+Running database migrations from /app/migrations...
+  file: 'heap.c',
+Migration failed: error: relation "deposits" already exists
+    at /app/dist/index.cjs:74:11658
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+  internalPosition: undefined,
+    at async /app/dist/index.cjs:80:336
+    at async t.transaction (/app/dist/index.cjs:80:114084)
+  internalQuery: undefined,
+    at async Xr.migrate (/app/dist/index.cjs:80:222)
+  where: undefined,
+    at async sT (/app/dist/index.cjs:92:24476)
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+    at async cT (/app/dist/index.cjs:92:24847)
+    at async /app/dist/index.cjs:98:1147 {
+  length: 102,
+  severity: 'ERROR',
+  code: '42P07',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  line: '1160',
+  routine: 'heap_create_with_catalog'
+}
+FATAL: Cannot start with failed migrations in production
