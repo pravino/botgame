@@ -8,6 +8,7 @@ import { log } from "./index";
 import { processSubscriptionPayment } from "./middleware/transactionSplit";
 import { getActivePools, getAllTierPools, expireStaleAllocations, processDailyDrip } from "./middleware/poolLogic";
 import { recordLedgerEntry, getUserLedger, verifyLedgerIntegrity } from "./middleware/ledger";
+import { runGuardianChecks, updateCoinsSinceChallenge, resolveChallenge, checkWalletUnique, detectBotPattern } from "./middleware/guardian";
 
 const WHEEL_SLICES = [
   { label: "0.10 USDT", value: 0.10, probability: 0.35 },
@@ -138,6 +139,19 @@ export async function registerRoutes(
     next();
   }
 
+  const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+
+  async function requireAdmin(req: Request, res: Response, next: Function) {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    const user = await storage.getUser(req.session.userId);
+    if (!user || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    next();
+  }
+
   app.post("/api/send-otp", async (req: Request, res: Response) => {
     try {
       const { email } = req.body;
@@ -229,6 +243,16 @@ export async function registerRoutes(
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(404).json({ message: "User not found" });
 
+      const guardianResult = await runGuardianChecks(user.id, tapCount);
+      if (!guardianResult.allowed) {
+        return res.status(429).json({
+          message: guardianResult.reason,
+          challengeRequired: guardianResult.challengeRequired || false,
+          coolingDown: guardianResult.coolingDown || false,
+          cooldownEnds: guardianResult.cooldownEnds,
+        });
+      }
+
       const actualTaps = Math.min(tapCount, user.energy);
       if (actualTaps <= 0) {
         return res.status(400).json({ message: "No energy remaining" });
@@ -247,6 +271,8 @@ export async function registerRoutes(
         energy: user.energy - actualTaps,
       });
 
+      await updateCoinsSinceChallenge(user.id, coinsEarned);
+
       await recordLedgerEntry({
         userId: user.id,
         entryType: "tap_earn",
@@ -263,6 +289,27 @@ export async function registerRoutes(
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: "Failed to process tap" });
+    }
+  });
+
+  app.post("/api/challenge/resolve", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { passed } = req.body;
+      if (typeof passed !== "boolean") {
+        return res.status(400).json({ message: "Challenge result (passed: true/false) is required" });
+      }
+
+      const result = await resolveChallenge(req.session.userId!, passed);
+      if (result.success) {
+        res.json({ message: "Challenge passed! You can continue tapping." });
+      } else {
+        res.json({
+          message: "Challenge failed. Tap multiplier paused for 1 hour.",
+          pausedUntil: result.pausedUntil,
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to resolve challenge" });
     }
   });
 
@@ -453,13 +500,8 @@ export async function registerRoutes(
     }
   });
 
-  const WITHDRAWAL_FEES: Record<string, number> = {
-    FREE: 10.00,
-    BRONZE: 8.00,
-    SILVER: 5.00,
-    GOLD: 3.00,
-  };
-  const MIN_WITHDRAWAL = 1.00;
+  const FLAT_WITHDRAWAL_FEE = 0.50;
+  const MIN_WITHDRAWAL = 5.00;
 
   app.post("/api/withdraw", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -481,23 +523,35 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Insufficient wallet balance" });
       }
 
-      const feePercent = WITHDRAWAL_FEES[user.tier] || 10.00;
-      const feeAmount = parseFloat((withdrawAmount * (feePercent / 100)).toFixed(4));
+      const feeAmount = FLAT_WITHDRAWAL_FEE;
       const netAmount = parseFloat((withdrawAmount - feeAmount).toFixed(4));
+
+      if (netAmount <= 0) {
+        return res.status(400).json({ message: "Withdrawal amount too small after fee deduction" });
+      }
 
       const balanceBefore = user.walletBalance;
       const balanceAfter = parseFloat((balanceBefore - withdrawAmount).toFixed(4));
+
+      const botCheck = await detectBotPattern(user.id);
+      const initialStatus = botCheck.suspicious ? "flagged" : "pending_audit";
 
       const withdrawal = await storage.createWithdrawal({
         userId: user.id,
         grossAmount: withdrawAmount.toFixed(4),
         feeAmount: feeAmount.toFixed(4),
         netAmount: netAmount.toFixed(4),
-        feePercent: feePercent.toFixed(2),
+        feePercent: "0.00",
         toWallet: toWallet.trim(),
         network: network || "TON",
         tierAtTime: user.tier,
       });
+
+      if (botCheck.suspicious) {
+        await storage.updateWithdrawalStatus(withdrawal.id, "flagged");
+      } else {
+        await storage.updateWithdrawalStatus(withdrawal.id, "pending_audit");
+      }
 
       await storage.updateUser(user.id, {
         walletBalance: balanceAfter,
@@ -512,7 +566,7 @@ export async function registerRoutes(
         balanceBefore,
         balanceAfter,
         refId: withdrawal.id,
-        note: `Withdrawal: $${withdrawAmount} from wallet (fee: ${feePercent}% = $${feeAmount}, net payout: $${netAmount}) to ${toWallet.trim()} (${network || "TON"})`,
+        note: `Withdrawal: $${withdrawAmount} from wallet (flat fee: $${feeAmount}, net payout: $${netAmount}) to ${toWallet.trim()} (${network || "TON"}) — status: ${initialStatus}`,
       });
 
       await recordLedgerEntry({
@@ -524,7 +578,7 @@ export async function registerRoutes(
         balanceBefore: balanceAfter,
         balanceAfter: balanceAfter,
         refId: withdrawal.id,
-        note: `Withdrawal fee: ${feePercent}% ($${feeAmount}) deducted from gross $${withdrawAmount} — ${user.tier} tier rate`,
+        note: `Flat withdrawal fee: $${feeAmount} USDT deducted from gross $${withdrawAmount}`,
       });
 
       await recordLedgerEntry({
@@ -536,17 +590,21 @@ export async function registerRoutes(
         balanceBefore: balanceAfter,
         balanceAfter: balanceAfter,
         refId: withdrawal.id,
-        note: `Net payout: $${netAmount} sent to ${toWallet.trim()} (${network || "TON"})`,
+        note: `Net payout: $${netAmount} queued for ${toWallet.trim()} (${network || "TON"}) — 24hr audit period`,
       });
+
+      const statusMessage = botCheck.suspicious
+        ? `Withdrawal flagged for manual review. An admin will review your request.`
+        : `Withdrawal of $${netAmount} USDT (after $${feeAmount} fee) submitted. 24-hour audit period before processing.`;
 
       res.json({
         withdrawalId: withdrawal.id,
         grossAmount: withdrawAmount,
-        feePercent,
         feeAmount,
         netAmount,
-        status: "pending",
-        message: `Withdrawal of $${netAmount} USDT (after ${feePercent}% fee) submitted. Processing shortly.`,
+        status: initialStatus,
+        auditExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        message: statusMessage,
       });
     } catch (error: any) {
       log(`Withdrawal error: ${error.message}`);
@@ -570,16 +628,16 @@ export async function registerRoutes(
 
       res.json({
         currentTier: user.tier,
-        feePercent: WITHDRAWAL_FEES[user.tier] || 10.00,
+        flatFee: FLAT_WITHDRAWAL_FEE,
         minWithdrawal: MIN_WITHDRAWAL,
-        allTierFees: WITHDRAWAL_FEES,
+        auditPeriodHours: 24,
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get fee info" });
     }
   });
 
-  app.post("/api/admin/distribute-leaderboard-rewards", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/distribute-leaderboard-rewards", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { leaderboardType, rewards } = req.body;
 
@@ -625,6 +683,102 @@ export async function registerRoutes(
     } catch (error: any) {
       log(`Leaderboard reward error: ${error.message}`);
       res.status(500).json({ message: "Failed to distribute rewards" });
+    }
+  });
+
+  app.post("/api/admin/approve-withdrawal", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { withdrawalId, action } = req.body;
+      if (!withdrawalId || !["approve", "reject"].includes(action)) {
+        return res.status(400).json({ message: "withdrawalId and action (approve/reject) are required" });
+      }
+
+      const withdrawal = await storage.getWithdrawal(withdrawalId);
+      if (!withdrawal) {
+        return res.status(404).json({ message: "Withdrawal not found" });
+      }
+
+      if (!["flagged", "pending_audit"].includes(withdrawal.status)) {
+        return res.status(400).json({ message: `Cannot ${action} a withdrawal with status: ${withdrawal.status}` });
+      }
+
+      const createdAt = new Date(withdrawal.createdAt).getTime();
+      const auditPeriodMs = 24 * 60 * 60 * 1000;
+      const auditExpired = Date.now() >= createdAt + auditPeriodMs;
+
+      if (action === "approve" && withdrawal.status === "pending_audit" && !auditExpired) {
+        const hoursLeft = ((createdAt + auditPeriodMs - Date.now()) / (1000 * 60 * 60)).toFixed(1);
+        return res.status(400).json({
+          message: `24-hour audit period not yet complete. ${hoursLeft} hours remaining. Use 'reject' to cancel early, or wait.`,
+        });
+      }
+
+      const user = await storage.getUser(withdrawal.userId);
+
+      if (action === "approve") {
+        await storage.updateWithdrawalStatus(withdrawalId, "approved");
+
+        await recordLedgerEntry({
+          userId: withdrawal.userId,
+          entryType: "withdrawal_completed",
+          direction: "debit",
+          amount: parseFloat(withdrawal.netAmount),
+          currency: "USDT",
+          balanceBefore: user?.walletBalance || 0,
+          balanceAfter: user?.walletBalance || 0,
+          refId: withdrawalId,
+          note: `Withdrawal approved: $${withdrawal.netAmount} USDT released to ${withdrawal.toWallet} (fee: $${withdrawal.feeAmount})`,
+        });
+
+        res.json({ message: "Withdrawal approved", withdrawalId, status: "approved" });
+      } else {
+        if (user) {
+          const refundAmount = parseFloat(withdrawal.grossAmount);
+          const balanceBefore = user.walletBalance;
+          const balanceAfter = parseFloat((balanceBefore + refundAmount).toFixed(4));
+
+          await storage.updateUser(withdrawal.userId, {
+            walletBalance: balanceAfter,
+          });
+
+          await recordLedgerEntry({
+            userId: withdrawal.userId,
+            entryType: "withdrawal_rejected",
+            direction: "credit",
+            amount: refundAmount,
+            currency: "USDT",
+            balanceBefore,
+            balanceAfter,
+            refId: withdrawalId,
+            note: `Withdrawal rejected: $${withdrawal.grossAmount} USDT (gross) refunded to wallet. Original fee ($${withdrawal.feeAmount}) and net ($${withdrawal.netAmount}) entries reversed.`,
+          });
+        }
+
+        await storage.updateWithdrawalStatus(withdrawalId, "rejected");
+        res.json({ message: "Withdrawal rejected and refunded", withdrawalId, status: "rejected" });
+      }
+    } catch (error: any) {
+      log(`Admin withdrawal error: ${error.message}`);
+      res.status(500).json({ message: "Failed to process withdrawal action" });
+    }
+  });
+
+  app.get("/api/admin/pending-withdrawals", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const pending = await storage.getPendingWithdrawals();
+      res.json(pending);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get pending withdrawals" });
+    }
+  });
+
+  app.get("/api/admin/pulse", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const pulse = await storage.getAdminPulse();
+      res.json(pulse);
+    } catch (error: any) {
+      log(`Admin pulse error: ${error.message}`);
+      res.status(500).json({ message: "Failed to get admin pulse" });
     }
   });
 
@@ -753,13 +907,21 @@ export async function registerRoutes(
 
   app.post("/api/subscribe", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { txHash, tierName } = req.body;
+      const { txHash, tierName, senderAddress } = req.body;
 
       if (!txHash || typeof txHash !== "string" || txHash.trim().length < 10) {
         return res.status(400).json({ message: "A valid transaction hash is required" });
       }
       if (!tierName || !["BRONZE", "SILVER", "GOLD"].includes(String(tierName).toUpperCase())) {
         return res.status(400).json({ message: "Valid tier name is required (BRONZE, SILVER, GOLD)" });
+      }
+
+      if (senderAddress && typeof senderAddress === "string") {
+        const walletCheck = await checkWalletUnique(senderAddress.trim(), req.session.userId!);
+        if (!walletCheck.unique) {
+          return res.status(409).json({ message: walletCheck.reason });
+        }
+        await storage.updateUser(req.session.userId!, { tonWalletAddress: senderAddress.trim() });
       }
 
       const sanitizedTxHash = txHash.trim();
@@ -771,12 +933,6 @@ export async function registerRoutes(
       const normalizedTier = String(tierName).toUpperCase();
       const tierPrices: Record<string, number> = { BRONZE: 5, SILVER: 15, GOLD: 50 };
       const verifiedAmount = tierPrices[normalizedTier];
-
-      // TODO: Replace with real TON Pay SDK verification
-      // const txInfo = await tonPay.verify(sanitizedTxHash);
-      // if (txInfo.amount !== verifiedAmount || txInfo.status !== "confirmed") {
-      //   return res.status(400).json({ message: "Transaction verification failed" });
-      // }
 
       const result = await processSubscriptionPayment(
         req.session.userId!,

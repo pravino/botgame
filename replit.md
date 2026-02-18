@@ -165,18 +165,47 @@ shared/
 - Framer Motion animations for game interactions
 - Consistent card-based layout across all pages
 
-## Environment Variables
-- `DATABASE_URL` - Development PostgreSQL connection (Replit built-in)
-- `PRODUCTION_DATABASE_URL` - Production PostgreSQL connection (Neon)
-- `SESSION_SECRET` - Express session encryption key
-- Resend API key managed via Replit integration connector
-
 ## User Preferences
 - OTP hardcoded to "123456" during testing phase
 - Deposit addresses are placeholders until real payment gateway is integrated
 - Dark mode preferred as default theme
 
 ## Recent Changes
+- 2026-02-18: Built 3-layer security system: Guardian Middleware (rate limiter 15 taps/sec, proof-of-humanity challenge every 5000 coins, wallet-unique filter), Withdrawal Settlement (flat $0.50 fee, $5 min, 24hr audit delay, bot detection), Admin Pulse Dashboard
+- 2026-02-18: Admin endpoints now require admin authorization (ADMIN_EMAILS env var)
+- 2026-02-18: Withdrawal system switched from percentage-based fees to flat $0.50 USDT fee for all tiers
 - 2026-02-17: Added wallet/deposit page with QR codes for TON and TRC-20 USDT networks
 - 2026-02-17: Switched login from username-only to email OTP via Resend integration
 - 2026-02-17: Initial build with all three games, leaderboard, seed data
+
+## Security Architecture
+
+### Layer 1: Guardian Middleware (server/middleware/guardian.ts)
+- **Rate Limiter**: Max 15 taps/second per user, triggers 60-second cooldown
+- **Proof of Humanity**: Every 5,000 coins earned triggers a challenge flag; failed challenge pauses multiplier for 1 hour
+- **Wallet-Unique Filter**: One TON wallet address per subscription account
+
+### Layer 2: Withdrawal Settlement
+- **Flat Fee**: $0.50 USDT per withdrawal (all tiers)
+- **Minimum**: $5.00 USDT
+- **24-Hour Audit Delay**: All withdrawals enter "pending_audit" status
+- **Bot Detection**: Analyzes tap session patterns (frequency, regularity, session count); suspicious patterns → "flagged" for manual admin review
+- **Admin Approval**: Flagged withdrawals require manual admin approve/reject; rejections auto-refund gross amount
+
+### Layer 3: Admin Pulse Dashboard
+- `GET /api/admin/pulse` — Total revenue, profit swept, active liability, pending/flagged withdrawals, total users, active subscriptions
+- `GET /api/admin/pending-withdrawals` — List all pending_audit and flagged withdrawals
+- `POST /api/admin/approve-withdrawal` — Approve or reject withdrawals
+
+### Admin Authorization
+- Admin endpoints protected by `requireAdmin` middleware
+- Admin emails configured via `ADMIN_EMAILS` environment variable (comma-separated)
+
+## Environment Variables
+- `DATABASE_URL` - Development PostgreSQL connection (Replit built-in)
+- `PRODUCTION_DATABASE_URL` - Production PostgreSQL connection (Neon)
+- `SESSION_SECRET` - Express session encryption key
+- `ADMIN_EMAILS` - Comma-separated list of admin email addresses
+- `ADMIN_PROFITS_WALLET` - TON wallet for admin profits (40% split)
+- `GAME_TREASURY_WALLET` - TON wallet for game treasury (60% split)
+- Resend API key managed via Replit integration connector

@@ -35,6 +35,10 @@ export const users = pgTable("users", {
   telegramUsername: text("telegram_username"),
   telegramFirstName: text("telegram_first_name"),
   telegramPhotoUrl: text("telegram_photo_url"),
+  cooldownUntil: timestamp("cooldown_until"),
+  challengePending: boolean("challenge_pending").notNull().default(false),
+  challengePausedUntil: timestamp("challenge_paused_until"),
+  coinsSinceLastChallenge: integer("coins_since_last_challenge").notNull().default(0),
 });
 
 export const otpCodes = pgTable("otp_codes", {

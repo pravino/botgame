@@ -25,7 +25,7 @@ import {
   unclaimedFunds,
   withdrawals,
 } from "@shared/schema";
-import { eq, desc, sql, and, gt, lte, lt } from "drizzle-orm";
+import { eq, desc, sql, and, gt, lte, lt, or, inArray, sum } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
@@ -405,6 +405,80 @@ export class DatabaseStorage {
     if (txHash) updates.txHash = txHash;
     const [w] = await db.update(withdrawals).set(updates).where(eq(withdrawals.id, id)).returning();
     return w;
+  }
+
+  async getPendingWithdrawals(): Promise<Withdrawal[]> {
+    return db
+      .select()
+      .from(withdrawals)
+      .where(
+        or(
+          eq(withdrawals.status, "pending_audit"),
+          eq(withdrawals.status, "flagged")
+        )
+      )
+      .orderBy(desc(withdrawals.createdAt));
+  }
+
+  async getAdminPulse(): Promise<{
+    totalRevenue: number;
+    profitSwept: number;
+    activeLiability: number;
+    pendingWithdrawals: number;
+    flaggedWithdrawals: number;
+    totalUsers: number;
+    activeSubscriptions: number;
+  }> {
+    const [revenueResult] = await db
+      .select({ total: sql<string>`COALESCE(SUM(CAST(amount AS DECIMAL)), 0)` })
+      .from(transactions)
+      .where(eq(transactions.status, "confirmed"));
+    const totalRevenue = parseFloat(revenueResult?.total || "0");
+
+    const [adminResult] = await db
+      .select({ total: sql<string>`COALESCE(SUM(CAST(admin_amount AS DECIMAL)), 0)` })
+      .from(transactions)
+      .where(eq(transactions.status, "confirmed"));
+    const profitSwept = parseFloat(adminResult?.total || "0");
+
+    const [liabilityResult] = await db
+      .select({ total: sql<string>`COALESCE(SUM(wallet_balance), 0)` })
+      .from(users);
+    const activeLiability = parseFloat(liabilityResult?.total || "0");
+
+    const pendingList = await db
+      .select()
+      .from(withdrawals)
+      .where(eq(withdrawals.status, "pending_audit"));
+
+    const flaggedList = await db
+      .select()
+      .from(withdrawals)
+      .where(eq(withdrawals.status, "flagged"));
+
+    const [userCount] = await db
+      .select({ count: sql<string>`COUNT(*)` })
+      .from(users);
+
+    const [subCount] = await db
+      .select({ count: sql<string>`COUNT(*)` })
+      .from(users)
+      .where(
+        and(
+          sql`${users.tier} != 'FREE'`,
+          gt(users.subscriptionExpiry!, new Date())
+        )
+      );
+
+    return {
+      totalRevenue,
+      profitSwept,
+      activeLiability,
+      pendingWithdrawals: pendingList.length,
+      flaggedWithdrawals: flaggedList.length,
+      totalUsers: parseInt(userCount?.count || "0"),
+      activeSubscriptions: parseInt(subCount?.count || "0"),
+    };
   }
 }
 
