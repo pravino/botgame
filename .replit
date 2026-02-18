@@ -49,3 +49,4 @@ TON_PAY_SECRET = "sandbox_test_secret_key_2026"
 
 [agent]
 integrations = ["resend:1.0.0"]
+expertMode = true

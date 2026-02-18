@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { runMigrations } from "./migrate";
 
 const app = express();
 const httpServer = createServer(app);
@@ -60,6 +61,16 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  try {
+    await runMigrations();
+  } catch (err) {
+    console.error("Migration failed:", err);
+    if (process.env.NODE_ENV === "production") {
+      console.error("FATAL: Cannot start with failed migrations in production");
+      process.exit(1);
+    }
+  }
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
