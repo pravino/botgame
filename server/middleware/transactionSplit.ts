@@ -10,6 +10,9 @@ const POOL_SPLIT = {
   wheelVault: 0.20,
 } as const;
 
+const DRIP_DAYS = 30;
+const SPIN_TICKETS_PER_SUBSCRIPTION = 4;
+
 const ADMIN_PROFITS_WALLET = process.env.ADMIN_PROFITS_WALLET || "UQAdminWalletPlaceholder";
 const GAME_TREASURY_WALLET = process.env.GAME_TREASURY_WALLET || "UQTreasuryWalletPlaceholder";
 
@@ -34,10 +37,11 @@ export interface SplitResult {
   adminWallet: string;
   treasuryWallet: string;
   poolAllocations: {
-    tapPot: number;
-    predictPot: number;
-    wheelVault: number;
+    tapPot: { total: number; dailyDrip: number };
+    predictPot: { total: number; dailyDrip: number };
+    wheelVault: { total: number; instantCredit: boolean };
   };
+  spinTickets: number;
   isFounder: boolean;
   message: string;
 }
@@ -75,21 +79,27 @@ export async function processSubscriptionPayment(
     treasuryWallet: GAME_TREASURY_WALLET,
   });
 
-  log(`Transaction ${tx.id}: ${verifiedAmount} USDT split -> Admin: ${adminAmount} (${ADMIN_PROFITS_WALLET}), Treasury: ${treasuryAmount} (${GAME_TREASURY_WALLET})`);
+  log(`Transaction ${tx.id}: ${verifiedAmount} USDT -> Admin: $${adminAmount} (${ADMIN_PROFITS_WALLET}), Treasury: $${treasuryAmount} (${GAME_TREASURY_WALLET})`);
 
   const now = new Date();
-  const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const expiryDate = new Date(now.getTime() + DRIP_DAYS * 24 * 60 * 60 * 1000);
 
-  const tapPotAmount = parseFloat((treasuryAmount * POOL_SPLIT.tapPot).toFixed(2));
-  const predictPotAmount = parseFloat((treasuryAmount * POOL_SPLIT.predictPot).toFixed(2));
-  const wheelVaultAmount = parseFloat((treasuryAmount * POOL_SPLIT.wheelVault).toFixed(2));
+  const tapPotTotal = parseFloat((treasuryAmount * POOL_SPLIT.tapPot).toFixed(2));
+  const predictPotTotal = parseFloat((treasuryAmount * POOL_SPLIT.predictPot).toFixed(2));
+  const wheelVaultTotal = parseFloat((treasuryAmount * POOL_SPLIT.wheelVault).toFixed(2));
+
+  const tapPotDaily = parseFloat((tapPotTotal / DRIP_DAYS).toFixed(4));
+  const predictPotDaily = parseFloat((predictPotTotal / DRIP_DAYS).toFixed(4));
 
   await Promise.all([
     storage.createPoolAllocation({
       transactionId: tx.id,
       tierName: normalizedTier,
       game: "tapPot",
-      amount: tapPotAmount.toFixed(2),
+      totalAmount: tapPotTotal.toFixed(2),
+      dailyAmount: tapPotDaily.toFixed(4),
+      totalDays: DRIP_DAYS,
+      dripType: "daily",
       depositDate: now,
       expiryDate,
     }),
@@ -97,7 +107,10 @@ export async function processSubscriptionPayment(
       transactionId: tx.id,
       tierName: normalizedTier,
       game: "predictPot",
-      amount: predictPotAmount.toFixed(2),
+      totalAmount: predictPotTotal.toFixed(2),
+      dailyAmount: predictPotDaily.toFixed(4),
+      totalDays: DRIP_DAYS,
+      dripType: "daily",
       depositDate: now,
       expiryDate,
     }),
@@ -105,26 +118,33 @@ export async function processSubscriptionPayment(
       transactionId: tx.id,
       tierName: normalizedTier,
       game: "wheelVault",
-      amount: wheelVaultAmount.toFixed(2),
+      totalAmount: wheelVaultTotal.toFixed(2),
+      dailyAmount: "0",
+      totalDays: DRIP_DAYS,
+      dripType: "instant",
       depositDate: now,
       expiryDate,
     }),
   ]);
 
-  log(`Smart Ledger: Treasury ${treasuryAmount} USDT -> TapPot: ${tapPotAmount}, PredictPot: ${predictPotAmount}, WheelVault: ${wheelVaultAmount} (30-day window until ${expiryDate.toISOString()})`);
+  await storage.addToJackpotVault(normalizedTier, wheelVaultTotal);
+
+  log(`Smart Ledger: Treasury $${treasuryAmount} -> TapPot: $${tapPotTotal} (drip $${tapPotDaily}/day), PredictPot: $${predictPotTotal} (drip $${predictPotDaily}/day), WheelVault: $${wheelVaultTotal} (instant to jackpot)`);
 
   const subscriberCount = await storage.getSubscriberCountByTier(normalizedTier);
   const founderLimit = FOUNDER_LIMITS[normalizedTier] || 100;
   const isFounder = subscriberCount <= founderLimit;
 
-  const subscriptionExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const subscriptionExpiry = new Date(now.getTime() + DRIP_DAYS * 24 * 60 * 60 * 1000);
   await storage.updateUser(userId, {
     tier: normalizedTier,
     subscriptionExpiry,
     isFounder: isFounder || undefined,
+    spinTickets: SPIN_TICKETS_PER_SUBSCRIPTION,
+    spinTicketsExpiry: expiryDate,
   });
 
-  log(`User ${userId} activated ${normalizedTier} tier (Founder: ${isFounder}), expires ${subscriptionExpiry.toISOString()}`);
+  log(`User ${userId}: ${normalizedTier} tier activated (Founder: ${isFounder}), ${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted, expires ${subscriptionExpiry.toISOString()}`);
 
   return {
     success: true,
@@ -135,11 +155,12 @@ export async function processSubscriptionPayment(
     adminWallet: ADMIN_PROFITS_WALLET,
     treasuryWallet: GAME_TREASURY_WALLET,
     poolAllocations: {
-      tapPot: tapPotAmount,
-      predictPot: predictPotAmount,
-      wheelVault: wheelVaultAmount,
+      tapPot: { total: tapPotTotal, dailyDrip: tapPotDaily },
+      predictPot: { total: predictPotTotal, dailyDrip: predictPotDaily },
+      wheelVault: { total: wheelVaultTotal, instantCredit: true },
     },
+    spinTickets: SPIN_TICKETS_PER_SUBSCRIPTION,
     isFounder,
-    message: `${normalizedTier} Tier Activated! 40% ($${adminAmount}) -> Admin Wallet, 60% ($${treasuryAmount}) -> Game Treasury (50/30/20 split across pools, valid 30 days)`,
+    message: `${normalizedTier} Tier Activated! $${adminAmount} -> Admin Wallet, $${treasuryAmount} -> Game Treasury. TapPot drips $${tapPotDaily}/day, PredictPot drips $${predictPotDaily}/day, WheelVault $${wheelVaultTotal} instant to Jackpot. ${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted (1/week).`,
   };
 }

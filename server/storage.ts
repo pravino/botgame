@@ -9,6 +9,8 @@ import {
   type Tier,
   type Transaction,
   type PoolAllocation,
+  type JackpotVault,
+  type UnclaimedFund,
   users,
   tapSessions,
   predictions,
@@ -18,8 +20,10 @@ import {
   tiers,
   transactions,
   poolAllocations,
+  jackpotVault,
+  unclaimedFunds,
 } from "@shared/schema";
-import { eq, desc, sql, and, gt, lte } from "drizzle-orm";
+import { eq, desc, sql, and, gt, lte, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
@@ -29,61 +33,7 @@ const pool = new pg.Pool({
 
 export const db = drizzle(pool);
 
-export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
-  getTopUsersByCoins(limit?: number): Promise<User[]>;
-  getTopUsersByPredictions(limit?: number): Promise<User[]>;
-  getTopUsersByWheelWinnings(limit?: number): Promise<User[]>;
-  getActiveSubscribersByTier(tierName: string): Promise<User[]>;
-  getSubscriberCountByTier(tierName: string): Promise<number>;
-  createTapSession(data: { userId: string; taps: number; coinsEarned: number }): Promise<TapSession>;
-  createPrediction(data: { userId: string; prediction: string; btcPriceAtPrediction: number }): Promise<Prediction>;
-  getActivePrediction(userId: string): Promise<Prediction | undefined>;
-  getUserPredictions(userId: string): Promise<Prediction[]>;
-  getUnresolvedPredictions(): Promise<Prediction[]>;
-  resolvePrediction(id: string, resolvedPrice: number, correct: boolean): Promise<void>;
-  createWheelSpin(data: { userId: string; reward: number; sliceLabel: string }): Promise<WheelSpin>;
-  getUserWheelHistory(userId: string): Promise<WheelSpin[]>;
-  createOtpCode(email: string, code: string, expiresAt: Date): Promise<OtpCode>;
-  getValidOtp(email: string, code: string): Promise<OtpCode | undefined>;
-  markOtpUsed(id: string): Promise<void>;
-  createDeposit(data: { userId: string; amount: number; network: string; txHash?: string }): Promise<Deposit>;
-  getUserDeposits(userId: string): Promise<Deposit[]>;
-  getDepositById(id: string): Promise<Deposit | undefined>;
-  updateDeposit(id: string, data: Partial<Deposit>): Promise<Deposit | undefined>;
-  getTier(name: string): Promise<Tier | undefined>;
-  getAllTiers(): Promise<Tier[]>;
-  createTier(data: { name: string; price: string; dailyUnit: string; tapMultiplier: number }): Promise<Tier>;
-  getTransactionByTxHash(txHash: string): Promise<Transaction | undefined>;
-  createTransaction(data: {
-    userId: string;
-    txHash: string;
-    tierName: string;
-    totalAmount: string;
-    adminAmount: string;
-    treasuryAmount: string;
-    adminWallet: string;
-    treasuryWallet: string;
-  }): Promise<Transaction>;
-  getUserTransactions(userId: string): Promise<Transaction[]>;
-  createPoolAllocation(data: {
-    transactionId: string;
-    tierName: string;
-    game: string;
-    amount: string;
-    depositDate: Date;
-    expiryDate: Date;
-  }): Promise<PoolAllocation>;
-  getActivePoolAllocations(tierName: string, game: string): Promise<PoolAllocation[]>;
-  getActivePoolTotalByTierAndGame(tierName: string, game: string): Promise<number>;
-  getActivePoolTotalByTier(tierName: string): Promise<{ tapPot: number; predictPot: number; wheelVault: number }>;
-  expireOldAllocations(): Promise<void>;
-}
-
-export class DatabaseStorage implements IStorage {
+export class DatabaseStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -278,11 +228,40 @@ export class DatabaseStorage implements IStorage {
     transactionId: string;
     tierName: string;
     game: string;
-    amount: string;
+    totalAmount: string;
+    dailyAmount: string;
+    totalDays: number;
+    dripType: string;
     depositDate: Date;
     expiryDate: Date;
   }): Promise<PoolAllocation> {
-    const [alloc] = await db.insert(poolAllocations).values(data).returning();
+    const initialReleased = data.dripType === "instant" ? data.totalAmount : "0";
+    const initialDays = data.dripType === "instant" ? data.totalDays : 0;
+    const [alloc] = await db.insert(poolAllocations).values({
+      ...data,
+      amountReleased: initialReleased,
+      daysReleased: initialDays,
+    }).returning();
+    return alloc;
+  }
+
+  async getActiveDripAllocations(): Promise<PoolAllocation[]> {
+    const now = new Date();
+    return db
+      .select()
+      .from(poolAllocations)
+      .where(
+        and(
+          eq(poolAllocations.active, true),
+          eq(poolAllocations.dripType, "daily"),
+          gt(poolAllocations.expiryDate, now),
+          lt(poolAllocations.daysReleased, poolAllocations.totalDays)
+        )
+      );
+  }
+
+  async updatePoolAllocation(id: string, data: Partial<PoolAllocation>): Promise<PoolAllocation | undefined> {
+    const [alloc] = await db.update(poolAllocations).set(data).where(eq(poolAllocations.id, id)).returning();
     return alloc;
   }
 
@@ -301,31 +280,96 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-  async getActivePoolTotalByTierAndGame(tierName: string, game: string): Promise<number> {
+  async getReleasedPoolTotalByTierAndGame(tierName: string, game: string): Promise<number> {
     const allocations = await this.getActivePoolAllocations(tierName, game);
-    return allocations.reduce((sum, a) => sum + parseFloat(a.amount), 0);
+    return allocations.reduce((sum, a) => sum + parseFloat(a.amountReleased), 0);
   }
 
-  async getActivePoolTotalByTier(tierName: string): Promise<{ tapPot: number; predictPot: number; wheelVault: number }> {
-    const [tapPot, predictPot, wheelVault] = await Promise.all([
-      this.getActivePoolTotalByTierAndGame(tierName, "tapPot"),
-      this.getActivePoolTotalByTierAndGame(tierName, "predictPot"),
-      this.getActivePoolTotalByTierAndGame(tierName, "wheelVault"),
+  async getReleasedPoolTotalByTier(tierName: string): Promise<{ tapPot: number; predictPot: number }> {
+    const [tapPot, predictPot] = await Promise.all([
+      this.getReleasedPoolTotalByTierAndGame(tierName, "tapPot"),
+      this.getReleasedPoolTotalByTierAndGame(tierName, "predictPot"),
     ]);
-    return { tapPot, predictPot, wheelVault };
+    return { tapPot, predictPot };
   }
 
-  async expireOldAllocations(): Promise<void> {
+  async getExpiredActiveAllocations(): Promise<PoolAllocation[]> {
     const now = new Date();
-    await db
-      .update(poolAllocations)
-      .set({ active: false })
+    return db
+      .select()
+      .from(poolAllocations)
       .where(
         and(
           eq(poolAllocations.active, true),
           lte(poolAllocations.expiryDate, now)
         )
       );
+  }
+
+  async deactivateAllocation(id: string): Promise<void> {
+    await db
+      .update(poolAllocations)
+      .set({ active: false })
+      .where(eq(poolAllocations.id, id));
+  }
+
+  async getOrCreateJackpotVault(tierName: string): Promise<JackpotVault> {
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+    const [existing] = await db
+      .select()
+      .from(jackpotVault)
+      .where(
+        and(
+          eq(jackpotVault.tierName, tierName.toUpperCase()),
+          eq(jackpotVault.monthKey, monthKey)
+        )
+      );
+
+    if (existing) return existing;
+
+    const [vault] = await db
+      .insert(jackpotVault)
+      .values({ tierName: tierName.toUpperCase(), totalBalance: "0", monthKey })
+      .returning();
+    return vault;
+  }
+
+  async addToJackpotVault(tierName: string, amount: number): Promise<JackpotVault> {
+    const vault = await this.getOrCreateJackpotVault(tierName);
+    const newBalance = parseFloat(vault.totalBalance) + amount;
+    const [updated] = await db
+      .update(jackpotVault)
+      .set({ totalBalance: newBalance.toFixed(2), updatedAt: new Date() })
+      .where(eq(jackpotVault.id, vault.id))
+      .returning();
+    return updated;
+  }
+
+  async getJackpotVaultBalance(tierName: string): Promise<number> {
+    const vault = await this.getOrCreateJackpotVault(tierName);
+    return parseFloat(vault.totalBalance);
+  }
+
+  async getAllJackpotVaults(): Promise<JackpotVault[]> {
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return db
+      .select()
+      .from(jackpotVault)
+      .where(eq(jackpotVault.monthKey, monthKey));
+  }
+
+  async createUnclaimedFund(data: {
+    allocationId: string;
+    tierName: string;
+    game: string;
+    amount: string;
+    destination: string;
+  }): Promise<UnclaimedFund> {
+    const [fund] = await db.insert(unclaimedFunds).values(data).returning();
+    return fund;
   }
 }
 

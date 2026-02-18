@@ -6,7 +6,7 @@ import { storage } from "./storage";
 import { sendOtpEmail } from "./email";
 import { log } from "./index";
 import { processSubscriptionPayment } from "./middleware/transactionSplit";
-import { getActivePools, getAllTierPools, expireStaleAllocations } from "./middleware/poolLogic";
+import { getActivePools, getAllTierPools, expireStaleAllocations, processDailyDrip } from "./middleware/poolLogic";
 
 const WHEEL_SLICES = [
   { label: "0.10 USDT", value: 0.10, probability: 0.35 },
@@ -317,8 +317,24 @@ export async function registerRoutes(
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(404).json({ message: "User not found" });
 
-      if (user.spinsRemaining <= 0) {
-        return res.status(400).json({ message: "No spins remaining. Come back tomorrow!" });
+      const isPaidTier = user.tier !== "FREE" && user.subscriptionExpiry && new Date(user.subscriptionExpiry) > new Date();
+      let canSpin = false;
+
+      if (isPaidTier) {
+        const ticketsExpired = user.spinTicketsExpiry && new Date(user.spinTicketsExpiry) <= new Date();
+        if (ticketsExpired || user.spinTickets <= 0) {
+          return res.status(400).json({ message: "No spin tickets remaining. Renew your subscription!" });
+        }
+        canSpin = true;
+      } else {
+        if (user.spinsRemaining <= 0) {
+          return res.status(400).json({ message: "No spins remaining. Come back tomorrow!" });
+        }
+        canSpin = true;
+      }
+
+      if (!canSpin) {
+        return res.status(400).json({ message: "No spins available" });
       }
 
       const result = pickWheelSlice();
@@ -329,16 +345,25 @@ export async function registerRoutes(
         sliceLabel: result.label,
       });
 
-      await storage.updateUser(user.id, {
-        spinsRemaining: user.spinsRemaining - 1,
+      const updates: any = {
         totalSpins: user.totalSpins + 1,
         totalWheelWinnings: user.totalWheelWinnings + result.value,
-      });
+      };
+
+      if (isPaidTier) {
+        updates.spinTickets = user.spinTickets - 1;
+      } else {
+        updates.spinsRemaining = user.spinsRemaining - 1;
+      }
+
+      await storage.updateUser(user.id, updates);
 
       res.json({
         reward: result.value,
         sliceLabel: result.label,
         sliceIndex: result.sliceIndex,
+        spinTicketsRemaining: isPaidTier ? user.spinTickets - 1 : undefined,
+        spinsRemaining: !isPaidTier ? user.spinsRemaining - 1 : undefined,
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to spin wheel" });
@@ -448,6 +473,9 @@ export async function registerRoutes(
   setInterval(expireStaleAllocations, 60 * 60 * 1000);
   setTimeout(expireStaleAllocations, 30000);
 
+  setInterval(processDailyDrip, 60 * 60 * 1000);
+  setTimeout(processDailyDrip, 15000);
+
   app.get("/api/tiers", async (_req: Request, res: Response) => {
     try {
       const allTiers = await storage.getAllTiers();
@@ -521,6 +549,15 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/jackpot", async (_req: Request, res: Response) => {
+    try {
+      const vaults = await storage.getAllJackpotVaults();
+      res.json(vaults);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get jackpot data" });
+    }
+  });
+
   app.get("/api/my-subscription", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await storage.getUser(req.session.userId!);
@@ -528,11 +565,15 @@ export async function registerRoutes(
 
       const isActive = user.subscriptionExpiry && new Date(user.subscriptionExpiry) > new Date();
 
+      const ticketsExpired = user.spinTicketsExpiry && new Date(user.spinTicketsExpiry) <= new Date();
+
       res.json({
         tier: user.tier,
         isActive: !!isActive,
         subscriptionExpiry: user.subscriptionExpiry,
         isFounder: user.isFounder,
+        spinTickets: ticketsExpired ? 0 : user.spinTickets,
+        spinTicketsExpiry: user.spinTicketsExpiry,
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get subscription info" });

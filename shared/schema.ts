@@ -20,6 +20,8 @@ export const users = pgTable("users", {
   maxEnergy: integer("max_energy").notNull().default(1000),
   lastEnergyRefill: timestamp("last_energy_refill").notNull().default(sql`now()`),
   spinsRemaining: integer("spins_remaining").notNull().default(1),
+  spinTickets: integer("spin_tickets").notNull().default(0),
+  spinTicketsExpiry: timestamp("spin_tickets_expiry"),
   totalSpins: integer("total_spins").notNull().default(0),
   correctPredictions: integer("correct_predictions").notNull().default(0),
   totalPredictions: integer("total_predictions").notNull().default(0),
@@ -98,10 +100,35 @@ export const poolAllocations = pgTable("pool_allocations", {
   transactionId: varchar("transaction_id").notNull().references(() => transactions.id),
   tierName: text("tier_name").notNull(),
   game: text("game").notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  dailyAmount: decimal("daily_amount", { precision: 10, scale: 4 }).notNull().default("0"),
+  totalDays: integer("total_days").notNull().default(30),
+  daysReleased: integer("days_released").notNull().default(0),
+  amountReleased: decimal("amount_released", { precision: 10, scale: 2 }).notNull().default("0"),
+  dripType: text("drip_type").notNull().default("daily"),
+  lastDripDate: timestamp("last_drip_date"),
   depositDate: timestamp("deposit_date").notNull().default(sql`now()`),
   expiryDate: timestamp("expiry_date").notNull(),
   active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const jackpotVault = pgTable("jackpot_vault", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tierName: text("tier_name").notNull(),
+  totalBalance: decimal("total_balance", { precision: 10, scale: 2 }).notNull().default("0"),
+  monthKey: text("month_key").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const unclaimedFunds = pgTable("unclaimed_funds", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  allocationId: varchar("allocation_id").notNull().references(() => poolAllocations.id),
+  tierName: text("tier_name").notNull(),
+  game: text("game").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  destination: text("destination").notNull().default("admin"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
@@ -138,3 +165,5 @@ export type Deposit = typeof deposits.$inferSelect;
 export type Tier = typeof tiers.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type PoolAllocation = typeof poolAllocations.$inferSelect;
+export type JackpotVault = typeof jackpotVault.$inferSelect;
+export type UnclaimedFund = typeof unclaimedFunds.$inferSelect;
