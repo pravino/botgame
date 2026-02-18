@@ -9,6 +9,8 @@ export const tiers = pgTable("tiers", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull().default("0"),
   dailyUnit: decimal("daily_unit", { precision: 10, scale: 2 }).notNull().default("0"),
   tapMultiplier: integer("tap_multiplier").notNull().default(1),
+  energyRefillRateMs: integer("energy_refill_rate_ms").notNull().default(2000),
+  freeRefillsPerDay: integer("free_refills_per_day").notNull().default(0),
 });
 
 export const users = pgTable("users", {
@@ -41,6 +43,7 @@ export const users = pgTable("users", {
   challengePausedUntil: timestamp("challenge_paused_until"),
   coinsSinceLastChallenge: integer("coins_since_last_challenge").notNull().default(0),
   lastFreeRefill: timestamp("last_free_refill"),
+  dailyRefillsUsed: integer("daily_refills_used").notNull().default(0),
 });
 
 export const otpCodes = pgTable("otp_codes", {

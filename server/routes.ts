@@ -94,20 +94,52 @@ export async function registerRoutes(
     })
   );
 
-  const ENERGY_REFILL_RATE_MS = 2000;
+  let tierConfigCache: Record<string, { energyRefillRateMs: number; freeRefillsPerDay: number }> = {};
+  let tierConfigLoadedAt = 0;
+  const TIER_CACHE_TTL_MS = 60 * 1000;
+
+  async function loadTierConfig(): Promise<void> {
+    const allTiers = await storage.getAllTiers();
+    const cache: typeof tierConfigCache = {};
+    for (const t of allTiers) {
+      cache[t.name] = {
+        energyRefillRateMs: t.energyRefillRateMs ?? 2000,
+        freeRefillsPerDay: t.freeRefillsPerDay ?? 0,
+      };
+    }
+    tierConfigCache = cache;
+    tierConfigLoadedAt = Date.now();
+  }
+
+  async function getTierConfig(tierName: string): Promise<{ energyRefillRateMs: number; freeRefillsPerDay: number }> {
+    if (Date.now() - tierConfigLoadedAt > TIER_CACHE_TTL_MS || Object.keys(tierConfigCache).length === 0) {
+      await loadTierConfig();
+    }
+    return tierConfigCache[tierName] || { energyRefillRateMs: 2000, freeRefillsPerDay: 0 };
+  }
+
+  function getRefillRateForTierSync(tierName: string): number {
+    return tierConfigCache[tierName]?.energyRefillRateMs || 2000;
+  }
+
+  function getFreeRefillsForTierSync(tierName: string): number {
+    return tierConfigCache[tierName]?.freeRefillsPerDay || 0;
+  }
 
   function calculatePassiveEnergyRegen(user: any): { newEnergy: number; advancedRefillTime: Date } {
+    const refillRateMs = getRefillRateForTierSync(user.tier);
     const now = Date.now();
     const lastRefill = new Date(user.lastEnergyRefill).getTime();
     const elapsedMs = now - lastRefill;
-    const regenAmount = Math.floor(elapsedMs / ENERGY_REFILL_RATE_MS);
+    const regenAmount = Math.floor(elapsedMs / refillRateMs);
     const newEnergy = Math.min(user.maxEnergy, user.energy + regenAmount);
-    const consumedMs = regenAmount * ENERGY_REFILL_RATE_MS;
+    const consumedMs = regenAmount * refillRateMs;
     const advancedRefillTime = new Date(lastRefill + consumedMs);
     return { newEnergy, advancedRefillTime };
   }
 
   async function applyPassiveRegen(userId: string, user: any): Promise<any> {
+    await getTierConfig(user.tier);
     const { newEnergy, advancedRefillTime } = calculatePassiveEnergyRegen(user);
     if (newEnergy > user.energy) {
       const updated = await storage.updateUser(userId, {
@@ -119,6 +151,12 @@ export async function registerRoutes(
     return user;
   }
 
+  function isDifferentDay(date1: Date, date2: Date): boolean {
+    return date1.getUTCFullYear() !== date2.getUTCFullYear() ||
+      date1.getUTCMonth() !== date2.getUTCMonth() ||
+      date1.getUTCDate() !== date2.getUTCDate();
+  }
+
   async function refillUserResources(user: any) {
     const now = new Date();
     const updates: any = {};
@@ -127,6 +165,11 @@ export async function registerRoutes(
     if (newEnergy > user.energy) {
       updates.energy = newEnergy;
       updates.lastEnergyRefill = advancedRefillTime;
+    }
+
+    const lastFreeRefill = user.lastFreeRefill ? new Date(user.lastFreeRefill) : null;
+    if (user.dailyRefillsUsed > 0 && (!lastFreeRefill || isDifferentDay(lastFreeRefill, now))) {
+      updates.dailyRefillsUsed = 0;
     }
 
     const lastSpinRefill = new Date(user.lastEnergyRefill);
@@ -232,8 +275,15 @@ export async function registerRoutes(
       }
 
       user = await refillUserResources(user);
+      const tc = await getTierConfig(user.tier);
 
-      res.json(user);
+      res.json({
+        ...user,
+        tierConfig: {
+          energyRefillRateMs: tc.energyRefillRateMs,
+          freeRefillsPerDay: tc.freeRefillsPerDay,
+        },
+      });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get user" });
     }
@@ -313,18 +363,28 @@ export async function registerRoutes(
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(404).json({ message: "User not found" });
 
+      const tierConfig = await getTierConfig(user.tier);
+      const maxRefills = tierConfig.freeRefillsPerDay;
+      if (maxRefills <= 0) {
+        return res.status(403).json({
+          message: "Free refills are not available for your tier. Upgrade to Bronze or higher!",
+        });
+      }
+
       const now = new Date();
       const lastFreeRefill = user.lastFreeRefill ? new Date(user.lastFreeRefill) : null;
+      let refillsUsed = user.dailyRefillsUsed || 0;
 
-      if (lastFreeRefill) {
-        const hoursSince = (now.getTime() - lastFreeRefill.getTime()) / (1000 * 60 * 60);
-        if (hoursSince < 24) {
-          const nextAvailable = new Date(lastFreeRefill.getTime() + 24 * 60 * 60 * 1000);
-          return res.status(400).json({
-            message: "Free refill already used today",
-            nextAvailable: nextAvailable.toISOString(),
-          });
-        }
+      if (!lastFreeRefill || isDifferentDay(lastFreeRefill, now)) {
+        refillsUsed = 0;
+      }
+
+      if (refillsUsed >= maxRefills) {
+        return res.status(400).json({
+          message: `You've used all ${maxRefills} free refill${maxRefills > 1 ? "s" : ""} for today`,
+          refillsUsed,
+          maxRefills,
+        });
       }
 
       const balanceBefore = user.energy;
@@ -332,6 +392,7 @@ export async function registerRoutes(
         energy: user.maxEnergy,
         lastEnergyRefill: now,
         lastFreeRefill: now,
+        dailyRefillsUsed: refillsUsed + 1,
       });
 
       await recordLedgerEntry({
@@ -342,7 +403,7 @@ export async function registerRoutes(
         currency: "COINS",
         balanceBefore,
         balanceAfter: user.maxEnergy,
-        note: `Free daily energy refill: ${balanceBefore} → ${user.maxEnergy}`,
+        note: `Free energy refill ${refillsUsed + 1}/${maxRefills}: ${balanceBefore} → ${user.maxEnergy} (${user.tier})`,
       });
 
       res.json(updated);
@@ -1233,10 +1294,10 @@ export async function registerRoutes(
       if (existingTiers.length > 0) return;
 
       const tierData = [
-        { name: "FREE", price: "0.00", dailyUnit: "0.00", tapMultiplier: 1 },
-        { name: "BRONZE", price: "5.00", dailyUnit: "0.10", tapMultiplier: 1 },
-        { name: "SILVER", price: "15.00", dailyUnit: "0.30", tapMultiplier: 3 },
-        { name: "GOLD", price: "50.00", dailyUnit: "1.00", tapMultiplier: 10 },
+        { name: "FREE", price: "0.00", dailyUnit: "0.00", tapMultiplier: 1, energyRefillRateMs: 2000, freeRefillsPerDay: 0 },
+        { name: "BRONZE", price: "5.00", dailyUnit: "0.10", tapMultiplier: 1, energyRefillRateMs: 2000, freeRefillsPerDay: 1 },
+        { name: "SILVER", price: "15.00", dailyUnit: "0.30", tapMultiplier: 3, energyRefillRateMs: 1000, freeRefillsPerDay: 2 },
+        { name: "GOLD", price: "50.00", dailyUnit: "1.00", tapMultiplier: 10, energyRefillRateMs: 1000, freeRefillsPerDay: 5 },
       ];
 
       for (const tier of tierData) {

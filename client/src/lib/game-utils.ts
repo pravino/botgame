@@ -12,27 +12,36 @@ export function getEnergyPercentage(energy: number, maxEnergy: number): number {
   return Math.max(0, Math.min(100, (energy / maxEnergy) * 100));
 }
 
-export const ENERGY_REFILL_RATE_MS = 2000;
+export interface TierConfig {
+  energyRefillRateMs: number;
+  freeRefillsPerDay: number;
+}
+
+const DEFAULT_TIER_CONFIG: TierConfig = { energyRefillRateMs: 2000, freeRefillsPerDay: 0 };
 
 export function calculateCurrentEnergy(
   storedEnergy: number,
   maxEnergy: number,
-  lastEnergyRefill: string | Date
+  lastEnergyRefill: string | Date,
+  tierConfig: TierConfig = DEFAULT_TIER_CONFIG
 ): number {
+  const refillRateMs = tierConfig.energyRefillRateMs;
   const lastRefill = new Date(lastEnergyRefill).getTime();
   const elapsedMs = Date.now() - lastRefill;
-  const regenAmount = Math.floor(elapsedMs / ENERGY_REFILL_RATE_MS);
+  const regenAmount = Math.floor(elapsedMs / refillRateMs);
   return Math.min(maxEnergy, storedEnergy + regenAmount);
 }
 
 export function getTimeUntilFullEnergy(
   currentEnergy: number,
-  maxEnergy: number
+  maxEnergy: number,
+  tierConfig: TierConfig = DEFAULT_TIER_CONFIG
 ): string {
   if (currentEnergy >= maxEnergy) return "Full!";
 
+  const refillRateMs = tierConfig.energyRefillRateMs;
   const remaining = maxEnergy - currentEnergy;
-  const totalSeconds = remaining * (ENERGY_REFILL_RATE_MS / 1000);
+  const totalSeconds = remaining * (refillRateMs / 1000);
 
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = Math.floor(totalSeconds % 60);
@@ -43,23 +52,29 @@ export function getTimeUntilFullEnergy(
   return `${seconds}s`;
 }
 
-export function canUseFreeRefill(lastFreeRefill: string | Date | null): boolean {
-  if (!lastFreeRefill) return true;
-  const last = new Date(lastFreeRefill).getTime();
-  return Date.now() - last >= 24 * 60 * 60 * 1000;
-}
+export function getRemainingRefills(
+  dailyRefillsUsed: number,
+  lastFreeRefill: string | Date | null,
+  tierConfig: TierConfig = DEFAULT_TIER_CONFIG
+): number {
+  const maxRefills = tierConfig.freeRefillsPerDay;
+  if (maxRefills <= 0) return 0;
 
-export function getTimeUntilFreeRefill(lastFreeRefill: string | Date | null): string {
-  if (!lastFreeRefill) return "Available now!";
-  const last = new Date(lastFreeRefill).getTime();
-  const nextAvailable = last + 24 * 60 * 60 * 1000;
-  const diff = nextAvailable - Date.now();
+  let used = dailyRefillsUsed || 0;
 
-  if (diff <= 0) return "Available now!";
+  if (lastFreeRefill) {
+    const last = new Date(lastFreeRefill);
+    const now = new Date();
+    if (last.getUTCFullYear() !== now.getUTCFullYear() ||
+        last.getUTCMonth() !== now.getUTCMonth() ||
+        last.getUTCDate() !== now.getUTCDate()) {
+      used = 0;
+    }
+  } else {
+    used = 0;
+  }
 
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  return `${hours}h ${minutes}m`;
+  return Math.max(0, maxRefills - used);
 }
 
 export const WHEEL_SLICES = [
