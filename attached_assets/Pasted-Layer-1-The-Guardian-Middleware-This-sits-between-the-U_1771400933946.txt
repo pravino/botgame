@@ -1,0 +1,35 @@
+Layer 1: The "Guardian" Middleware
+This sits between the User’s Tap/Prediction and the Database. It performs three checks before any $0.01 is added to a user's balance.
+1. The Rate-Limiter (Anti-Bot)
+The Logic: If a user sends more than 15 taps per second, the middleware flags them.
+The Action: It triggers a "Cooling Down" state. The user can still tap, but the database stops counting them for 60 seconds.
+Why? This stops simple auto-clickers from stealing the "Tap Pot" from real humans.
+2. The "Proof of Humanity" Check
+The Logic: Every 5,000 coins earned, the middleware triggers a simple in-app popup.
+The Action: "Tap the Blue Circle, not the Red one."
+Why? Scripts can tap one spot easily, but they struggle with moving targets. If they fail, their Bronze Multiplier is paused for 1 hour.
+3. The "Wallet-Unique" Filter (Multi-Account Protection)
+The Logic: One TON Wallet Address = One Bronze Subscription.
+The Action: The middleware checks the txHash and the senderAddress from the TON Pay SDK.
+Why? You don't want one person using 10 Telegram accounts with the same 5 USDT wallet to "farm" the Lucky Wheel. Each account must have its own unique funding source.
+Layer 2: The "Withdrawal Settlement" Logic
+Since we are doing a Daily Drip, users will have "Virtual USDT" in the database. They need a way to turn it into "Real USDT."
+The "Minimum Threshold" (5 USDT):
+To save on Gas Fees, users can only withdraw when their balance hits 5 USDT (the cost of one month's membership).
+Admin Win: This keeps the money in your Game Treasury longer, allowing you to earn Yield Farming interest on it.
+The "Audit Delay" (24 Hours):
+When a user clicks "Withdraw," the status becomes pending.
+Your middleware runs a final scan of their tap history. If it looks "too perfect" (bot-like), it flags the transaction for your manual approval.
+Layer 3: The "Admin Pulse" Dashboard API
+You need a secret endpoint (GET /api/admin/pulse) that tells you the health of the system in real-time:
+Total Revenue Collected: (e.g., 5,000 USDT).
+Profit Swept: (e.g., 2,000 USDT).
+Active Liability: How much "Virtual USDT" is currently sitting in users' accounts waiting to be withdrawn.
+Treasury Buffer: The actual USDT in the TON Game Treasury Wallet.
+Next Technical Step: The Withdrawal Request API
+We need to code the function that moves money from the Game Treasury to the User Wallet while deducting your 0.50 USDT withdrawal fee (extra profit!).
+Should we write the "Withdrawal Request" code now, or focus on the "Daily Payout" Cron Job that splits the 50/30/20 pots at midnight?
+Pro-Tip: Set the Withdrawal Fee to 0.50 USDT. If 1,000 people withdraw once a month, that’s an extra 500 USDT/month for you on top of your 40% profit! Node.js Rate Limiting TON SDK Transaction Verification PostgreSQL Security Best Practices
+
+
+
