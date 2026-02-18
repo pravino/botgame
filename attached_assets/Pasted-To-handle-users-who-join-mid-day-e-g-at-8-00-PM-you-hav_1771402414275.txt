@@ -1,0 +1,56 @@
+To handle users who join mid-day (e.g., at 8:00 PM), you have to choose between being "Generous" or "Math-Strict."
+For a 1,000-person group with a 5 USDT fee, the Math-Strict (Pro-rated) approach is the only way to prevent people from "gaming" the system by joining 5 minutes before midnight to steal a share of the daily pot.
+1. The "Pro-Rated" Logic (The Fair Way)
+In Layer 1, the 3 USDT prize pool is divided into 30 days ($0.10/day). If a user joins halfway through the day, they should only contribute (and earn from) half of that daily unit.
+The Rule: A user's "Daily Eligibility" starts the second they pay, but their first day's pot is calculated by the hours remaining.
+The Math:
+Full Day: $0.10
+Joined at 12:00 PM (12 hours left): $0.05 added to the pool.
+Why? This protects your existing members. They won't like it if a new guy joins at 11:59 PM and takes an equal share of the "Tap Pot" they worked all day for.
+2. The Middleware "Pot Calculator" (2026 Code)
+Your middleware needs to calculate the "Total Active Minutes" for the whole group to define the daily pot.
+typescript
+// server/services/poolService.ts
+
+export const calculateLivePot = async (db) => {
+  const now = new Date();
+  const startOfDay = new Date(now.setHours(0,0,0,0));
+  
+  // 1. Get all active Bronze users
+  const users = await db.getActiveBronzeUsers();
+  
+  let totalDailyPot = 0;
+
+  users.forEach(user => {
+    const joinDate = new Date(user.subscriptionStart);
+    
+    // If they joined today, pro-rate their $0.10
+    if (joinDate > startOfDay) {
+      const minutesActive = (24 * 60) - (joinDate.getHours() * 60 + joinDate.getMinutes());
+      const proRatedUnit = (minutesActive / 1440) * 0.10;
+      totalDailyPot += proRatedUnit;
+    } else {
+      // Regular user gets the full $0.10
+      totalDailyPot += 0.10;
+    }
+  });
+
+  return {
+    tapPot: totalDailyPot * 0.50,
+    predictPot: totalDailyPot * 0.30,
+    wheelVault: totalDailyPot * 0.20
+  };
+};
+Use code with caution.
+
+3. The "Midnight Sniping" Fail-Safe
+To stop bots from joining at 11:50 PM just to click 1,000 times:
+The Rule: A user must be active for at least 4 hours to qualify for that day's BTC Prediction Pot.
+The Benefit: This forces them to wait until the next full day to start earning properly, which builds Retention.
+4. How to show this to the User (UI/UX)
+Don't show them the complex math. Show them a "System Message" when they join:
+"Welcome, Founder! Your Bronze status is active. Since you joined mid-day, your rewards for the next 12 hours are pro-rated. Full 24-hour pools unlock at Midnight UTC! 🚀"
+5. Why this protects your $15,000 Profit
+No "Leakage": You aren't paying out 100% of a daily unit for a user who was only there for 10% of the day.
+Precision: Your PostgreSQL Ledger stays perfectly balanced with the TON Game Treasury.
+Scalability: When you have 10,000 users, "Mid-day Joiners" happen every minute. Automated pro-rating is the only way to stay sane.
