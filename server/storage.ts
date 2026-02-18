@@ -228,6 +228,10 @@ export class DatabaseStorage {
     return tier;
   }
 
+  async updateTier(name: string, data: Partial<{ energyRefillRateMs: number; refillCooldownMs: number | null }>): Promise<void> {
+    await db.update(tiers).set(data).where(eq(tiers.name, name));
+  }
+
   async createTransaction(data: {
     userId: string;
     txHash: string;

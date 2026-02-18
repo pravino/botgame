@@ -1286,21 +1286,41 @@ export async function registerRoutes(
 
   async function seedTiers() {
     try {
-      const existingTiers = await storage.getAllTiers();
-      if (existingTiers.length > 0) return;
-
       const tierData = [
-        { name: "FREE", price: "0.00", dailyUnit: "0.00", tapMultiplier: 1, energyRefillRateMs: 2000, freeRefillsPerDay: 0, refillCooldownMs: null },
-        { name: "BRONZE", price: "5.00", dailyUnit: "0.10", tapMultiplier: 1, energyRefillRateMs: 2000, freeRefillsPerDay: 1, refillCooldownMs: 86400000 },
-        { name: "SILVER", price: "15.00", dailyUnit: "0.30", tapMultiplier: 3, energyRefillRateMs: 1000, freeRefillsPerDay: 2, refillCooldownMs: 43200000 },
-        { name: "GOLD", price: "50.00", dailyUnit: "1.00", tapMultiplier: 10, energyRefillRateMs: 1000, freeRefillsPerDay: 5, refillCooldownMs: 17280000 },
+        { name: "FREE", price: "0.00", dailyUnit: "0.00", tapMultiplier: 1, energyRefillRateMs: 2000, freeRefillsPerDay: 0, refillCooldownMs: null as number | null },
+        { name: "BRONZE", price: "5.00", dailyUnit: "0.10", tapMultiplier: 1, energyRefillRateMs: 2000, freeRefillsPerDay: 1, refillCooldownMs: 86400000 as number | null },
+        { name: "SILVER", price: "15.00", dailyUnit: "0.30", tapMultiplier: 3, energyRefillRateMs: 1000, freeRefillsPerDay: 2, refillCooldownMs: 43200000 as number | null },
+        { name: "GOLD", price: "50.00", dailyUnit: "1.00", tapMultiplier: 10, energyRefillRateMs: 1000, freeRefillsPerDay: 5, refillCooldownMs: 17280000 as number | null },
       ];
 
-      for (const tier of tierData) {
-        await storage.createTier(tier);
-      }
+      const existingTiers = await storage.getAllTiers();
 
-      log("Tier data seeded successfully (Free/Bronze/Silver/Gold)");
+      if (existingTiers.length === 0) {
+        for (const tier of tierData) {
+          await storage.createTier(tier);
+        }
+        log("Tier data seeded successfully (Free/Bronze/Silver/Gold)");
+      } else {
+        let updated = 0;
+        for (const tier of tierData) {
+          const existing = existingTiers.find((t) => t.name === tier.name);
+          if (existing) {
+            const needsUpdate =
+              existing.energyRefillRateMs !== tier.energyRefillRateMs ||
+              existing.refillCooldownMs !== tier.refillCooldownMs;
+            if (needsUpdate) {
+              await storage.updateTier(tier.name, {
+                energyRefillRateMs: tier.energyRefillRateMs,
+                refillCooldownMs: tier.refillCooldownMs,
+              });
+              updated++;
+            }
+          }
+        }
+        if (updated > 0) {
+          log(`Tier config updated for ${updated} tier(s)`);
+        }
+      }
     } catch (error: any) {
       log(`Tier seed error: ${error.message}`);
     }
