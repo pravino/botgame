@@ -31,6 +31,10 @@ export const users = pgTable("users", {
   subscriptionExpiry: timestamp("subscription_expiry"),
   isFounder: boolean("is_founder").notNull().default(false),
   tonWalletAddress: text("ton_wallet_address"),
+  telegramId: text("telegram_id").unique(),
+  telegramUsername: text("telegram_username"),
+  telegramFirstName: text("telegram_first_name"),
+  telegramPhotoUrl: text("telegram_photo_url"),
 });
 
 export const otpCodes = pgTable("otp_codes", {
