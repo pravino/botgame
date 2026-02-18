@@ -890,10 +890,10 @@ export async function registerRoutes(
   setInterval(resolvePredictions, 5 * 60 * 1000);
   setTimeout(resolvePredictions, 10000);
 
-  setInterval(expireStaleAllocations, 60 * 60 * 1000);
+  setInterval(expireStaleAllocations, 24 * 60 * 60 * 1000);
   setTimeout(expireStaleAllocations, 30000);
 
-  setInterval(processDailyDrip, 60 * 60 * 1000);
+  setInterval(processDailyDrip, 24 * 60 * 60 * 1000);
   setTimeout(processDailyDrip, 15000);
 
   app.get("/api/tiers", async (_req: Request, res: Response) => {
