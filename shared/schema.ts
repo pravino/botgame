@@ -136,6 +136,23 @@ export const unclaimedFunds = pgTable("unclaimed_funds", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const withdrawals = pgTable("withdrawals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  grossAmount: decimal("gross_amount", { precision: 12, scale: 4 }).notNull(),
+  feeAmount: decimal("fee_amount", { precision: 12, scale: 4 }).notNull(),
+  netAmount: decimal("net_amount", { precision: 12, scale: 4 }).notNull(),
+  feePercent: decimal("fee_percent", { precision: 5, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("USDT"),
+  toWallet: text("to_wallet").notNull(),
+  network: text("network").notNull().default("TON"),
+  txHash: text("tx_hash"),
+  status: text("status").notNull().default("pending"),
+  tierAtTime: text("tier_at_time"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  processedAt: timestamp("processed_at"),
+});
+
 export const userLedger = pgTable("user_ledger", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
@@ -190,3 +207,4 @@ export type PoolAllocation = typeof poolAllocations.$inferSelect;
 export type JackpotVault = typeof jackpotVault.$inferSelect;
 export type UnclaimedFund = typeof unclaimedFunds.$inferSelect;
 export type UserLedgerEntry = typeof userLedger.$inferSelect;
+export type Withdrawal = typeof withdrawals.$inferSelect;

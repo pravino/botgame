@@ -359,9 +359,13 @@ export async function registerRoutes(
         sliceLabel: result.label,
       });
 
+      const walletBefore = user.walletBalance;
+      const walletAfter = parseFloat((walletBefore + result.value).toFixed(4));
+
       const updates: any = {
         totalSpins: user.totalSpins + 1,
         totalWheelWinnings: user.totalWheelWinnings + result.value,
+        walletBalance: walletAfter,
       };
 
       if (isPaidTier) {
@@ -378,11 +382,11 @@ export async function registerRoutes(
         direction: "credit",
         amount: result.value,
         currency: "USDT",
-        balanceBefore: user.totalWheelWinnings,
-        balanceAfter: user.totalWheelWinnings + result.value,
+        balanceBefore: walletBefore,
+        balanceAfter: walletAfter,
         game: "wheelVault",
         refId: spin?.id,
-        note: `Wheel spin: ${result.label}`,
+        note: `Wheel spin win: ${result.label} — $${result.value} credited to wallet`,
       });
 
       if (isPaidTier) {
@@ -449,6 +453,132 @@ export async function registerRoutes(
     }
   });
 
+  const WITHDRAWAL_FEES: Record<string, number> = {
+    FREE: 10.00,
+    BRONZE: 8.00,
+    SILVER: 5.00,
+    GOLD: 3.00,
+  };
+  const MIN_WITHDRAWAL = 1.00;
+
+  app.post("/api/withdraw", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { amount, toWallet, network } = req.body;
+
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const withdrawAmount = parseFloat(amount);
+      if (isNaN(withdrawAmount) || withdrawAmount < MIN_WITHDRAWAL) {
+        return res.status(400).json({ message: `Minimum withdrawal is $${MIN_WITHDRAWAL} USDT` });
+      }
+
+      if (!toWallet || typeof toWallet !== "string" || toWallet.trim().length < 10) {
+        return res.status(400).json({ message: "A valid wallet address is required" });
+      }
+
+      if (withdrawAmount > user.walletBalance) {
+        return res.status(400).json({ message: "Insufficient wallet balance" });
+      }
+
+      const feePercent = WITHDRAWAL_FEES[user.tier] || 10.00;
+      const feeAmount = parseFloat((withdrawAmount * (feePercent / 100)).toFixed(4));
+      const netAmount = parseFloat((withdrawAmount - feeAmount).toFixed(4));
+
+      const balanceBefore = user.walletBalance;
+      const balanceAfter = parseFloat((balanceBefore - withdrawAmount).toFixed(4));
+
+      const withdrawal = await storage.createWithdrawal({
+        userId: user.id,
+        grossAmount: withdrawAmount.toFixed(4),
+        feeAmount: feeAmount.toFixed(4),
+        netAmount: netAmount.toFixed(4),
+        feePercent: feePercent.toFixed(2),
+        toWallet: toWallet.trim(),
+        network: network || "TON",
+        tierAtTime: user.tier,
+      });
+
+      await storage.updateUser(user.id, {
+        walletBalance: balanceAfter,
+      });
+
+      await recordLedgerEntry({
+        userId: user.id,
+        entryType: "withdrawal_request",
+        direction: "debit",
+        amount: withdrawAmount,
+        currency: "USDT",
+        balanceBefore,
+        balanceAfter,
+        refId: withdrawal.id,
+        note: `Withdrawal: $${withdrawAmount} from wallet (fee: ${feePercent}% = $${feeAmount}, net payout: $${netAmount}) to ${toWallet.trim()} (${network || "TON"})`,
+      });
+
+      await recordLedgerEntry({
+        userId: user.id,
+        entryType: "withdrawal_fee",
+        direction: "debit",
+        amount: feeAmount,
+        currency: "USDT",
+        balanceBefore: balanceAfter,
+        balanceAfter: balanceAfter,
+        refId: withdrawal.id,
+        note: `Withdrawal fee: ${feePercent}% ($${feeAmount}) deducted from gross $${withdrawAmount} — ${user.tier} tier rate`,
+      });
+
+      await recordLedgerEntry({
+        userId: user.id,
+        entryType: "withdrawal_net",
+        direction: "debit",
+        amount: netAmount,
+        currency: "USDT",
+        balanceBefore: balanceAfter,
+        balanceAfter: balanceAfter,
+        refId: withdrawal.id,
+        note: `Net payout: $${netAmount} sent to ${toWallet.trim()} (${network || "TON"})`,
+      });
+
+      res.json({
+        withdrawalId: withdrawal.id,
+        grossAmount: withdrawAmount,
+        feePercent,
+        feeAmount,
+        netAmount,
+        status: "pending",
+        message: `Withdrawal of $${netAmount} USDT (after ${feePercent}% fee) submitted. Processing shortly.`,
+      });
+    } catch (error: any) {
+      log(`Withdrawal error: ${error.message}`);
+      res.status(500).json({ message: "Failed to process withdrawal" });
+    }
+  });
+
+  app.get("/api/withdrawals", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const history = await storage.getUserWithdrawals(req.session.userId!);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get withdrawal history" });
+    }
+  });
+
+  app.get("/api/withdrawal-fees", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      res.json({
+        currentTier: user.tier,
+        feePercent: WITHDRAWAL_FEES[user.tier] || 10.00,
+        minWithdrawal: MIN_WITHDRAWAL,
+        allTierFees: WITHDRAWAL_FEES,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get fee info" });
+    }
+  });
+
   app.get("/api/leaderboard/:type", async (req: Request, res: Response) => {
     try {
       const { type } = req.params;
@@ -494,24 +624,56 @@ export async function registerRoutes(
 
           const user = await storage.getUser(pred.userId);
           if (user) {
+            const PREDICT_REWARD = 0.10;
+
             if (correct) {
+              const walletBefore = user.walletBalance;
+              const walletAfter = parseFloat((walletBefore + PREDICT_REWARD).toFixed(4));
+
               await storage.updateUser(user.id, {
                 correctPredictions: user.correctPredictions + 1,
+                walletBalance: walletAfter,
+              });
+
+              await recordLedgerEntry({
+                userId: user.id,
+                entryType: "predict_win",
+                direction: "credit",
+                amount: 1,
+                currency: "COINS",
+                balanceBefore: user.correctPredictions,
+                balanceAfter: user.correctPredictions + 1,
+                game: "predictPot",
+                refId: pred.id,
+                note: `Correct prediction: BTC ${pred.prediction} from $${pred.btcPriceAtPrediction} → $${currentPrice}`,
+              });
+
+              await recordLedgerEntry({
+                userId: user.id,
+                entryType: "predict_reward",
+                direction: "credit",
+                amount: PREDICT_REWARD,
+                currency: "USDT",
+                balanceBefore: walletBefore,
+                balanceAfter: walletAfter,
+                game: "predictPot",
+                refId: pred.id,
+                note: `Prediction reward: $${PREDICT_REWARD} USDT credited for correct BTC prediction`,
+              });
+            } else {
+              await recordLedgerEntry({
+                userId: user.id,
+                entryType: "predict_loss",
+                direction: "debit",
+                amount: 0,
+                currency: "COINS",
+                balanceBefore: user.correctPredictions,
+                balanceAfter: user.correctPredictions,
+                game: "predictPot",
+                refId: pred.id,
+                note: `Wrong prediction: BTC ${pred.prediction} from $${pred.btcPriceAtPrediction} → $${currentPrice}`,
               });
             }
-
-            await recordLedgerEntry({
-              userId: user.id,
-              entryType: correct ? "predict_win" : "predict_loss",
-              direction: correct ? "credit" : "debit",
-              amount: correct ? 1 : 0,
-              currency: "COINS",
-              balanceBefore: user.correctPredictions,
-              balanceAfter: correct ? user.correctPredictions + 1 : user.correctPredictions,
-              game: "predictPot",
-              refId: pred.id,
-              note: `Prediction ${correct ? "correct" : "wrong"}: BTC ${pred.prediction} from $${pred.btcPriceAtPrediction} → $${currentPrice}`,
-            });
           }
 
           log(`Resolved prediction ${pred.id}: ${correct ? "correct" : "wrong"}`);

@@ -11,6 +11,7 @@ import {
   type PoolAllocation,
   type JackpotVault,
   type UnclaimedFund,
+  type Withdrawal,
   users,
   tapSessions,
   predictions,
@@ -22,6 +23,7 @@ import {
   poolAllocations,
   jackpotVault,
   unclaimedFunds,
+  withdrawals,
 } from "@shared/schema";
 import { eq, desc, sql, and, gt, lte, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -370,6 +372,39 @@ export class DatabaseStorage {
   }): Promise<UnclaimedFund> {
     const [fund] = await db.insert(unclaimedFunds).values(data).returning();
     return fund;
+  }
+  async createWithdrawal(data: {
+    userId: string;
+    grossAmount: string;
+    feeAmount: string;
+    netAmount: string;
+    feePercent: string;
+    toWallet: string;
+    network?: string;
+    tierAtTime?: string;
+  }): Promise<Withdrawal> {
+    const [withdrawal] = await db.insert(withdrawals).values(data).returning();
+    return withdrawal;
+  }
+
+  async getWithdrawal(id: string): Promise<Withdrawal | undefined> {
+    const [w] = await db.select().from(withdrawals).where(eq(withdrawals.id, id));
+    return w;
+  }
+
+  async getUserWithdrawals(userId: string): Promise<Withdrawal[]> {
+    return db
+      .select()
+      .from(withdrawals)
+      .where(eq(withdrawals.userId, userId))
+      .orderBy(desc(withdrawals.createdAt));
+  }
+
+  async updateWithdrawalStatus(id: string, status: string, txHash?: string): Promise<Withdrawal | undefined> {
+    const updates: any = { status, processedAt: new Date() };
+    if (txHash) updates.txHash = txHash;
+    const [w] = await db.update(withdrawals).set(updates).where(eq(withdrawals.id, id)).returning();
+    return w;
   }
 }
 

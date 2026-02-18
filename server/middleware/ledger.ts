@@ -7,16 +7,26 @@ export type LedgerEntryType =
   | "tap_earn"
   | "predict_win"
   | "predict_loss"
+  | "predict_reward"
   | "wheel_win"
   | "subscription_payment"
   | "spin_ticket_grant"
   | "spin_ticket_expire"
   | "drip_release"
-  | "withdrawal"
+  | "withdrawal_request"
+  | "withdrawal_fee"
+  | "withdrawal_net"
+  | "withdrawal_completed"
+  | "withdrawal_rejected"
   | "deposit"
+  | "deposit_confirmed"
   | "admin_recapture"
   | "energy_refill"
-  | "bonus";
+  | "bonus"
+  | "referral_bonus"
+  | "tier_upgrade"
+  | "tier_downgrade"
+  | "refund";
 
 export type LedgerDirection = "credit" | "debit";
 export type LedgerCurrency = "COINS" | "USDT" | "TICKETS";
