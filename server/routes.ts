@@ -257,7 +257,7 @@ export async function registerRoutes(
         balanceAfter: user.totalCoins + coinsEarned,
         game: "tapPot",
         refId: session?.id,
-        note: `Earned ${coinsEarned} coins from ${actualTaps} taps`,
+        note: `${coinsEarned} game coins from ${actualTaps} taps (points for upgrades & leaderboard)`,
       });
 
       res.json(updated);
@@ -576,6 +576,55 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get fee info" });
+    }
+  });
+
+  app.post("/api/admin/distribute-leaderboard-rewards", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { leaderboardType, rewards } = req.body;
+
+      if (!leaderboardType || !["coins", "predictions", "wheel"].includes(leaderboardType)) {
+        return res.status(400).json({ message: "Invalid leaderboard type" });
+      }
+      if (!rewards || !Array.isArray(rewards) || rewards.length === 0) {
+        return res.status(400).json({ message: "Rewards array is required" });
+      }
+
+      const gameMap: Record<string, string> = { coins: "tapPot", predictions: "predictPot", wheel: "wheelVault" };
+      const results = [];
+
+      for (const reward of rewards) {
+        const { userId, amount } = reward;
+        if (!userId || !amount || parseFloat(amount) <= 0) continue;
+
+        const rewardAmount = parseFloat(amount);
+        const user = await storage.getUser(userId);
+        if (!user) continue;
+
+        const walletBefore = user.walletBalance;
+        const walletAfter = parseFloat((walletBefore + rewardAmount).toFixed(4));
+
+        await storage.updateUser(userId, { walletBalance: walletAfter });
+
+        await recordLedgerEntry({
+          userId,
+          entryType: "leaderboard_reward",
+          direction: "credit",
+          amount: rewardAmount,
+          currency: "USDT",
+          balanceBefore: walletBefore,
+          balanceAfter: walletAfter,
+          game: gameMap[leaderboardType],
+          note: `Leaderboard reward: $${rewardAmount} USDT for ${leaderboardType} ranking`,
+        });
+
+        results.push({ userId, username: user.username, amount: rewardAmount });
+      }
+
+      res.json({ distributed: results.length, rewards: results });
+    } catch (error: any) {
+      log(`Leaderboard reward error: ${error.message}`);
+      res.status(500).json({ message: "Failed to distribute rewards" });
     }
   });
 

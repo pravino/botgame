@@ -26,7 +26,8 @@ export type LedgerEntryType =
   | "referral_bonus"
   | "tier_upgrade"
   | "tier_downgrade"
-  | "refund";
+  | "refund"
+  | "leaderboard_reward";
 
 export type LedgerDirection = "credit" | "debit";
 export type LedgerCurrency = "COINS" | "USDT" | "TICKETS";
