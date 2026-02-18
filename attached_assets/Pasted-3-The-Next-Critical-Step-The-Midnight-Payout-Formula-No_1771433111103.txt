@@ -1,0 +1,47 @@
+3. The "Next Critical Step": The Midnight Payout Formula
+Now that the taps are saving correctly (90 is 90), we need the Distribution Logic. Tonight at 00:00 UTC, the system needs to calculate the 50% Tap Pot winners.
+The Middleware Logic (The "Fair Share" Script):
+Since we have 1,000 members and a daily tapPot (let's say 50 USDT), the middleware runs this:
+typescript
+// server/cron/payoutDistribution.ts
+
+export const distributeDailyTapRewards = async (db) => {
+  const { tapPot, userCount } = await calculateDailyPools(db);
+  const totalTapsInGroup = await db.getTotalTapsForToday(); // SUM(taps_today)
+
+  if (totalTapsInGroup === 0) return; // Nobody tapped? Money stays in treasury.
+
+  // 1. Calculate the value of ONE tap today
+  const usdtPerTap = tapPot / totalTapsInGroup;
+
+  // 2. Update everyone's virtual balance
+  // Logic: UserEarnings = (UserTaps * usdtPerTap)
+  await db.execute(sql`
+    UPDATE users 
+    SET virtual_usdt_balance = virtual_usdt_balance + (
+      SELECT taps_today * ${usdtPerTap} 
+      FROM daily_activity 
+      WHERE daily_activity.user_id = users.id 
+      AND daily_activity.date = CURRENT_DATE
+    )
+    WHERE EXISTS (
+      SELECT 1 FROM daily_activity 
+      WHERE daily_activity.user_id = users.id 
+      AND daily_activity.date = CURRENT_DATE
+    )
+  `);
+
+  // 3. Reset the daily_activity table for tomorrow
+  await db.clearDailyActivity();
+};
+Use code with caution.
+
+4. Why this protects your profit:
+The "Zero-Sum" Win: No matter how many millions of taps your 1,000 users do, you only ever pay out the tapPot (which is 50% of the 3 USDT/user).
+Inflation-Proof: If users farm 1 billion coins, the usdtPerTap just gets smaller. Your 40% Admin Profit is never touched.
+5. Summary of what you just built:
+Frontend: Smooth, optimistic tapping.
+Middleware: Batch-aware Rate Limiter (The Guardian).
+Backend: Atomic updates to the PostgreSQL Ledger.
+Sync: Auto-correction on refresh/failure.
+The "Tap-to-Earn" core is officially finished.
