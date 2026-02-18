@@ -10,6 +10,7 @@ import { getActivePools, getAllTierPools, expireStaleAllocations, processDailyDr
 import { recordLedgerEntry, getUserLedger, verifyLedgerIntegrity } from "./middleware/ledger";
 import { runGuardianChecks, updateCoinsSinceChallenge, resolveChallenge, checkWalletUnique, detectBotPattern } from "./middleware/guardian";
 import { midnightPulse, batchWithdrawalSettlement, subscriberRetentionCheck } from "./cron/settlementCron";
+import { getValidatedBTCPrice, isPriceFrozen } from "./services/priceService";
 
 const WHEEL_SLICES = [
   { label: "0.10 USDT", value: 0.10, probability: 0.35 },
@@ -34,24 +35,12 @@ function pickWheelSlice(): { sliceIndex: number; label: string; value: number } 
   return { sliceIndex: 0, label: WHEEL_SLICES[0].label, value: WHEEL_SLICES[0].value };
 }
 
-let cachedBtcPrice: { price: number; change24h: number; fetchedAt: number } | null = null;
-
 async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
-  if (cachedBtcPrice && Date.now() - cachedBtcPrice.fetchedAt < 60000) {
-    return { price: cachedBtcPrice.price, change24h: cachedBtcPrice.change24h };
-  }
-
   try {
-    const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true");
-    const data = await res.json();
-    const price = data.bitcoin.usd;
-    const change24h = data.bitcoin.usd_24h_change;
-    cachedBtcPrice = { price, change24h, fetchedAt: Date.now() };
-    return { price, change24h };
+    const validated = await getValidatedBTCPrice();
+    return { price: validated.price, change24h: validated.change24h };
   } catch (error) {
-    if (cachedBtcPrice) {
-      return { price: cachedBtcPrice.price, change24h: cachedBtcPrice.change24h };
-    }
+    log(`[BTC Price] Oracle fallback triggered: ${(error as Error).message}`);
     const fallbackPrice = 95000 + Math.random() * 5000;
     return { price: fallbackPrice, change24h: 1.5 };
   }
@@ -317,15 +306,27 @@ export async function registerRoutes(
 
   app.get("/api/btc-price", async (_req: Request, res: Response) => {
     try {
-      const price = await getBtcPrice();
-      res.json(price);
+      const validated = await getValidatedBTCPrice();
+      res.json({
+        price: validated.price,
+        change24h: validated.change24h,
+        sources: validated.sources,
+        median: validated.median,
+      });
     } catch (error) {
-      res.status(500).json({ message: "Failed to get BTC price" });
+      const fallbackPrice = 95000 + Math.random() * 5000;
+      res.json({ price: fallbackPrice, change24h: 1.5, sources: ["fallback"], median: false });
     }
   });
 
   app.post("/api/predict", requireAuth, async (req: Request, res: Response) => {
     try {
+      if (isPriceFrozen()) {
+        return res.status(503).json({
+          message: "BTC Price Settlement Delayed due to API Latency. Predictions are paused until the price is verified.",
+        });
+      }
+
       const { prediction } = req.body;
       if (!prediction || !["higher", "lower"].includes(prediction)) {
         return res.status(400).json({ message: "Prediction must be 'higher' or 'lower'" });

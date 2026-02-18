@@ -1,6 +1,7 @@
 import { storage, db } from "../storage";
 import { log } from "../index";
 import { recordLedgerEntry } from "../middleware/ledger";
+import { getValidatedBTCPriceWithRetry, clearPriceCache, setPriceFrozen } from "../services/priceService";
 import { users } from "@shared/schema";
 import { eq, and, gt, lte, sql } from "drizzle-orm";
 
@@ -107,13 +108,14 @@ export async function midnightPulse(): Promise<void> {
     await storage.resetAllUserEnergy();
     log(`[Midnight Pulse] Reset energy for all users`);
 
+    clearPriceCache();
     try {
-      const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true");
-      const data = await res.json();
-      const btcPrice = data.bitcoin.usd;
-      log(`[Midnight Pulse] Locked BTC price at $${btcPrice} for new day`);
+      const validated = await getValidatedBTCPriceWithRetry(5, 300_000);
+      setPriceFrozen(false);
+      log(`[Midnight Pulse] Locked BTC price at $${validated.price} via ${validated.sources.join(", ")}${validated.median ? " [median]" : ""}`);
     } catch (e: any) {
-      log(`[Midnight Pulse] Warning: Failed to lock BTC price: ${e.message}`);
+      setPriceFrozen(true);
+      log(`[Midnight Pulse] CRITICAL: BTC price freeze failed after retries. Prediction payouts frozen until price is verified. Error: ${e.message}`);
     }
 
     log(`[Midnight Pulse] Settlement complete. Total distributed: $${totalDistributed.toFixed(4)}`);
