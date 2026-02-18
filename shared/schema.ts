@@ -208,6 +208,33 @@ export const subscriptionAlerts = pgTable("subscription_alerts", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const paymentInvoices = pgTable("payment_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: text("invoice_id").notNull().unique(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  tierName: text("tier_name").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("USDT"),
+  status: text("status").notNull().default("pending"),
+  paymentLink: text("payment_link").notNull(),
+  txHash: text("tx_hash"),
+  network: text("network").notNull().default("TON"),
+  sandbox: boolean("sandbox").notNull().default(false),
+  splits: text("splits").notNull().default("[]"),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  paidAt: timestamp("paid_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
+export const insertPaymentInvoiceSchema = createInsertSchema(paymentInvoices).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PaymentInvoice = typeof paymentInvoices.$inferSelect;
+export type InsertPaymentInvoice = z.infer<typeof insertPaymentInvoiceSchema>;
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,

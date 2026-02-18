@@ -1,0 +1,80 @@
+Smart move. Never test with real USDT. In 2026, the TON Sandbox is the only way to verify your 60/40 split and Membership Tiers without spending a cent on gas fees.
+To integrate the TON Pay SDK with the Sandbox, follow this 3-step middleware setup.
+1. Environment Configuration
+You need to point the SDK to the Testnet endpoints. Your .env file should look like this:
+bash
+TON_PAY_MODE=testnet
+TON_PAY_API_KEY=your_sandbox_key_here
+TON_ADMIN_PROFIT_WALLET=your_testnet_vault_address
+TON_GAME_TREASURY_WALLET=your_testnet_pool_address
+Use code with caution.
+
+2. The "Sandbox" Payment Hook (Layer 1 Middleware)
+This function creates the payment invoice for the user. In the Sandbox, it will generate a test link that you can "pay" using Testnet USDT.
+typescript
+// server/services/paymentService.ts
+import { TonPay } from "@ton-pay/sdk";
+
+const tonPay = new TonPay({ 
+  apiKey: process.env.TON_PAY_API_KEY, 
+  network: "testnet" // CRITICAL: Forces sandbox mode
+});
+
+export const createBronzeInvoice = async (userId) => {
+  const invoice = await tonPay.createInvoice({
+    amount: 5.00,
+    currency: "USDT",
+    description: `Bronze Membership - User ${userId}`,
+    // 2026 SDK Feature: The automatic 60/40 Split at source
+    splits: [
+      { address: process.env.TON_ADMIN_PROFIT_WALLET, percentage: 40 },
+      { address: process.env.TON_GAME_TREASURY_WALLET, percentage: 60 }
+    ],
+    metadata: { userId }
+  });
+
+  return invoice.payUrl; // Send this to the Telegram Mini App
+};
+Use code with caution.
+
+3. The "Webhook" Verification (The "Fail-Safe")
+Once you "pay" the invoice in the sandbox, TON Pay sends a Webhook to your server. Your middleware must verify this before updating the PostgreSQL Ledger.
+typescript
+// server/routes/webhooks.ts
+
+app.post("/api/webhooks/ton-pay", async (req, res) => {
+  const { event, data } = req.body;
+
+  // 1. Validate the signature (Anti-Hack)
+  if (!tonPay.verifySignature(req.headers['x-ton-signature'], req.body)) {
+    return res.status(401).send("Invalid Signature");
+  }
+
+  if (event === "invoice.paid") {
+    const userId = data.metadata.userId;
+    
+    // 2. UPDATE THE LEDGER (Layer 1 Logic)
+    await db.users.update(userId, {
+      tier: 'BRONZE',
+      subscriptionActive: true,
+      subscriptionExpiry: addDays(new Date(), 30),
+      isFounder: (await getBronzeCount()) < 100
+    });
+
+    // 3. Notify the user via Telegram Bot
+    bot.sendMessage(userId, "✅ Bronze Activated! Start Tapping!");
+  }
+
+  res.sendStatus(200);
+});
+Use code with caution.
+
+4. How to Test the "Split" in Sandbox
+Get Testnet USDT from a TON Testnet Faucet.
+Trigger the createBronzeInvoice in your app.
+Pay it using Tonkeeper (Testnet mode).
+Verify: Check your Testnet Profit Wallet to see if 2.00 USDT arrived and the Testnet Treasury to see if 3.00 USDT arrived.
+Why Sandbox is your "Millionaire" Foundation:
+If the 60/40 split fails in the Sandbox, it’s a bug. If it fails on Mainnet, it’s a loss. By testing the Bronze, Silver, and Gold logic here, you ensure your 15k quarterly profit is mathematically guaranteed before you go live.
+Shall we move to the "Database Schema" now to ensure your Users and Transactions tables can handle these Sandbox results?
+Pro-Tip: In 2026, keep your Sandbox API Key and Mainnet API Key in separate vault files to prevent accidental "live" testing.

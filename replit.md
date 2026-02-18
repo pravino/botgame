@@ -153,6 +153,13 @@ shared/
 - `GET /api/wallet` - Get wallet balance and deposit addresses
 - `GET /api/deposits` - Get user's deposit history
 
+### TON Pay Payments
+- `POST /api/payments/invoice` - Create a payment invoice for tier subscription (body: `{ tierName }`)
+- `POST /api/payments/webhook` - TON Pay webhook endpoint with HMAC-SHA256 signature verification
+- `POST /api/payments/sandbox-confirm` - Sandbox-only: confirm payment for testing (body: `{ invoiceId }`)
+- `GET /api/payments/config` - Get payment configuration (mode, wallets, splits, tiers)
+- `GET /api/payments/invoices` - Get user's payment invoice history
+
 ### Leaderboard
 - `GET /api/leaderboard/:type` - Get leaderboard (type: coins/predictions/wheel)
 
@@ -171,6 +178,7 @@ shared/
 - Dark mode preferred as default theme
 
 ## Recent Changes
+- 2026-02-18: TON Pay SDK sandbox integration: Invoice-based payment flow for tier subscriptions (Bronze $5, Silver $15, Gold $50). HMAC-SHA256 webhook verification, sandbox-confirm endpoint for testnet testing, automatic 60/40 split at source via processSubscriptionPayment. New paymentInvoices table tracks all invoices. Environment: TON_PAY_MODE=testnet, TON_PAY_SECRET for webhook signing.
 - 2026-02-18: Multi-Oracle BTC price system: triple source (CoinGecko, Binance, CoinMarketCap) with median calculation, exponential backoff retries, and 5-minute freeze protocol if all sources fail. Replaces single CoinGecko dependency.
 - 2026-02-18: Pro-rated daily pot system: mid-day joiners contribute proportional to hours remaining (minutesActive/1440 * dailyUnit). 4-hour minimum subscription gate on predictions prevents midnight sniping. subscriptionStartedAt timestamp tracks exact join time. Midnight Pulse reads tier pricing from DB (not hardcoded). Ledger entries use real wallet balances.
 - 2026-02-18: Built 3-layer security system: Guardian Middleware (rate limiter 15 taps/sec, proof-of-humanity challenge every 5000 coins, wallet-unique filter), Withdrawal Settlement (flat $0.50 fee, $5 min, 24hr audit delay, bot detection), Admin Pulse Dashboard
@@ -210,4 +218,8 @@ shared/
 - `ADMIN_EMAILS` - Comma-separated list of admin email addresses
 - `ADMIN_PROFITS_WALLET` - TON wallet for admin profits (40% split)
 - `GAME_TREASURY_WALLET` - TON wallet for game treasury (60% split)
+- `TON_PAY_MODE` - Payment mode: "testnet" (sandbox) or "mainnet" (live)
+- `TON_PAY_SECRET` - HMAC-SHA256 secret for webhook signature verification
+- `TON_ADMIN_PROFIT_WALLET` - Testnet admin wallet (overrides ADMIN_PROFITS_WALLET in payment service)
+- `TON_GAME_TREASURY_WALLET` - Testnet treasury wallet (overrides GAME_TREASURY_WALLET in payment service)
 - Resend API key managed via Replit integration connector

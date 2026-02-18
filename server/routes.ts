@@ -11,6 +11,7 @@ import { recordLedgerEntry, getUserLedger, verifyLedgerIntegrity } from "./middl
 import { runGuardianChecks, updateCoinsSinceChallenge, resolveChallenge, checkWalletUnique, detectBotPattern } from "./middleware/guardian";
 import { midnightPulse, batchWithdrawalSettlement, subscriberRetentionCheck } from "./cron/settlementCron";
 import { getValidatedBTCPrice, isPriceFrozen } from "./services/priceService";
+import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
 const WHEEL_SLICES = [
   { label: "0.10 USDT", value: 0.10, probability: 0.35 },
@@ -1070,6 +1071,89 @@ export async function registerRoutes(
       res.json(txs);
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get transactions" });
+    }
+  });
+
+  app.post("/api/payments/invoice", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { tierName } = req.body;
+      if (!tierName || !["BRONZE", "SILVER", "GOLD"].includes(String(tierName).toUpperCase())) {
+        return res.status(400).json({ message: "Valid tier name is required (BRONZE, SILVER, GOLD)" });
+      }
+
+      const invoice = await createInvoice(req.session.userId!, String(tierName).toUpperCase());
+      res.json(invoice);
+    } catch (error: any) {
+      log(`Payment invoice error: ${error.message}`);
+      res.status(500).json({ message: error.message || "Failed to create payment invoice" });
+    }
+  });
+
+  app.post("/api/payments/webhook", async (req: Request, res: Response) => {
+    try {
+      requireSecretConfigured();
+
+      const signature = req.headers["x-ton-signature"] as string;
+      if (!signature) {
+        return res.status(401).json({ message: "Missing signature header" });
+      }
+
+      const rawBody = (req as any).rawBody || JSON.stringify(req.body);
+      if (!verifySignature(signature, rawBody)) {
+        log(`[TON Pay Webhook] Invalid signature rejected`);
+        return res.status(401).json({ message: "Invalid signature" });
+      }
+
+      const { event, data } = req.body;
+      if (event !== "invoice.paid") {
+        log(`[TON Pay Webhook] Ignoring event: ${event}`);
+        return res.sendStatus(200);
+      }
+
+      const { invoiceId, txHash } = data;
+      if (!invoiceId || !txHash) {
+        return res.status(400).json({ message: "Missing invoiceId or txHash in webhook payload" });
+      }
+
+      const result = await processWebhookPayment(invoiceId, txHash);
+      log(`[TON Pay Webhook] Processed: ${JSON.stringify(result)}`);
+      res.sendStatus(200);
+    } catch (error: any) {
+      log(`[TON Pay Webhook] Error: ${error.message}`);
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/payments/sandbox-confirm", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { invoiceId } = req.body;
+      if (!invoiceId || typeof invoiceId !== "string") {
+        return res.status(400).json({ message: "Invoice ID is required" });
+      }
+
+      const result = await sandboxConfirmInvoice(invoiceId, req.session.userId!);
+      res.json(result);
+    } catch (error: any) {
+      log(`Sandbox confirm error: ${error.message}`);
+      res.status(400).json({ message: error.message || "Failed to confirm sandbox payment" });
+    }
+  });
+
+  app.get("/api/payments/config", async (_req: Request, res: Response) => {
+    try {
+      const config = getPaymentConfig();
+      res.json(config);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get payment config" });
+    }
+  });
+
+  app.get("/api/payments/invoices", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const invoices = await storage.getUserPaymentInvoices(req.session.userId!);
+      res.json(invoices);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get payment invoices" });
     }
   });
 

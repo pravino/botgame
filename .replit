@@ -43,5 +43,9 @@ waitForPort = 5000
 [userenv.production]
 PRODUCTION_DATABASE_URL = "postgresql://neondb_owner:npg_9LOeFJj3zAGx@ep-broad-voice-ai12s30f.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
+[userenv.shared]
+TON_PAY_MODE = "testnet"
+TON_PAY_SECRET = "sandbox_test_secret_key_2026"
+
 [agent]
 integrations = ["resend:1.0.0"]

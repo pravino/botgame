@@ -15,6 +15,7 @@ import {
   type DailyTap,
   type WithdrawalBatch,
   type SubscriptionAlert,
+  type PaymentInvoice,
   users,
   tapSessions,
   predictions,
@@ -30,6 +31,7 @@ import {
   dailyTaps,
   withdrawalBatches,
   subscriptionAlerts,
+  paymentInvoices,
 } from "@shared/schema";
 import { eq, desc, sql, and, gt, lte, lt, or, inArray, sum } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -617,6 +619,53 @@ export class DatabaseStorage {
           lte(users.subscriptionExpiry!, now)
         )
       );
+  }
+
+  async createPaymentInvoice(data: {
+    invoiceId: string;
+    userId: string;
+    tierName: string;
+    amount: string;
+    currency?: string;
+    paymentLink: string;
+    network?: string;
+    sandbox: boolean;
+    splits: string;
+    metadata?: string;
+    expiresAt: Date;
+  }): Promise<PaymentInvoice> {
+    const [invoice] = await db.insert(paymentInvoices).values(data).returning();
+    return invoice;
+  }
+
+  async getPaymentInvoiceById(id: string): Promise<PaymentInvoice | undefined> {
+    const [invoice] = await db.select().from(paymentInvoices).where(eq(paymentInvoices.id, id));
+    return invoice;
+  }
+
+  async getPaymentInvoiceByInvoiceId(invoiceId: string): Promise<PaymentInvoice | undefined> {
+    const [invoice] = await db.select().from(paymentInvoices).where(eq(paymentInvoices.invoiceId, invoiceId));
+    return invoice;
+  }
+
+  async updatePaymentInvoiceStatus(invoiceId: string, status: string, txHash?: string): Promise<PaymentInvoice | undefined> {
+    const updates: any = { status };
+    if (status === "paid") updates.paidAt = new Date();
+    if (txHash) updates.txHash = txHash;
+    const [invoice] = await db
+      .update(paymentInvoices)
+      .set(updates)
+      .where(eq(paymentInvoices.invoiceId, invoiceId))
+      .returning();
+    return invoice;
+  }
+
+  async getUserPaymentInvoices(userId: string): Promise<PaymentInvoice[]> {
+    return db
+      .select()
+      .from(paymentInvoices)
+      .where(eq(paymentInvoices.userId, userId))
+      .orderBy(desc(paymentInvoices.createdAt));
   }
 }
 
