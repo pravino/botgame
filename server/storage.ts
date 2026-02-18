@@ -6,14 +6,20 @@ import {
   type TapSession,
   type OtpCode,
   type Deposit,
+  type Tier,
+  type Transaction,
+  type PoolAllocation,
   users,
   tapSessions,
   predictions,
   wheelSpins,
   otpCodes,
   deposits,
+  tiers,
+  transactions,
+  poolAllocations,
 } from "@shared/schema";
-import { eq, desc, sql, and, gt } from "drizzle-orm";
+import { eq, desc, sql, and, gt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
@@ -31,6 +37,8 @@ export interface IStorage {
   getTopUsersByCoins(limit?: number): Promise<User[]>;
   getTopUsersByPredictions(limit?: number): Promise<User[]>;
   getTopUsersByWheelWinnings(limit?: number): Promise<User[]>;
+  getActiveSubscribersByTier(tierName: string): Promise<User[]>;
+  getSubscriberCountByTier(tierName: string): Promise<number>;
   createTapSession(data: { userId: string; taps: number; coinsEarned: number }): Promise<TapSession>;
   createPrediction(data: { userId: string; prediction: string; btcPriceAtPrediction: number }): Promise<Prediction>;
   getActivePrediction(userId: string): Promise<Prediction | undefined>;
@@ -46,6 +54,33 @@ export interface IStorage {
   getUserDeposits(userId: string): Promise<Deposit[]>;
   getDepositById(id: string): Promise<Deposit | undefined>;
   updateDeposit(id: string, data: Partial<Deposit>): Promise<Deposit | undefined>;
+  getTier(name: string): Promise<Tier | undefined>;
+  getAllTiers(): Promise<Tier[]>;
+  createTier(data: { name: string; price: string; dailyUnit: string; tapMultiplier: number }): Promise<Tier>;
+  getTransactionByTxHash(txHash: string): Promise<Transaction | undefined>;
+  createTransaction(data: {
+    userId: string;
+    txHash: string;
+    tierName: string;
+    totalAmount: string;
+    adminAmount: string;
+    treasuryAmount: string;
+    adminWallet: string;
+    treasuryWallet: string;
+  }): Promise<Transaction>;
+  getUserTransactions(userId: string): Promise<Transaction[]>;
+  createPoolAllocation(data: {
+    transactionId: string;
+    tierName: string;
+    game: string;
+    amount: string;
+    depositDate: Date;
+    expiryDate: Date;
+  }): Promise<PoolAllocation>;
+  getActivePoolAllocations(tierName: string, game: string): Promise<PoolAllocation[]>;
+  getActivePoolTotalByTierAndGame(tierName: string, game: string): Promise<number>;
+  getActivePoolTotalByTier(tierName: string): Promise<{ tapPot: number; predictPot: number; wheelVault: number }>;
+  expireOldAllocations(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -79,6 +114,23 @@ export class DatabaseStorage implements IStorage {
 
   async getTopUsersByWheelWinnings(limit = 20): Promise<User[]> {
     return db.select().from(users).orderBy(desc(users.totalWheelWinnings)).limit(limit);
+  }
+
+  async getActiveSubscribersByTier(tierName: string): Promise<User[]> {
+    return db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.tier, tierName.toUpperCase()),
+          gt(users.subscriptionExpiry, new Date())
+        )
+      );
+  }
+
+  async getSubscriberCountByTier(tierName: string): Promise<number> {
+    const result = await this.getActiveSubscribersByTier(tierName);
+    return result.length;
   }
 
   async createTapSession(data: { userId: string; taps: number; coinsEarned: number }): Promise<TapSession> {
@@ -179,6 +231,101 @@ export class DatabaseStorage implements IStorage {
   async updateDeposit(id: string, data: Partial<Deposit>): Promise<Deposit | undefined> {
     const [deposit] = await db.update(deposits).set(data).where(eq(deposits.id, id)).returning();
     return deposit;
+  }
+
+  async getTier(name: string): Promise<Tier | undefined> {
+    const [tier] = await db.select().from(tiers).where(eq(tiers.name, name));
+    return tier;
+  }
+
+  async getAllTiers(): Promise<Tier[]> {
+    return db.select().from(tiers);
+  }
+
+  async createTier(data: { name: string; price: string; dailyUnit: string; tapMultiplier: number }): Promise<Tier> {
+    const [tier] = await db.insert(tiers).values(data).returning();
+    return tier;
+  }
+
+  async createTransaction(data: {
+    userId: string;
+    txHash: string;
+    tierName: string;
+    totalAmount: string;
+    adminAmount: string;
+    treasuryAmount: string;
+    adminWallet: string;
+    treasuryWallet: string;
+  }): Promise<Transaction> {
+    const [tx] = await db.insert(transactions).values(data).returning();
+    return tx;
+  }
+
+  async getTransactionByTxHash(txHash: string): Promise<Transaction | undefined> {
+    const [tx] = await db.select().from(transactions).where(eq(transactions.txHash, txHash));
+    return tx;
+  }
+
+  async getUserTransactions(userId: string): Promise<Transaction[]> {
+    return db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.userId, userId))
+      .orderBy(desc(transactions.createdAt));
+  }
+
+  async createPoolAllocation(data: {
+    transactionId: string;
+    tierName: string;
+    game: string;
+    amount: string;
+    depositDate: Date;
+    expiryDate: Date;
+  }): Promise<PoolAllocation> {
+    const [alloc] = await db.insert(poolAllocations).values(data).returning();
+    return alloc;
+  }
+
+  async getActivePoolAllocations(tierName: string, game: string): Promise<PoolAllocation[]> {
+    const now = new Date();
+    return db
+      .select()
+      .from(poolAllocations)
+      .where(
+        and(
+          eq(poolAllocations.tierName, tierName.toUpperCase()),
+          eq(poolAllocations.game, game),
+          eq(poolAllocations.active, true),
+          gt(poolAllocations.expiryDate, now)
+        )
+      );
+  }
+
+  async getActivePoolTotalByTierAndGame(tierName: string, game: string): Promise<number> {
+    const allocations = await this.getActivePoolAllocations(tierName, game);
+    return allocations.reduce((sum, a) => sum + parseFloat(a.amount), 0);
+  }
+
+  async getActivePoolTotalByTier(tierName: string): Promise<{ tapPot: number; predictPot: number; wheelVault: number }> {
+    const [tapPot, predictPot, wheelVault] = await Promise.all([
+      this.getActivePoolTotalByTierAndGame(tierName, "tapPot"),
+      this.getActivePoolTotalByTierAndGame(tierName, "predictPot"),
+      this.getActivePoolTotalByTierAndGame(tierName, "wheelVault"),
+    ]);
+    return { tapPot, predictPot, wheelVault };
+  }
+
+  async expireOldAllocations(): Promise<void> {
+    const now = new Date();
+    await db
+      .update(poolAllocations)
+      .set({ active: false })
+      .where(
+        and(
+          eq(poolAllocations.active, true),
+          lte(poolAllocations.expiryDate, now)
+        )
+      );
   }
 }
 

@@ -1,7 +1,15 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, real, serial, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+export const tiers = pgTable("tiers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull().default("0"),
+  dailyUnit: decimal("daily_unit", { precision: 10, scale: 2 }).notNull().default("0"),
+  tapMultiplier: integer("tap_multiplier").notNull().default(1),
+});
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -17,6 +25,10 @@ export const users = pgTable("users", {
   totalPredictions: integer("total_predictions").notNull().default(0),
   totalWheelWinnings: real("total_wheel_winnings").notNull().default(0),
   walletBalance: real("wallet_balance").notNull().default(0),
+  tier: text("tier").notNull().default("FREE"),
+  subscriptionExpiry: timestamp("subscription_expiry"),
+  isFounder: boolean("is_founder").notNull().default(false),
+  tonWalletAddress: text("ton_wallet_address"),
 });
 
 export const otpCodes = pgTable("otp_codes", {
@@ -67,6 +79,32 @@ export const deposits = pgTable("deposits", {
   confirmedAt: timestamp("confirmed_at"),
 });
 
+export const transactions = pgTable("transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  txHash: text("tx_hash").notNull().unique(),
+  tierName: text("tier_name").notNull(),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  adminAmount: decimal("admin_amount", { precision: 10, scale: 2 }).notNull(),
+  treasuryAmount: decimal("treasury_amount", { precision: 10, scale: 2 }).notNull(),
+  adminWallet: text("admin_wallet").notNull(),
+  treasuryWallet: text("treasury_wallet").notNull(),
+  status: text("status").notNull().default("confirmed"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const poolAllocations = pgTable("pool_allocations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transactionId: varchar("transaction_id").notNull().references(() => transactions.id),
+  tierName: text("tier_name").notNull(),
+  game: text("game").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  depositDate: timestamp("deposit_date").notNull().default(sql`now()`),
+  expiryDate: timestamp("expiry_date").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -97,3 +135,6 @@ export type TapSession = typeof tapSessions.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
 export type WheelSpin = typeof wheelSpins.$inferSelect;
 export type Deposit = typeof deposits.$inferSelect;
+export type Tier = typeof tiers.$inferSelect;
+export type Transaction = typeof transactions.$inferSelect;
+export type PoolAllocation = typeof poolAllocations.$inferSelect;

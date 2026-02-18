@@ -5,6 +5,8 @@ import connectPgSimple from "connect-pg-simple";
 import { storage } from "./storage";
 import { sendOtpEmail } from "./email";
 import { log } from "./index";
+import { processSubscriptionPayment } from "./middleware/transactionSplit";
+import { getActivePools, getAllTierPools, expireStaleAllocations } from "./middleware/poolLogic";
 
 const WHEEL_SLICES = [
   { label: "0.10 USDT", value: 0.10, probability: 0.35 },
@@ -443,8 +445,135 @@ export async function registerRoutes(
   setInterval(resolvePredictions, 5 * 60 * 1000);
   setTimeout(resolvePredictions, 10000);
 
+  setInterval(expireStaleAllocations, 60 * 60 * 1000);
+  setTimeout(expireStaleAllocations, 30000);
+
+  app.get("/api/tiers", async (_req: Request, res: Response) => {
+    try {
+      const allTiers = await storage.getAllTiers();
+      res.json(allTiers);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get tiers" });
+    }
+  });
+
+  app.post("/api/subscribe", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { txHash, tierName } = req.body;
+
+      if (!txHash || typeof txHash !== "string" || txHash.trim().length < 10) {
+        return res.status(400).json({ message: "A valid transaction hash is required" });
+      }
+      if (!tierName || !["BRONZE", "SILVER", "GOLD"].includes(String(tierName).toUpperCase())) {
+        return res.status(400).json({ message: "Valid tier name is required (BRONZE, SILVER, GOLD)" });
+      }
+
+      const sanitizedTxHash = txHash.trim();
+      const existingTx = await storage.getTransactionByTxHash(sanitizedTxHash);
+      if (existingTx) {
+        return res.status(409).json({ message: "This transaction has already been processed" });
+      }
+
+      const normalizedTier = String(tierName).toUpperCase();
+      const tierPrices: Record<string, number> = { BRONZE: 5, SILVER: 15, GOLD: 50 };
+      const verifiedAmount = tierPrices[normalizedTier];
+
+      // TODO: Replace with real TON Pay SDK verification
+      // const txInfo = await tonPay.verify(sanitizedTxHash);
+      // if (txInfo.amount !== verifiedAmount || txInfo.status !== "confirmed") {
+      //   return res.status(400).json({ message: "Transaction verification failed" });
+      // }
+
+      const result = await processSubscriptionPayment(
+        req.session.userId!,
+        sanitizedTxHash,
+        normalizedTier,
+        verifiedAmount
+      );
+
+      res.json(result);
+    } catch (error: any) {
+      log(`Subscription error: ${error.message}`);
+      res.status(500).json({ message: error.message || "Failed to process subscription" });
+    }
+  });
+
+  app.get("/api/pools", async (_req: Request, res: Response) => {
+    try {
+      const pools = await getAllTierPools();
+      res.json(pools);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get pool data" });
+    }
+  });
+
+  app.get("/api/pools/:tier", async (req: Request, res: Response) => {
+    try {
+      const tier = req.params.tier as string;
+      const validTiers = ["BRONZE", "SILVER", "GOLD"];
+      if (!validTiers.includes(tier.toUpperCase())) {
+        return res.status(400).json({ message: "Invalid tier. Must be BRONZE, SILVER, or GOLD" });
+      }
+      const pool = await getActivePools(tier);
+      res.json(pool);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get pool data" });
+    }
+  });
+
+  app.get("/api/my-subscription", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const isActive = user.subscriptionExpiry && new Date(user.subscriptionExpiry) > new Date();
+
+      res.json({
+        tier: user.tier,
+        isActive: !!isActive,
+        subscriptionExpiry: user.subscriptionExpiry,
+        isFounder: user.isFounder,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get subscription info" });
+    }
+  });
+
+  app.get("/api/my-transactions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const txs = await storage.getUserTransactions(req.session.userId!);
+      res.json(txs);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get transactions" });
+    }
+  });
+
+  async function seedTiers() {
+    try {
+      const existingTiers = await storage.getAllTiers();
+      if (existingTiers.length > 0) return;
+
+      const tierData = [
+        { name: "FREE", price: "0.00", dailyUnit: "0.00", tapMultiplier: 1 },
+        { name: "BRONZE", price: "5.00", dailyUnit: "0.10", tapMultiplier: 1 },
+        { name: "SILVER", price: "15.00", dailyUnit: "0.30", tapMultiplier: 3 },
+        { name: "GOLD", price: "50.00", dailyUnit: "1.00", tapMultiplier: 10 },
+      ];
+
+      for (const tier of tierData) {
+        await storage.createTier(tier);
+      }
+
+      log("Tier data seeded successfully (Free/Bronze/Silver/Gold)");
+    } catch (error: any) {
+      log(`Tier seed error: ${error.message}`);
+    }
+  }
+
   async function seedData() {
     try {
+      await seedTiers();
+
       const existingUsers = await storage.getTopUsersByCoins(1);
       if (existingUsers.length > 0) return;
 
