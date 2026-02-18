@@ -64,15 +64,27 @@ export class DatabaseStorage {
     return user;
   }
 
-  async getTopUsersByCoins(limit = 20): Promise<User[]> {
+  async getTopUsersByCoins(limit = 20, tier?: string): Promise<User[]> {
+    const conditions = tier ? [eq(users.tier, tier.toUpperCase())] : [];
+    if (conditions.length > 0) {
+      return db.select().from(users).where(and(...conditions)).orderBy(desc(users.totalCoins)).limit(limit);
+    }
     return db.select().from(users).orderBy(desc(users.totalCoins)).limit(limit);
   }
 
-  async getTopUsersByPredictions(limit = 20): Promise<User[]> {
+  async getTopUsersByPredictions(limit = 20, tier?: string): Promise<User[]> {
+    const conditions = tier ? [eq(users.tier, tier.toUpperCase())] : [];
+    if (conditions.length > 0) {
+      return db.select().from(users).where(and(...conditions)).orderBy(desc(users.correctPredictions)).limit(limit);
+    }
     return db.select().from(users).orderBy(desc(users.correctPredictions)).limit(limit);
   }
 
-  async getTopUsersByWheelWinnings(limit = 20): Promise<User[]> {
+  async getTopUsersByWheelWinnings(limit = 20, tier?: string): Promise<User[]> {
+    const conditions = tier ? [eq(users.tier, tier.toUpperCase())] : [];
+    if (conditions.length > 0) {
+      return db.select().from(users).where(and(...conditions)).orderBy(desc(users.totalWheelWinnings)).limit(limit);
+    }
     return db.select().from(users).orderBy(desc(users.totalWheelWinnings)).limit(limit);
   }
 

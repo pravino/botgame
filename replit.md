@@ -162,7 +162,7 @@ shared/
 - `GET /api/payments/invoices` - Get user's payment invoice history
 
 ### Leaderboard
-- `GET /api/leaderboard/:type` - Get leaderboard (type: coins/predictions/wheel)
+- `GET /api/leaderboard/:type` - Get leaderboard (type: coins/predictions/wheel, optional `?tier=FREE|BRONZE|SILVER|GOLD`)
 
 ## Theme & Design
 - Gold/amber primary color for crypto aesthetic

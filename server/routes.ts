@@ -799,17 +799,20 @@ export async function registerRoutes(
   app.get("/api/leaderboard/:type", async (req: Request, res: Response) => {
     try {
       const { type } = req.params;
+      const tier = req.query.tier as string | undefined;
+      const validTiers = ["FREE", "BRONZE", "SILVER", "GOLD"];
+      const tierFilter = tier && validTiers.includes(tier.toUpperCase()) ? tier.toUpperCase() : undefined;
       let leaderboard;
 
       switch (type) {
         case "coins":
-          leaderboard = await storage.getTopUsersByCoins();
+          leaderboard = await storage.getTopUsersByCoins(50, tierFilter);
           break;
         case "predictions":
-          leaderboard = await storage.getTopUsersByPredictions();
+          leaderboard = await storage.getTopUsersByPredictions(50, tierFilter);
           break;
         case "wheel":
-          leaderboard = await storage.getTopUsersByWheelWinnings();
+          leaderboard = await storage.getTopUsersByWheelWinnings(50, tierFilter);
           break;
         default:
           return res.status(400).json({ message: "Invalid leaderboard type" });
