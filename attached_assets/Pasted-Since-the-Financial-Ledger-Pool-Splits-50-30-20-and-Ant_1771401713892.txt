@@ -1,0 +1,28 @@
+Since the Financial Ledger, Pool Splits (50/30/20), and Anti-Cheat Guardian are now implemented in the middleware, the final piece of the "Engine" (Layer 1) is the Automated Settlement & Cron Service.
+This is the part that actually "moves" the money at 00:00 UTC and handles the user's request to turn their virtual winnings into real USDT in their TON Wallet.
+1. The "Midnight Pulse" (Daily Pool Refresh)
+Every 24 hours, the middleware must "snapshot" the pool. If you have 1,000 members, the bot needs to know exactly how much USDT is available for the next day's games.
+The Middleware Logic:
+Step A: Identify all active_subscriptions where expiry_date > now.
+Step B: Calculate the Daily Pot ($0.10 × active_users).
+Step C: Reset the Tap-to-Earn leaderboard to zero for the new day.
+Step D: Lock the BTC Prediction entry price from the CoinGecko API.
+2. The Withdrawal "Smart-Settle" Logic
+To hit your $15,000 quarterly profit, you must avoid wasting money on TON Network Fees. You don't send 1,000 tiny transactions; you use a Batching Middleware.
+How it works:
+User Request: User hits "Withdraw" (Minimum 5 USDT).
+Status: Middleware marks it as Pending_Audit.
+The "Safety Buffer": The system waits 24 hours. If no "Bot/Cheat" flags are raised by the Guardian Middleware, the status changes to Ready.
+The Batch: Once a day (e.g., at 10:00 PM), the middleware sends one bulk transaction to the TON Pay SDK to pay all Ready users at once.
+The "Admin Tip": The middleware automatically deducts a 0.50 USDT fee from each withdrawal.
+User wins 6.00 USDT → User receives 5.50 USDT → You keep 0.50 USDT extra profit.
+3. The "Subscriber Retention" Webhook
+To prevent your 1,000 users from dropping to 0, the middleware needs a Renewal Bot.
+T-minus 48 Hours: Middleware sends a Telegram message: "Your Bronze status expires in 2 days. Renew now to keep your 1,000,000 coins!"
+The "Kick" Logic: If the TON Blockchain doesn't see a new 5 USDT payment by the expiry timestamp, the middleware calls the banChatMember API.
+Result: This creates the Exclusivity that makes the 5 USDT feel valuable.
+Layer 1: Middleware Completion Checklist
+60/40 Split (Admin Profit vs. Prize Pool).
+50/30/20 Pool Allocation (Daily Drip logic).
+Anti-Cheat Guardian (Rate limiting & Bot detection).
+Batch Withdrawal Service (Handling the 5 USDT cash-outs).
