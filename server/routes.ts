@@ -329,10 +329,7 @@ export async function registerRoutes(
         coinsEarned,
       });
 
-      const updated = await storage.updateUser(user.id, {
-        totalCoins: user.totalCoins + coinsEarned,
-        energy: user.energy - actualTaps,
-      });
+      const updated = await storage.atomicTap(user.id, coinsEarned, actualTaps, new Date());
 
       await storage.upsertDailyTap(user.id, actualTaps, coinsEarned, user.tier);
       await updateCoinsSinceChallenge(user.id, coinsEarned);
@@ -343,8 +340,8 @@ export async function registerRoutes(
         direction: "credit",
         amount: coinsEarned,
         currency: "COINS",
-        balanceBefore: user.totalCoins,
-        balanceAfter: user.totalCoins + coinsEarned,
+        balanceBefore: updated ? updated.totalCoins - coinsEarned : user.totalCoins,
+        balanceAfter: updated?.totalCoins ?? user.totalCoins + coinsEarned,
         game: "tapPot",
         refId: session?.id,
         note: `${coinsEarned} game coins from ${actualTaps} taps (points for upgrades & leaderboard)`,

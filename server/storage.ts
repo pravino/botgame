@@ -64,6 +64,15 @@ export class DatabaseStorage {
     return user;
   }
 
+  async atomicTap(id: string, coinsEarned: number, energyCost: number, lastEnergyRefill: Date): Promise<User | undefined> {
+    const [user] = await db.update(users).set({
+      totalCoins: sql`${users.totalCoins} + ${coinsEarned}`,
+      energy: sql`GREATEST(0, ${users.energy} - ${energyCost})`,
+      lastEnergyRefill,
+    }).where(eq(users.id, id)).returning();
+    return user;
+  }
+
   async getTopUsersByCoins(limit = 20, tier?: string): Promise<User[]> {
     const conditions = tier ? [eq(users.tier, tier.toUpperCase())] : [];
     if (conditions.length > 0) {
