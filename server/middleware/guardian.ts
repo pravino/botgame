@@ -3,31 +3,47 @@ import { db } from "../storage";
 import { tapSessions, users } from "@shared/schema";
 import { eq, and, gte, desc, sql } from "drizzle-orm";
 
-const RATE_LIMIT_TAPS_PER_SECOND = 15;
+const MAX_REQUESTS_PER_WINDOW = 10;
+const RATE_WINDOW_MS = 3000;
+const MAX_TAPS_PER_WINDOW = 200;
 const COOLDOWN_DURATION_MS = 60 * 1000;
 const CHALLENGE_COIN_THRESHOLD = 5000;
 const CHALLENGE_PAUSE_DURATION_MS = 60 * 60 * 1000;
 
-const tapTimestamps: Map<string, number[]> = new Map();
+const tapHistory: Map<string, { timestamps: number[]; tapCounts: number[] }> = new Map();
 
 export function checkRateLimit(userId: string, tapCount: number): { allowed: boolean; reason?: string } {
   const now = Date.now();
-  const windowMs = 1000;
 
-  if (!tapTimestamps.has(userId)) {
-    tapTimestamps.set(userId, []);
+  if (!tapHistory.has(userId)) {
+    tapHistory.set(userId, { timestamps: [], tapCounts: [] });
   }
 
-  const timestamps = tapTimestamps.get(userId)!;
-  const recentTaps = timestamps.filter(t => now - t < windowMs);
-  const totalTapsInWindow = recentTaps.length + tapCount;
+  const history = tapHistory.get(userId)!;
 
-  if (totalTapsInWindow > RATE_LIMIT_TAPS_PER_SECOND) {
-    return { allowed: false, reason: "Rate limit exceeded: too many taps per second" };
+  const recentIndices: number[] = [];
+  let totalRecentTaps = 0;
+  for (let i = 0; i < history.timestamps.length; i++) {
+    if (now - history.timestamps[i] < RATE_WINDOW_MS) {
+      recentIndices.push(i);
+      totalRecentTaps += history.tapCounts[i];
+    }
   }
 
-  recentTaps.push(...Array(tapCount).fill(now));
-  tapTimestamps.set(userId, recentTaps.slice(-100));
+  const recentRequests = recentIndices.length;
+
+  if (recentRequests + 1 > MAX_REQUESTS_PER_WINDOW) {
+    return { allowed: false, reason: "Rate limit exceeded: too many requests" };
+  }
+
+  if (totalRecentTaps + tapCount > MAX_TAPS_PER_WINDOW) {
+    return { allowed: false, reason: "Rate limit exceeded: too many taps" };
+  }
+
+  history.timestamps = recentIndices.map(i => history.timestamps[i]);
+  history.tapCounts = recentIndices.map(i => history.tapCounts[i]);
+  history.timestamps.push(now);
+  history.tapCounts.push(tapCount);
 
   return { allowed: true };
 }

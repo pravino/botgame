@@ -76,6 +76,9 @@ export default function TapToEarn() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
     },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    },
   });
 
   const refillMutation = useMutation({
