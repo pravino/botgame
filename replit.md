@@ -20,6 +20,7 @@ client/src/
 │   ├── tap-to-earn.tsx    - Coin tapping mini-game
 │   ├── price-prediction.tsx - BTC price prediction game
 │   ├── lucky-wheel.tsx    - Spin wheel for USDT rewards
+│   ├── subscription.tsx   - Tier subscription plans with sandbox payment flow
 │   ├── wallet.tsx         - USDT wallet with deposit addresses
 │   ├── leaderboard.tsx    - Player rankings
 │   └── not-found.tsx      - 404 page
@@ -178,6 +179,7 @@ shared/
 - Dark mode preferred as default theme
 
 ## Recent Changes
+- 2026-02-18: Subscription UI page: Tier cards (Free/Bronze/Silver/Gold) with prices from backend config, current plan indicator with founder badge and pro-rate notes, sandbox auto-confirm flow, payment history section with invoice statuses. Added to sidebar navigation.
 - 2026-02-18: TON Pay SDK sandbox integration: Invoice-based payment flow for tier subscriptions (Bronze $5, Silver $15, Gold $50). HMAC-SHA256 webhook verification, sandbox-confirm endpoint for testnet testing, automatic 60/40 split at source via processSubscriptionPayment. New paymentInvoices table tracks all invoices. Environment: TON_PAY_MODE=testnet, TON_PAY_SECRET for webhook signing.
 - 2026-02-18: Multi-Oracle BTC price system: triple source (CoinGecko, Binance, CoinMarketCap) with median calculation, exponential backoff retries, and 5-minute freeze protocol if all sources fail. Replaces single CoinGecko dependency.
 - 2026-02-18: Pro-rated daily pot system: mid-day joiners contribute proportional to hours remaining (minutesActive/1440 * dailyUnit). 4-hour minimum subscription gate on predictions prevents midnight sniping. subscriptionStartedAt timestamp tracks exact join time. Midnight Pulse reads tier pricing from DB (not hardcoded). Ledger entries use real wallet balances.
