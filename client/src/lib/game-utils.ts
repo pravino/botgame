@@ -12,13 +12,50 @@ export function getEnergyPercentage(energy: number, maxEnergy: number): number {
   return Math.max(0, Math.min(100, (energy / maxEnergy) * 100));
 }
 
-export function getTimeUntilRefill(lastRefill: string | Date): string {
-  const last = new Date(lastRefill);
-  const next = new Date(last.getTime() + 24 * 60 * 60 * 1000);
-  const now = new Date();
-  const diff = next.getTime() - now.getTime();
+export const ENERGY_REFILL_RATE_MS = 2000;
 
-  if (diff <= 0) return "Ready!";
+export function calculateCurrentEnergy(
+  storedEnergy: number,
+  maxEnergy: number,
+  lastEnergyRefill: string | Date
+): number {
+  const lastRefill = new Date(lastEnergyRefill).getTime();
+  const elapsedMs = Date.now() - lastRefill;
+  const regenAmount = Math.floor(elapsedMs / ENERGY_REFILL_RATE_MS);
+  return Math.min(maxEnergy, storedEnergy + regenAmount);
+}
+
+export function getTimeUntilFullEnergy(
+  currentEnergy: number,
+  maxEnergy: number
+): string {
+  if (currentEnergy >= maxEnergy) return "Full!";
+
+  const remaining = maxEnergy - currentEnergy;
+  const totalSeconds = remaining * (ENERGY_REFILL_RATE_MS / 1000);
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
+}
+
+export function canUseFreeRefill(lastFreeRefill: string | Date | null): boolean {
+  if (!lastFreeRefill) return true;
+  const last = new Date(lastFreeRefill).getTime();
+  return Date.now() - last >= 24 * 60 * 60 * 1000;
+}
+
+export function getTimeUntilFreeRefill(lastFreeRefill: string | Date | null): string {
+  if (!lastFreeRefill) return "Available now!";
+  const last = new Date(lastFreeRefill).getTime();
+  const nextAvailable = last + 24 * 60 * 60 * 1000;
+  const diff = nextAvailable - Date.now();
+
+  if (diff <= 0) return "Available now!";
 
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));

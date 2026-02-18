@@ -105,8 +105,7 @@ export async function midnightPulse(): Promise<void> {
     await storage.truncateDailyTaps(dateKey);
     log(`[Midnight Pulse] Cleared daily_taps for ${dateKey}`);
 
-    await storage.resetAllUserEnergy();
-    log(`[Midnight Pulse] Reset energy for all users`);
+    log(`[Midnight Pulse] Energy now refills passively (1/2s) — no bulk reset needed`);
 
     clearPriceCache();
     try {

@@ -94,20 +94,42 @@ export async function registerRoutes(
     })
   );
 
+  const ENERGY_REFILL_RATE_MS = 2000;
+
+  function calculatePassiveEnergyRegen(user: any): { newEnergy: number; advancedRefillTime: Date } {
+    const now = Date.now();
+    const lastRefill = new Date(user.lastEnergyRefill).getTime();
+    const elapsedMs = now - lastRefill;
+    const regenAmount = Math.floor(elapsedMs / ENERGY_REFILL_RATE_MS);
+    const newEnergy = Math.min(user.maxEnergy, user.energy + regenAmount);
+    const consumedMs = regenAmount * ENERGY_REFILL_RATE_MS;
+    const advancedRefillTime = new Date(lastRefill + consumedMs);
+    return { newEnergy, advancedRefillTime };
+  }
+
+  async function applyPassiveRegen(userId: string, user: any): Promise<any> {
+    const { newEnergy, advancedRefillTime } = calculatePassiveEnergyRegen(user);
+    if (newEnergy > user.energy) {
+      const updated = await storage.updateUser(userId, {
+        energy: newEnergy,
+        lastEnergyRefill: advancedRefillTime,
+      });
+      return updated || { ...user, energy: newEnergy, lastEnergyRefill: advancedRefillTime };
+    }
+    return user;
+  }
+
   async function refillUserResources(user: any) {
     const now = new Date();
-    const lastEnergyRefill = new Date(user.lastEnergyRefill);
-    const hoursSinceEnergyRefill = (now.getTime() - lastEnergyRefill.getTime()) / (1000 * 60 * 60);
-
     const updates: any = {};
 
-    if (hoursSinceEnergyRefill >= 24 && user.energy < user.maxEnergy) {
-      updates.energy = user.maxEnergy;
-      updates.lastEnergyRefill = now;
+    const { newEnergy, advancedRefillTime } = calculatePassiveEnergyRegen(user);
+    if (newEnergy > user.energy) {
+      updates.energy = newEnergy;
+      updates.lastEnergyRefill = advancedRefillTime;
     }
 
-    const lastSpinRefillDate = user.lastEnergyRefill;
-    const lastSpinRefill = new Date(lastSpinRefillDate);
+    const lastSpinRefill = new Date(user.lastEnergyRefill);
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const lastRefillDay = new Date(lastSpinRefill.getFullYear(), lastSpinRefill.getMonth(), lastSpinRefill.getDate());
 
@@ -231,8 +253,10 @@ export async function registerRoutes(
       const { taps } = req.body;
       const tapCount = Math.min(Math.max(1, Number(taps) || 1), 50);
 
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(404).json({ message: "User not found" });
+      const rawUser = await storage.getUser(req.session.userId!);
+      if (!rawUser) return res.status(404).json({ message: "User not found" });
+
+      const user = await applyPassiveRegen(rawUser.id, rawUser);
 
       const guardianResult = await runGuardianChecks(user.id, tapCount);
       if (!guardianResult.allowed) {
@@ -281,6 +305,49 @@ export async function registerRoutes(
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: "Failed to process tap" });
+    }
+  });
+
+  app.post("/api/energy/refill", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const now = new Date();
+      const lastFreeRefill = user.lastFreeRefill ? new Date(user.lastFreeRefill) : null;
+
+      if (lastFreeRefill) {
+        const hoursSince = (now.getTime() - lastFreeRefill.getTime()) / (1000 * 60 * 60);
+        if (hoursSince < 24) {
+          const nextAvailable = new Date(lastFreeRefill.getTime() + 24 * 60 * 60 * 1000);
+          return res.status(400).json({
+            message: "Free refill already used today",
+            nextAvailable: nextAvailable.toISOString(),
+          });
+        }
+      }
+
+      const balanceBefore = user.energy;
+      const updated = await storage.updateUser(user.id, {
+        energy: user.maxEnergy,
+        lastEnergyRefill: now,
+        lastFreeRefill: now,
+      });
+
+      await recordLedgerEntry({
+        userId: user.id,
+        entryType: "energy_refill",
+        direction: "credit",
+        amount: user.maxEnergy - balanceBefore,
+        currency: "COINS",
+        balanceBefore,
+        balanceAfter: user.maxEnergy,
+        note: `Free daily energy refill: ${balanceBefore} → ${user.maxEnergy}`,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to refill energy" });
     }
   });
 
