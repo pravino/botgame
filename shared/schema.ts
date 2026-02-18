@@ -11,6 +11,7 @@ export const tiers = pgTable("tiers", {
   tapMultiplier: integer("tap_multiplier").notNull().default(1),
   energyRefillRateMs: integer("energy_refill_rate_ms").notNull().default(2000),
   freeRefillsPerDay: integer("free_refills_per_day").notNull().default(0),
+  refillCooldownMs: integer("refill_cooldown_ms"),
 });
 
 export const users = pgTable("users", {

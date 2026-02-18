@@ -14,10 +14,10 @@ export function getEnergyPercentage(energy: number, maxEnergy: number): number {
 
 export interface TierConfig {
   energyRefillRateMs: number;
-  freeRefillsPerDay: number;
+  refillCooldownMs: number | null;
 }
 
-const DEFAULT_TIER_CONFIG: TierConfig = { energyRefillRateMs: 2000, freeRefillsPerDay: 0 };
+const DEFAULT_TIER_CONFIG: TierConfig = { energyRefillRateMs: 2000, refillCooldownMs: null };
 
 export function calculateCurrentEnergy(
   storedEnergy: number,
@@ -52,29 +52,36 @@ export function getTimeUntilFullEnergy(
   return `${seconds}s`;
 }
 
-export function getRemainingRefills(
-  dailyRefillsUsed: number,
+export function getRefillCooldownRemaining(
   lastFreeRefill: string | Date | null,
   tierConfig: TierConfig = DEFAULT_TIER_CONFIG
-): number {
-  const maxRefills = tierConfig.freeRefillsPerDay;
-  if (maxRefills <= 0) return 0;
-
-  let used = dailyRefillsUsed || 0;
-
-  if (lastFreeRefill) {
-    const last = new Date(lastFreeRefill);
-    const now = new Date();
-    if (last.getUTCFullYear() !== now.getUTCFullYear() ||
-        last.getUTCMonth() !== now.getUTCMonth() ||
-        last.getUTCDate() !== now.getUTCDate()) {
-      used = 0;
-    }
-  } else {
-    used = 0;
+): { canRefill: boolean; remainingMs: number } {
+  const cooldownMs = tierConfig.refillCooldownMs;
+  if (cooldownMs === null || cooldownMs <= 0) {
+    return { canRefill: false, remainingMs: 0 };
   }
 
-  return Math.max(0, maxRefills - used);
+  if (!lastFreeRefill) {
+    return { canRefill: true, remainingMs: 0 };
+  }
+
+  const lastRefill = new Date(lastFreeRefill).getTime();
+  const elapsed = Date.now() - lastRefill;
+  if (elapsed >= cooldownMs) {
+    return { canRefill: true, remainingMs: 0 };
+  }
+
+  return { canRefill: false, remainingMs: cooldownMs - elapsed };
+}
+
+export function formatCooldownTime(remainingMs: number): string {
+  if (remainingMs <= 0) return "Ready!";
+  const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+  const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
 
 export const WHEEL_SLICES = [

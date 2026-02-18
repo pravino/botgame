@@ -4,13 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Coins, Zap, Clock, BatteryCharging, Lock } from "lucide-react";
+import { Coins, Zap, Clock, BatteryCharging, Lock, Timer } from "lucide-react";
 import {
   formatNumber,
   getEnergyPercentage,
   calculateCurrentEnergy,
   getTimeUntilFullEnergy,
-  getRemainingRefills,
+  getRefillCooldownRemaining,
+  formatCooldownTime,
   type TierConfig,
 } from "@/lib/game-utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -32,6 +33,8 @@ export default function TapToEarn() {
   const [floatingCoins, setFloatingCoins] = useState<FloatingCoin[]>([]);
   const [tapScale, setTapScale] = useState(1);
   const [liveEnergy, setLiveEnergy] = useState<number | null>(null);
+  const [cooldownLabel, setCooldownLabel] = useState("");
+  const [canRefill, setCanRefill] = useState(false);
   const coinIdRef = useRef(0);
   const pendingTapsRef = useRef(0);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,7 +44,7 @@ export default function TapToEarn() {
     queryKey: ["/api/user"],
   });
 
-  const tc: TierConfig = user?.tierConfig ?? { energyRefillRateMs: 2000, freeRefillsPerDay: 0 };
+  const tc: TierConfig = user?.tierConfig ?? { energyRefillRateMs: 2000, refillCooldownMs: null };
 
   useEffect(() => {
     if (!user) return;
@@ -54,12 +57,16 @@ export default function TapToEarn() {
         tc
       );
       setLiveEnergy(current);
+
+      const cooldown = getRefillCooldownRemaining(user.lastFreeRefill, tc);
+      setCanRefill(cooldown.canRefill);
+      setCooldownLabel(cooldown.remainingMs > 0 ? formatCooldownTime(cooldown.remainingMs) : "");
     };
 
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [user, tc.energyRefillRateMs]);
+  }, [user, tc.energyRefillRateMs, tc.refillCooldownMs]);
 
   const tapMutation = useMutation({
     mutationFn: async (taps: number) => {
@@ -78,7 +85,7 @@ export default function TapToEarn() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({ title: "Energy Refilled!", description: "Your tank is full. Time for a tapping spree!" });
+      toast({ title: "Full Tank!", description: "Energy fully restored. Go tap!" });
     },
     onError: (error: any) => {
       const msg = error.message || "Refill not available right now";
@@ -159,12 +166,7 @@ export default function TapToEarn() {
   const maxEnergy = user?.maxEnergy ?? 1000;
   const energyPct = getEnergyPercentage(currentEnergy, maxEnergy);
   const timeUntilFull = getTimeUntilFullEnergy(currentEnergy, maxEnergy, tc);
-  const maxRefills = tc.freeRefillsPerDay;
-  const remainingRefills = getRemainingRefills(
-    user?.dailyRefillsUsed ?? 0,
-    user?.lastFreeRefill ?? null,
-    tc
-  );
+  const hasRefillFeature = tc.refillCooldownMs !== null && tc.refillCooldownMs > 0;
   const refillRateLabel = tc.energyRefillRateMs <= 1000 ? "1/sec" : "1/2sec";
 
   return (
@@ -180,7 +182,7 @@ export default function TapToEarn() {
         <CardContent className="p-6 text-center space-y-2">
           <div className="flex items-center justify-center gap-2">
             <Coins className="h-5 w-5 text-primary" />
-            <span className="text-3xl font-bold animate-number-pop" data-testid="text-total-coins">
+            <span className="text-3xl font-bold" data-testid="text-total-coins">
               {formatNumber(user?.totalCoins || 0)}
             </span>
           </div>
@@ -200,7 +202,7 @@ export default function TapToEarn() {
             transition={{ type: "spring", stiffness: 500, damping: 20 }}
             className={`w-44 h-44 rounded-full flex items-center justify-center
               bg-gradient-to-br from-amber-400 via-yellow-500 to-orange-500
-              ${currentEnergy > 0 ? "animate-pulse-glow" : "opacity-50"}
+              ${currentEnergy > 0 ? "" : "opacity-50"}
             `}
             style={{
               boxShadow: currentEnergy > 0
@@ -254,27 +256,28 @@ export default function TapToEarn() {
               <Clock className="h-3 w-3" />
               <span>{currentEnergy >= maxEnergy ? "Tank full!" : `Full in: ${timeUntilFull}`}</span>
             </div>
-            {maxRefills > 0 ? (
-              remainingRefills > 0 ? (
+            {hasRefillFeature ? (
+              canRefill ? (
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => refillMutation.mutate()}
                   disabled={refillMutation.isPending || currentEnergy >= maxEnergy}
-                  data-testid="button-free-refill"
+                  data-testid="button-full-tank"
                 >
                   <BatteryCharging className="h-3.5 w-3.5 mr-1" />
-                  {refillMutation.isPending ? "Refilling..." : `Refill (${remainingRefills}/${maxRefills})`}
+                  {refillMutation.isPending ? "Filling..." : "Full Tank"}
                 </Button>
               ) : (
-                <span className="text-xs text-muted-foreground" data-testid="text-refill-used">
-                  Refills used ({maxRefills}/{maxRefills})
+                <span className="text-xs text-muted-foreground flex items-center gap-1" data-testid="text-refill-cooldown">
+                  <Timer className="h-3 w-3" />
+                  Next refill: {cooldownLabel}
                 </span>
               )
             ) : (
               <span className="text-xs text-muted-foreground flex items-center gap-1" data-testid="text-refill-locked">
                 <Lock className="h-3 w-3" />
-                Upgrade to unlock refills
+                Upgrade to unlock Full Tank
               </span>
             )}
           </div>
@@ -287,20 +290,26 @@ export default function TapToEarn() {
             <p className="text-sm text-muted-foreground">
               Energy depleted. It refills at {refillRateLabel} — come back in a few minutes!
             </p>
-            {maxRefills > 0 && remainingRefills > 0 && (
+            {hasRefillFeature && canRefill && (
               <Button
                 variant="default"
                 onClick={() => refillMutation.mutate()}
                 disabled={refillMutation.isPending}
-                data-testid="button-free-refill-cta"
+                data-testid="button-full-tank-cta"
               >
                 <BatteryCharging className="h-4 w-4 mr-1" />
-                {refillMutation.isPending ? "Refilling..." : `Use Free Refill (${remainingRefills} left)`}
+                {refillMutation.isPending ? "Filling..." : "Use Full Tank Now"}
               </Button>
             )}
-            {maxRefills <= 0 && (
+            {hasRefillFeature && !canRefill && (
+              <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                <Timer className="h-3 w-3" />
+                Full Tank available in {cooldownLabel}
+              </p>
+            )}
+            {!hasRefillFeature && (
               <p className="text-xs text-muted-foreground">
-                Upgrade to Bronze or higher to unlock instant refills!
+                Upgrade to Bronze or higher to unlock Full Tank refills!
               </p>
             )}
           </CardContent>
