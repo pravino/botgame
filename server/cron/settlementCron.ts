@@ -25,11 +25,33 @@ export async function midnightPulse(): Promise<void> {
 
     for (const tierName of tierNames) {
       const subscribers = await storage.getActiveSubscribersByTier(tierName);
-      const subscriberCount = subscribers.length;
-      if (subscriberCount === 0) continue;
+      if (subscribers.length === 0) continue;
 
       const dailyUnit = tierDailyUnits[tierName] || 0;
-      const dailyPool = subscriberCount * dailyUnit;
+
+      const startOfSettlementDay = new Date(yesterdayDate);
+      startOfSettlementDay.setUTCHours(0, 0, 0, 0);
+
+      let dailyPool = 0;
+      const endOfSettlementDay = new Date(startOfSettlementDay);
+      endOfSettlementDay.setUTCHours(23, 59, 59, 999);
+
+      for (const sub of subscribers) {
+        if (sub.subscriptionStartedAt) {
+          const joinedAt = new Date(sub.subscriptionStartedAt);
+          if (joinedAt > endOfSettlementDay) {
+            continue;
+          }
+          if (joinedAt >= startOfSettlementDay && joinedAt <= endOfSettlementDay) {
+            const minutesActive = Math.max(0, (endOfSettlementDay.getTime() - joinedAt.getTime()) / (1000 * 60));
+            const proRatedUnit = (minutesActive / 1440) * dailyUnit;
+            dailyPool += parseFloat(proRatedUnit.toFixed(4));
+            continue;
+          }
+        }
+        dailyPool += dailyUnit;
+      }
+
       const tapPotAmount = dailyPool * TAP_POT_SHARE;
 
       if (tapPotAmount <= 0) continue;

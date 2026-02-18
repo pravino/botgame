@@ -334,6 +334,16 @@ export async function registerRoutes(
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(404).json({ message: "User not found" });
 
+      if (user.tier !== "FREE" && user.subscriptionStartedAt) {
+        const hoursSinceSubscription = (Date.now() - new Date(user.subscriptionStartedAt).getTime()) / (1000 * 60 * 60);
+        if (hoursSinceSubscription < 4) {
+          const hoursLeft = Math.ceil(4 - hoursSinceSubscription);
+          return res.status(400).json({
+            message: `New subscribers must wait at least 4 hours before making predictions. You can predict in about ${hoursLeft} hour${hoursLeft !== 1 ? "s" : ""}.`,
+          });
+        }
+      }
+
       const active = await storage.getActivePrediction(user.id);
       if (active) {
         return res.status(400).json({ message: "You already have an active prediction. Wait for it to resolve." });
@@ -1000,11 +1010,32 @@ export async function registerRoutes(
 
       const ticketsExpired = user.spinTicketsExpiry && new Date(user.spinTicketsExpiry) <= new Date();
 
+      let isProRated = false;
+      let proRateNote = "";
+      if (isActive && user.subscriptionStartedAt) {
+        const startedAt = new Date(user.subscriptionStartedAt);
+        const startOfToday = new Date();
+        startOfToday.setUTCHours(0, 0, 0, 0);
+        const endOfToday = new Date(startOfToday);
+        endOfToday.setUTCHours(23, 59, 59, 999);
+        if (startedAt >= startOfToday && startedAt <= endOfToday) {
+          isProRated = true;
+          const minutesLeft = Math.max(0, (endOfToday.getTime() - startedAt.getTime()) / (1000 * 60));
+          const hoursLeft = Math.round(minutesLeft / 60);
+          if (hoursLeft < 24) {
+            proRateNote = `Since you joined mid-day, your rewards for the next ${hoursLeft} hours are pro-rated. Full 24-hour pools unlock at Midnight UTC.`;
+          }
+        }
+      }
+
       res.json({
         tier: user.tier,
         isActive: !!isActive,
         subscriptionExpiry: user.subscriptionExpiry,
+        subscriptionStartedAt: user.subscriptionStartedAt,
         isFounder: user.isFounder,
+        isProRated,
+        proRateNote,
         spinTickets: ticketsExpired ? 0 : user.spinTickets,
         spinTicketsExpiry: user.spinTicketsExpiry,
       });

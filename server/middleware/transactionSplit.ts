@@ -44,6 +44,8 @@ export interface SplitResult {
   };
   spinTickets: number;
   isFounder: boolean;
+  isProRated: boolean;
+  proRateNote: string;
   message: string;
 }
 
@@ -140,6 +142,7 @@ export async function processSubscriptionPayment(
   await storage.updateUser(userId, {
     tier: normalizedTier,
     subscriptionExpiry,
+    subscriptionStartedAt: now,
     isFounder: isFounder || undefined,
     spinTickets: SPIN_TICKETS_PER_SUBSCRIPTION,
     spinTicketsExpiry: expiryDate,
@@ -176,6 +179,13 @@ export async function processSubscriptionPayment(
     note: `${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted with ${normalizedTier} subscription`,
   });
 
+  const minutesLeftInDay = ((23 - now.getUTCHours()) * 60) + (60 - now.getUTCMinutes());
+  const isProRated = minutesLeftInDay < 1440;
+  const hoursLeft = Math.round(minutesLeftInDay / 60);
+  const proRateNote = isProRated && hoursLeft < 24
+    ? `Since you joined mid-day, your rewards for the next ${hoursLeft} hours are pro-rated. Full 24-hour pools unlock at Midnight UTC.`
+    : "";
+
   return {
     success: true,
     tierName: normalizedTier,
@@ -191,6 +201,8 @@ export async function processSubscriptionPayment(
     },
     spinTickets: SPIN_TICKETS_PER_SUBSCRIPTION,
     isFounder,
-    message: `${normalizedTier} Tier Activated! $${adminAmount} -> Admin Wallet, $${treasuryAmount} -> Game Treasury. TapPot drips $${tapPotDaily}/day, PredictPot drips $${predictPotDaily}/day, WheelVault $${wheelVaultTotal} instant to Jackpot. ${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted (1/week).`,
+    isProRated,
+    proRateNote,
+    message: `${normalizedTier} Tier Activated! ${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted.${proRateNote}`,
   };
 }

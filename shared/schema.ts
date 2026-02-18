@@ -29,6 +29,7 @@ export const users = pgTable("users", {
   walletBalance: real("wallet_balance").notNull().default(0),
   tier: text("tier").notNull().default("FREE"),
   subscriptionExpiry: timestamp("subscription_expiry"),
+  subscriptionStartedAt: timestamp("subscription_started_at"),
   isFounder: boolean("is_founder").notNull().default(false),
   tonWalletAddress: text("ton_wallet_address"),
   telegramId: text("telegram_id").unique(),

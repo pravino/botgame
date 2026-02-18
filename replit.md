@@ -171,6 +171,7 @@ shared/
 - Dark mode preferred as default theme
 
 ## Recent Changes
+- 2026-02-18: Pro-rated daily pot system: mid-day joiners contribute proportional to hours remaining (minutesActive/1440 * dailyUnit). 4-hour minimum subscription gate on predictions prevents midnight sniping. subscriptionStartedAt timestamp tracks exact join time. Midnight Pulse reads tier pricing from DB (not hardcoded). Ledger entries use real wallet balances.
 - 2026-02-18: Built 3-layer security system: Guardian Middleware (rate limiter 15 taps/sec, proof-of-humanity challenge every 5000 coins, wallet-unique filter), Withdrawal Settlement (flat $0.50 fee, $5 min, 24hr audit delay, bot detection), Admin Pulse Dashboard
 - 2026-02-18: Admin endpoints now require admin authorization (ADMIN_EMAILS env var)
 - 2026-02-18: Withdrawal system switched from percentage-based fees to flat $0.50 USDT fee for all tiers
