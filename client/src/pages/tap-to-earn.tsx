@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Coins, Zap, Clock, BatteryCharging, Lock, Timer } from "lucide-react";
+import { Coins, Zap, Clock, BatteryCharging, Lock } from "lucide-react";
 import {
   formatNumber,
   getEnergyPercentage,
@@ -29,12 +29,85 @@ interface FloatingCoin {
   y: number;
 }
 
+function CooldownRing({
+  progress,
+  size = 40,
+  strokeWidth = 3,
+  showLabel = false,
+  label = "",
+}: {
+  progress: number;
+  size?: number;
+  strokeWidth?: number;
+  showLabel?: boolean;
+  label?: string;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - Math.min(1, Math.max(0, progress)));
+
+  const pct = Math.round(progress * 100);
+
+  return (
+    <div className="relative" style={{ width: size, height: size }} data-testid="status-refill-progress">
+      <svg
+        width={size}
+        height={size}
+        className="-rotate-90"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`Refill cooldown ${pct}% complete`}
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={strokeWidth}
+          className="stroke-muted"
+        />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          className="stroke-primary"
+          style={{ strokeDasharray: circumference }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+        />
+      </svg>
+      {showLabel && (
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ fontSize: size * 0.18 }}
+        >
+          <span className="font-medium text-muted-foreground leading-none" data-testid="text-refill-time">{label}</span>
+        </div>
+      )}
+      {!showLabel && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <BatteryCharging
+            className="text-primary"
+            style={{ width: size * 0.4, height: size * 0.4 }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TapToEarn() {
   const [floatingCoins, setFloatingCoins] = useState<FloatingCoin[]>([]);
   const [tapScale, setTapScale] = useState(1);
   const [liveEnergy, setLiveEnergy] = useState<number | null>(null);
   const [cooldownLabel, setCooldownLabel] = useState("");
   const [canRefill, setCanRefill] = useState(false);
+  const [cooldownProgress, setCooldownProgress] = useState(0);
   const coinIdRef = useRef(0);
   const pendingTapsRef = useRef(0);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,6 +134,7 @@ export default function TapToEarn() {
       const cooldown = getRefillCooldownRemaining(user.lastFreeRefill, tc);
       setCanRefill(cooldown.canRefill);
       setCooldownLabel(cooldown.remainingMs > 0 ? formatCooldownTime(cooldown.remainingMs) : "");
+      setCooldownProgress(cooldown.progress);
     };
 
     tick();
@@ -272,10 +346,10 @@ export default function TapToEarn() {
                   {refillMutation.isPending ? "Filling..." : "Full Tank"}
                 </Button>
               ) : (
-                <span className="text-xs text-muted-foreground flex items-center gap-1" data-testid="text-refill-cooldown">
-                  <Timer className="h-3 w-3" />
-                  Next refill: {cooldownLabel}
-                </span>
+                <div className="flex items-center gap-2" data-testid="text-refill-cooldown">
+                  <CooldownRing progress={cooldownProgress} size={32} strokeWidth={3} />
+                  <span className="text-xs text-muted-foreground">{cooldownLabel}</span>
+                </div>
               )
             ) : (
               <span className="text-xs text-muted-foreground flex items-center gap-1" data-testid="text-refill-locked">
@@ -305,10 +379,10 @@ export default function TapToEarn() {
               </Button>
             )}
             {hasRefillFeature && !canRefill && (
-              <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                <Timer className="h-3 w-3" />
-                Full Tank available in {cooldownLabel}
-              </p>
+              <div className="flex flex-col items-center gap-2">
+                <CooldownRing progress={cooldownProgress} size={56} strokeWidth={4} showLabel label={cooldownLabel} />
+                <p className="text-xs text-muted-foreground">Full Tank recharging</p>
+              </div>
             )}
             {!hasRefillFeature && (
               <p className="text-xs text-muted-foreground">

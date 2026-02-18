@@ -55,23 +55,25 @@ export function getTimeUntilFullEnergy(
 export function getRefillCooldownRemaining(
   lastFreeRefill: string | Date | null,
   tierConfig: TierConfig = DEFAULT_TIER_CONFIG
-): { canRefill: boolean; remainingMs: number } {
+): { canRefill: boolean; remainingMs: number; totalMs: number; progress: number } {
   const cooldownMs = tierConfig.refillCooldownMs;
   if (cooldownMs === null || cooldownMs <= 0) {
-    return { canRefill: false, remainingMs: 0 };
+    return { canRefill: false, remainingMs: 0, totalMs: 0, progress: 0 };
   }
 
   if (!lastFreeRefill) {
-    return { canRefill: true, remainingMs: 0 };
+    return { canRefill: true, remainingMs: 0, totalMs: cooldownMs, progress: 1 };
   }
 
   const lastRefill = new Date(lastFreeRefill).getTime();
   const elapsed = Date.now() - lastRefill;
   if (elapsed >= cooldownMs) {
-    return { canRefill: true, remainingMs: 0 };
+    return { canRefill: true, remainingMs: 0, totalMs: cooldownMs, progress: 1 };
   }
 
-  return { canRefill: false, remainingMs: cooldownMs - elapsed };
+  const remaining = cooldownMs - elapsed;
+  const progress = elapsed / cooldownMs;
+  return { canRefill: false, remainingMs: remaining, totalMs: cooldownMs, progress };
 }
 
 export function formatCooldownTime(remainingMs: number): string {
