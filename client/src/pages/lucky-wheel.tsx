@@ -33,7 +33,7 @@ export default function LuckyWheel() {
       const res = await apiRequest("POST", "/api/spin");
       return res.json();
     },
-    onSuccess: (data: { reward: number; sliceLabel: string; sliceIndex: number }) => {
+    onSuccess: (data: { reward: number; coinsAwarded: number; energyAwarded: number; sliceLabel: string; sliceIndex: number; prizeTier: string }) => {
       const targetSlice = data.sliceIndex;
       const sliceCenter = targetSlice * SLICE_ANGLE + SLICE_ANGLE / 2;
       const fullSpins = 5 + Math.floor(Math.random() * 3);
@@ -47,9 +47,19 @@ export default function LuckyWheel() {
         setLastWin({ label: data.sliceLabel, value: data.reward });
         queryClient.invalidateQueries({ queryKey: ["/api/user"] });
         queryClient.invalidateQueries({ queryKey: ["/api/wheel-history"] });
+
+        let description = "";
+        if (data.reward > 0) {
+          description = `${formatUSD(data.reward)} USDT has been added to your wallet!`;
+        } else if (data.coinsAwarded > 0) {
+          description = `${data.coinsAwarded.toLocaleString()} coins have been added!`;
+        } else if (data.energyAwarded > 0) {
+          description = `+${data.energyAwarded} energy boost applied!`;
+        }
+
         toast({
-          title: `You won ${data.sliceLabel}!`,
-          description: `${formatUSD(data.reward)} has been added to your winnings.`,
+          title: data.prizeTier === "jackpot" ? `JACKPOT! ${data.sliceLabel}` : `You won ${data.sliceLabel}!`,
+          description,
         });
       }, 4000);
     },
@@ -62,8 +72,11 @@ export default function LuckyWheel() {
     },
   });
 
+  const isPaidTier = user && user.tier !== "FREE" && user.subscriptionExpiry && new Date(user.subscriptionExpiry) > new Date();
+  const availableSpins = isPaidTier ? (user?.spinTickets ?? 0) : (user?.spinsRemaining ?? 0);
+
   const handleSpin = () => {
-    if (spinning || (user && user.spinsRemaining <= 0)) return;
+    if (spinning || availableSpins <= 0) return;
     setLastWin(null);
     spinMutation.mutate();
   };
@@ -75,7 +88,7 @@ export default function LuckyWheel() {
           Lucky Wheel
         </h1>
         <p className="text-muted-foreground text-sm">
-          Spin for a chance to win up to 100 USDT
+          Spin for a chance to win USDT, coins, and energy
         </p>
       </div>
 
@@ -86,7 +99,7 @@ export default function LuckyWheel() {
             <span className="text-sm font-medium">Spins Remaining</span>
           </div>
           <Badge variant="default" data-testid="text-spins-remaining">
-            {user?.spinsRemaining || 0}
+            {availableSpins}
           </Badge>
         </CardContent>
       </Card>
@@ -157,7 +170,7 @@ export default function LuckyWheel() {
       <div className="flex justify-center">
         <Button
           onClick={handleSpin}
-          disabled={spinning || (user !== undefined && user.spinsRemaining <= 0)}
+          disabled={spinning || availableSpins <= 0}
           className="px-8"
           data-testid="button-spin"
         >
@@ -169,7 +182,7 @@ export default function LuckyWheel() {
           ) : (
             <span className="flex items-center gap-2">
               <CircleDot className="h-4 w-4" />
-              {user && user.spinsRemaining <= 0 ? "No Spins Left" : "Spin the Wheel"}
+              {availableSpins <= 0 ? "No Spins Left" : "Spin the Wheel"}
             </span>
           )}
         </Button>

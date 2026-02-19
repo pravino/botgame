@@ -16,28 +16,7 @@ import { getValidatedBTCPrice, isPriceFrozen } from "./services/priceService";
 import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
-const WHEEL_SLICES = [
-  { label: "0.10 USDT", value: 0.10, probability: 0.35 },
-  { label: "0.25 USDT", value: 0.25, probability: 0.25 },
-  { label: "0.50 USDT", value: 0.50, probability: 0.18 },
-  { label: "1.00 USDT", value: 1.00, probability: 0.12 },
-  { label: "5.00 USDT", value: 5.00, probability: 0.07 },
-  { label: "JACKPOT!", value: 100.00, probability: 0.01 },
-  { label: "0.10 USDT", value: 0.10, probability: 0.02 },
-  { label: "0.50 USDT", value: 0.50, probability: 0.00 },
-];
-
-function pickWheelSlice(): { sliceIndex: number; label: string; value: number } {
-  const rand = Math.random();
-  let cumulative = 0;
-  for (let i = 0; i < WHEEL_SLICES.length; i++) {
-    cumulative += WHEEL_SLICES[i].probability;
-    if (rand < cumulative) {
-      return { sliceIndex: i, label: WHEEL_SLICES[i].label, value: WHEEL_SLICES[i].value };
-    }
-  }
-  return { sliceIndex: 0, label: WHEEL_SLICES[0].label, value: WHEEL_SLICES[0].value };
-}
+import { spinWheel } from "./services/wheelService";
 
 async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
   try {
@@ -743,90 +722,25 @@ export async function registerRoutes(
 
   app.post("/api/spin", requireAuth, async (req: Request, res: Response) => {
     try {
+      const result = await spinWheel(req.session.userId!);
+
       const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(404).json({ message: "User not found" });
-
-      const isPaidTier = user.tier !== "FREE" && user.subscriptionExpiry && new Date(user.subscriptionExpiry) > new Date();
-      let canSpin = false;
-
-      if (isPaidTier) {
-        const ticketsExpired = user.spinTicketsExpiry && new Date(user.spinTicketsExpiry) <= new Date();
-        if (ticketsExpired || user.spinTickets <= 0) {
-          return res.status(400).json({ message: "No spin tickets remaining. Renew your subscription!" });
-        }
-        canSpin = true;
-      } else {
-        if (user.spinsRemaining <= 0) {
-          return res.status(400).json({ message: "No spins remaining. Come back tomorrow!" });
-        }
-        canSpin = true;
-      }
-
-      if (!canSpin) {
-        return res.status(400).json({ message: "No spins available" });
-      }
-
-      const result = pickWheelSlice();
-
-      const spin = await storage.createWheelSpin({
-        userId: user.id,
-        reward: result.value,
-        sliceLabel: result.label,
-      });
-
-      const walletBefore = user.walletBalance;
-      const walletAfter = parseFloat((walletBefore + result.value).toFixed(4));
-
-      const updates: any = {
-        totalSpins: user.totalSpins + 1,
-        totalWheelWinnings: user.totalWheelWinnings + result.value,
-        walletBalance: walletAfter,
-      };
-
-      if (isPaidTier) {
-        updates.spinTickets = user.spinTickets - 1;
-      } else {
-        updates.spinsRemaining = user.spinsRemaining - 1;
-      }
-
-      await storage.updateUser(user.id, updates);
-
-      await recordLedgerEntry({
-        userId: user.id,
-        entryType: "wheel_win",
-        direction: "credit",
-        amount: result.value,
-        currency: "USDT",
-        balanceBefore: walletBefore,
-        balanceAfter: walletAfter,
-        game: "wheelVault",
-        refId: spin?.id,
-        note: `Wheel spin win: ${result.label} — $${result.value} credited to wallet`,
-      });
-
-      if (isPaidTier) {
-        await recordLedgerEntry({
-          userId: user.id,
-          entryType: "wheel_win",
-          direction: "debit",
-          amount: 1,
-          currency: "TICKETS",
-          balanceBefore: user.spinTickets,
-          balanceAfter: user.spinTickets - 1,
-          game: "wheelVault",
-          refId: spin?.id,
-          note: "Used 1 spin ticket",
-        });
-      }
+      const isPaidTier = user && user.tier !== "FREE" && user.subscriptionExpiry && new Date(user.subscriptionExpiry) > new Date();
 
       res.json({
-        reward: result.value,
+        reward: result.reward,
+        coinsAwarded: result.coinsAwarded,
+        energyAwarded: result.energyAwarded,
         sliceLabel: result.label,
         sliceIndex: result.sliceIndex,
-        spinTicketsRemaining: isPaidTier ? user.spinTickets - 1 : undefined,
-        spinsRemaining: !isPaidTier ? user.spinsRemaining - 1 : undefined,
+        prizeTier: result.tier,
+        spinTicketsRemaining: isPaidTier ? user!.spinTickets : undefined,
+        spinsRemaining: !isPaidTier ? user?.spinsRemaining : undefined,
       });
     } catch (error: any) {
+      if (error.message.includes("No spin") || error.message.includes("User not found")) {
+        return res.status(400).json({ message: error.message });
+      }
       res.status(500).json({ message: "Failed to spin wheel" });
     }
   });

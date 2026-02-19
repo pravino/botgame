@@ -37,7 +37,7 @@ export type LedgerEntryType =
   | "multiplier_upgrade";
 
 export type LedgerDirection = "credit" | "debit";
-export type LedgerCurrency = "COINS" | "USDT" | "TICKETS";
+export type LedgerCurrency = "COINS" | "USDT" | "TICKETS" | "ENERGY";
 
 interface LedgerInput {
   userId: string;
