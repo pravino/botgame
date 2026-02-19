@@ -417,10 +417,24 @@ export async function registerRoutes(
 
       const result = await resolveChallenge(req.session.userId!, passed);
       if (result.success) {
-        res.json({ message: "Challenge passed! You can continue tapping." });
+        const user = await storage.getUser(req.session.userId!);
+        let energyBonus = 0;
+
+        if (user && user.tier !== "FREE" && user.isFounder) {
+          energyBonus = 50;
+          const newEnergy = Math.min(user.energy + energyBonus, user.maxEnergy);
+          await storage.updateUser(user.id, { energy: newEnergy });
+        }
+
+        res.json({
+          message: energyBonus > 0
+            ? `Challenge passed! +${energyBonus} bonus energy!`
+            : "Challenge passed! You can continue tapping.",
+          energyBonus,
+        });
       } else {
         res.json({
-          message: "Challenge failed. Tap multiplier paused for 1 hour.",
+          message: "Challenge failed. Tapping paused for 1 hour.",
           pausedUntil: result.pausedUntil,
         });
       }

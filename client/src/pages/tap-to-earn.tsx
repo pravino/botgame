@@ -18,6 +18,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { ChallengeOverlay } from "@/components/challenge-overlay";
 
 interface UserWithTierConfig extends User {
   tierConfig?: TierConfig;
@@ -108,6 +109,7 @@ export default function TapToEarn() {
   const [cooldownLabel, setCooldownLabel] = useState("");
   const [canRefill, setCanRefill] = useState(false);
   const [cooldownProgress, setCooldownProgress] = useState(0);
+  const [showChallenge, setShowChallenge] = useState(false);
   const coinIdRef = useRef(0);
   const pendingTapsRef = useRef(0);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -150,8 +152,20 @@ export default function TapToEarn() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
     },
-    onError: () => {
+    onError: (error: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      const msg = error.message || "";
+      const jsonPart = msg.includes(": ") ? msg.substring(msg.indexOf(": ") + 2) : msg;
+      try {
+        const parsed = JSON.parse(jsonPart);
+        if (parsed.challengeRequired) {
+          setShowChallenge(true);
+          return;
+        }
+      } catch {}
+      if (msg.includes("challengeRequired") || msg.includes("challenge")) {
+        setShowChallenge(true);
+      }
     },
   });
 
@@ -246,8 +260,16 @@ export default function TapToEarn() {
   const hasRefillFeature = tc.refillCooldownMs !== null && tc.refillCooldownMs > 0;
   const refillRateLabel = tc.energyRefillRateMs <= 1000 ? "1/sec" : "1/2sec";
 
+  const handleChallengeResolved = useCallback((passed: boolean) => {
+    setShowChallenge(false);
+    queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+  }, []);
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-md mx-auto">
+      {showChallenge && (
+        <ChallengeOverlay onResolved={handleChallengeResolved} />
+      )}
       <div className="text-center space-y-1">
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-tap-title">
           Tap to Earn
