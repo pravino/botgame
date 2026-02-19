@@ -1,7 +1,7 @@
 import { storage, db } from "../storage";
 import { log } from "../index";
 import { users, jackpotVault, wheelSpins } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { recordLedgerEntry } from "../middleware/ledger";
 
 interface WheelPrize {
@@ -16,6 +16,16 @@ const TIER_JACKPOT_VALUES: Record<string, number> = {
   BRONZE: 100,
   SILVER: 200,
   GOLD: 500,
+};
+
+const RNG_RANGE = 10001;
+const JACKPOT_TRIGGER = 7777;
+const BIG_WIN_CEILING = 50;
+
+const TIER_COMMON_CEILINGS: Record<string, number> = {
+  BRONZE: BIG_WIN_CEILING + 2300,
+  SILVER: BIG_WIN_CEILING + 2100,
+  GOLD: BIG_WIN_CEILING + 1500,
 };
 
 const NO_CASH_PRIZES: Array<{ label: string; coins: number; energy: number; weight: number }> = [
@@ -71,28 +81,47 @@ export async function spinWheel(userId: string): Promise<{
     }
   }
 
-  const vaultBalance = await storage.getJackpotVaultBalance(user.tier);
-
+  const rng = Math.floor(Math.random() * RNG_RANGE);
   const jackpotValue = TIER_JACKPOT_VALUES[user.tier] || 100;
-  const rng = Math.floor(Math.random() * 1000);
 
-  let prize: WheelPrize;
-
-  if (rng === 777 && vaultBalance >= jackpotValue) {
-    prize = { tier: "jackpot", label: `GRAND JACKPOT $${jackpotValue}!`, usdtValue: jackpotValue, coinsValue: 0, energyValue: 0 };
-  } else if (rng < 10 && vaultBalance >= 5) {
-    prize = { tier: "big_win", label: "Big Win $5!", usdtValue: 5.00, coinsValue: 0, energyValue: 0 };
-  } else if (rng < 110 && vaultBalance >= 0.50) {
-    prize = { tier: "common", label: "0.50 USDT", usdtValue: 0.50, coinsValue: 0, energyValue: 0 };
-  } else {
-    const noCash = pickNoCashPrize();
-    prize = { tier: "no_cash", label: noCash.label, usdtValue: 0, coinsValue: noCash.coins, energyValue: noCash.energy };
-  }
+  log(`[Wheel] User ${userId} (${user.tier}) spun: RNG=${rng}`);
 
   const walletBefore = user.walletBalance;
-  const walletAfter = parseFloat((walletBefore + prize.usdtValue).toFixed(4));
+  let prize: WheelPrize;
 
-  await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
+    let lockedVaultBalance = 0;
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+    const vaultResult = await tx.execute(sql`
+      SELECT id, total_balance FROM jackpot_vault
+      WHERE tier_name = ${user.tier.toUpperCase()}
+        AND month_key = ${monthKey}
+      FOR UPDATE
+    `);
+    const vaultRows = (vaultResult as any)?.rows ?? vaultResult;
+    const lockedVault = Array.isArray(vaultRows) && vaultRows.length > 0 ? vaultRows[0] : null;
+
+    if (lockedVault) {
+      lockedVaultBalance = parseFloat(lockedVault.total_balance);
+    }
+
+    const commonCeiling = TIER_COMMON_CEILINGS[user.tier.toUpperCase()] || (BIG_WIN_CEILING + 2300);
+
+    if (rng === JACKPOT_TRIGGER && lockedVaultBalance >= jackpotValue) {
+      prize = { tier: "jackpot", label: `GRAND JACKPOT $${jackpotValue}!`, usdtValue: jackpotValue, coinsValue: 0, energyValue: 0 };
+    } else if (rng < BIG_WIN_CEILING && lockedVaultBalance >= 5) {
+      prize = { tier: "big_win", label: "Big Win $5!", usdtValue: 5.00, coinsValue: 0, energyValue: 0 };
+    } else if (rng < commonCeiling && lockedVaultBalance >= 0.50) {
+      prize = { tier: "common", label: "0.50 USDT", usdtValue: 0.50, coinsValue: 0, energyValue: 0 };
+    } else {
+      const noCash = pickNoCashPrize();
+      prize = { tier: "no_cash", label: noCash.label, usdtValue: 0, coinsValue: noCash.coins, energyValue: noCash.energy };
+    }
+
+    const walletAfter = parseFloat((walletBefore + prize.usdtValue).toFixed(4));
+
     const userUpdates: any = {
       totalSpins: user.totalSpins + 1,
     };
@@ -118,12 +147,12 @@ export async function spinWheel(userId: string): Promise<{
 
     await tx.update(users).set(userUpdates).where(eq(users.id, userId));
 
-    if (prize.usdtValue > 0) {
-      const vault = await storage.getOrCreateJackpotVault(user.tier);
-      const newVaultBalance = Math.max(0, parseFloat(vault.totalBalance) - prize.usdtValue);
-      await tx.update(jackpotVault)
-        .set({ totalBalance: newVaultBalance.toFixed(2), updatedAt: new Date() })
-        .where(eq(jackpotVault.id, vault.id));
+    if (prize.usdtValue > 0 && lockedVault) {
+      const newVaultBalance = Math.max(0, lockedVaultBalance - prize.usdtValue);
+      await tx.execute(sql`
+        UPDATE jackpot_vault SET total_balance = ${newVaultBalance.toFixed(2)}, updated_at = now()
+        WHERE id = ${lockedVault.id}
+      `);
     }
 
     await tx.insert(wheelSpins).values({
@@ -171,21 +200,25 @@ export async function spinWheel(userId: string): Promise<{
         note: "Used 1 spin ticket",
       }, tx);
     }
+
+    return { walletAfter };
   });
 
-  if (prize.tier === "jackpot") {
-    announceJackpotWin(user.username || user.email, prize.usdtValue, user.tier);
+  if (prize!.tier === "jackpot") {
+    announceJackpotWin(user.username || user.email, prize!.usdtValue, user.tier);
   }
 
-  const sliceIndex = getVisualSliceIndex(prize.tier);
+  log(`[Wheel] Result: ${prize!.tier} — ${prize!.label} (RNG=${rng}, vault locked inside tx)`);
+
+  const sliceIndex = getVisualSliceIndex(prize!.tier);
 
   return {
-    reward: prize.usdtValue,
-    coinsAwarded: prize.coinsValue,
-    energyAwarded: prize.energyValue,
-    label: prize.label,
+    reward: prize!.usdtValue,
+    coinsAwarded: prize!.coinsValue,
+    energyAwarded: prize!.energyValue,
+    label: prize!.label,
     sliceIndex,
-    tier: prize.tier,
+    tier: prize!.tier,
   };
 }
 

@@ -1108,6 +1108,34 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/seed-vault", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { tier, amount } = req.body;
+      if (!tier || !amount) {
+        return res.status(400).json({ message: "tier and amount are required" });
+      }
+      const validTiers = ["BRONZE", "SILVER", "GOLD"];
+      const normalizedTier = tier.toUpperCase();
+      if (!validTiers.includes(normalizedTier)) {
+        return res.status(400).json({ message: `tier must be one of: ${validTiers.join(", ")}` });
+      }
+      const seedAmount = parseFloat(amount);
+      if (isNaN(seedAmount) || seedAmount <= 0 || seedAmount > 1000) {
+        return res.status(400).json({ message: "amount must be between 0.01 and 1000" });
+      }
+      const vault = await storage.addToJackpotVault(normalizedTier, seedAmount);
+      log(`[Admin] Vault seeded: ${normalizedTier} +$${seedAmount} (new balance: $${vault.totalBalance})`);
+      res.json({
+        message: `${normalizedTier} vault seeded with $${seedAmount.toFixed(2)}`,
+        newBalance: vault.totalBalance,
+        tier: normalizedTier,
+      });
+    } catch (error: any) {
+      log(`Admin vault seed error: ${error.message}`);
+      res.status(500).json({ message: "Failed to seed vault" });
+    }
+  });
+
   app.get("/api/leaderboard/:type", async (req: Request, res: Response) => {
     try {
       const { type } = req.params;

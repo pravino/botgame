@@ -1,0 +1,31 @@
+Final Technical & Financial Audit: The Lucky Wheel (Layer 3)
+Before we finalize the "Gamification Suite," we must ensure the Wheel Middleware is a "Mathematical Fortress." This is the highest-risk game because it involves random large payouts (Jackpots) rather than steady daily drips.
+1. The "Vault" Audit (The Treasury)
+Accumulation Logic: 20% of the daily prize drip (0.02 USDT per Bronze user/day) is moved into a non-withdrawable "Jackpot Vault" table.
+Strict Segregation: Bronze, Silver, and Gold have independent vaults.
+Audit Check: A Bronze spin cannot trigger a payout from the Gold vault.
+Seeding Protocol: For the first 100 users, the Admin manually "seeds" the Bronze vault with 10-20 USDT from the Marketing Float to ensure early winners exist.
+2. The "Gacha" Audit (The Probabilities)
+The PRNG (Pseudo-Random Number Generator): The backend generates a random integer (0–10,000) after the spin request is received.
+The "Double-Lock" Verification:
+Check 1: Did the RNG hit the "Jackpot" range (e.g., exactly 7777)?
+Check 2: Does the tier_vault_balance have 
+?
+The "Safe Fallback": If Check 1 passes but Check 2 fails (Vault too low), the middleware automatically downgrades the win to a "Coin" or "Energy" prize to prevent a negative balance.
+3. The "Spin Logic" Audit (The Tickets)
+Allocation: 4 Spins per 30-day membership (1 per week).
+Expiry: Spins do not roll over to the next month. If a user doesn't use their 4 spins, the 0.60 USDT they contributed stays in the Vault.
+Admin Win: Unused spins are "extra liquidity" for future jackpots or Admin Profit.
+4. Why this protects your $15,000 Profit
+Expected Value (EV) Control: We set the win odds so the Average Payout per Spin is exactly 0.15 USDT.
+Math: 
+ (Exactly the 20% allocation).
+The "Hype" Loop: Because you use a Fixed 100 USDT Jackpot, users perceive the value as much higher than 0.60 USDT. This drives the 5 USDT conversions that generate your 2 USDT profit per head.
+Fraud Protection: The Guardian Middleware prevents "Packet Sniffing." A user cannot "tell" the server what they won; the server calculates the win and sends the result back.
+Final Layer 3 Checklist (The Lucky Wheel)
+Tier-Specific Vaults (Segregated USDT reserves).
+Vault-Check Middleware (No payout if balance < prize).
+Probability Matrix (Odds set to match the 20% budget).
+Spin Expiry Logic (Prevents "Spin Hoarding").
+Atomic Transactions (Deducting from Vault and adding to User Balance in one SQL step).
+The "Jackpot" layer is officially bulletproof.

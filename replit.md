@@ -41,6 +41,13 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - **Reliability**: Multi-oracle BTC price system (CoinGecko, Binance, CoinMarketCap) with median calculation and retry mechanisms for robust price data.
 - **Admin Control**: Admin endpoints are protected by email-based authorization (`ADMIN_EMAILS` env var).
 - **Dynamic Oracle Settlement**: Prediction payouts are fully dynamic — driven by a `global_config` database table (prediction_share, tap_share, wheel_share). Each tier's prediction pot is calculated with per-subscriber pro-rating (mid-day joiners contribute proportionally), with per-tier rollover tracking in `tier_rollovers`. If no winners, the pot accumulates for the next settlement and a "Mega Pot" Telegram announcement is sent. Tier pots are fully segregated — no cross-tier sharing. Oracle payouts (wallet + ledger) are wrapped in atomic DB transactions for consistency.
+- **Lucky Wheel Fortress (Layer 3)**: Vault-backed gacha system with mathematical EV control.
+    - PRNG range 0-10,000 with jackpot trigger at exactly 7777 ("Double-Lock" verification).
+    - Per-tier EV calibration: common win ceiling adjusted per tier so average payout = exactly 0.15 USDT/spin regardless of jackpot size (Bronze $100, Silver $200, Gold $500).
+    - `FOR UPDATE` row locking on vault reads inside transactions to prevent concurrent jackpot double-payouts.
+    - Safe Fallback: If RNG hits but vault balance insufficient, downgrades to coins/energy prize.
+    - 4 spin tickets per 30-day membership, tickets expire with subscription, unused spins stay as vault liquidity.
+    - Admin vault seeding endpoint (`POST /api/admin/seed-vault`) for marketing float injection.
 
 ## External Dependencies
 - **Email Service**: Resend (for OTP delivery)
