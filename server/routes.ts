@@ -18,7 +18,7 @@ import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
 import { spinWheel } from "./services/wheelService";
-import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, announceLeaderboard, announceNewSubscriber, generateApexInviteLink, kickFromApex } from "./services/telegramBot";
+import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, sendDirectMessage, announceLeaderboard, announceNewSubscriber, generateApexInviteLink, kickFromApex } from "./services/telegramBot";
 
 async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
   try {
@@ -1433,7 +1433,26 @@ export async function registerRoutes(
         }
       }
 
-      res.json(result);
+      let apexInviteLink: string | null = null;
+      if (paidUser) {
+        try {
+          apexInviteLink = await generateApexInviteLink();
+          if (apexInviteLink) {
+            log(`[Apex] Generated invite link for ${paidUser.username} (${normalizedTier})`);
+            await announceNewSubscriber(paidUser.username || paidUser.email, normalizedTier);
+          }
+          if (paidUser.telegramId && apexInviteLink) {
+            await sendDirectMessage(
+              paidUser.telegramId,
+              `Welcome to <b>Vault60 Apex</b>!\n\nYour ${normalizedTier} subscription is active. Join the private group:\n${apexInviteLink}\n\nThis link is single-use — don't share it.`
+            );
+          }
+        } catch (err: any) {
+          log(`[Apex] Invite generation error: ${err.message}`);
+        }
+      }
+
+      res.json({ ...result, apexInviteLink });
     } catch (error: any) {
       log(`Subscription error: ${error.message}`);
       res.status(500).json({ message: error.message || "Failed to process subscription" });
@@ -1601,7 +1620,28 @@ export async function registerRoutes(
       }
 
       const result = await sandboxConfirmInvoice(invoiceId, req.session.userId!);
-      res.json(result);
+
+      let apexInviteLink: string | null = null;
+      const sandboxUser = await storage.getUser(req.session.userId!);
+      if (sandboxUser && sandboxUser.tier !== "FREE") {
+        try {
+          apexInviteLink = await generateApexInviteLink();
+          if (apexInviteLink) {
+            log(`[Apex] Generated invite link for ${sandboxUser.username} (${sandboxUser.tier}) via sandbox`);
+            await announceNewSubscriber(sandboxUser.username || sandboxUser.email, sandboxUser.tier);
+          }
+          if (sandboxUser.telegramId && apexInviteLink) {
+            await sendDirectMessage(
+              sandboxUser.telegramId,
+              `Welcome to <b>Vault60 Apex</b>!\n\nYour ${sandboxUser.tier} subscription is active. Join the private group:\n${apexInviteLink}\n\nThis link is single-use — don't share it.`
+            );
+          }
+        } catch (err: any) {
+          log(`[Apex] Sandbox invite error: ${err.message}`);
+        }
+      }
+
+      res.json({ ...result, apexInviteLink });
     } catch (error: any) {
       log(`Sandbox confirm error: ${error.message}`);
       res.status(400).json({ message: error.message || "Failed to confirm sandbox payment" });
@@ -1823,16 +1863,17 @@ export async function registerRoutes(
 
   async function seedTasks() {
     const taskDefinitions = [
-      { slug: "join-telegram", title: "Join Telegram Channel", description: "Join our official Telegram announcement channel", category: "social", taskType: "one_time", rewardCoins: 5000, requiredTier: null, link: "https://t.me/cryptogames", icon: "MessageCircle", sortOrder: 1 },
-      { slug: "follow-x", title: "Follow on X", description: "Follow our official X (Twitter) account", category: "social", taskType: "one_time", rewardCoins: 10000, requiredTier: null, link: "https://x.com/cryptogames", icon: "Twitter", sortOrder: 2 },
-      { slug: "subscribe-youtube", title: "Subscribe on YouTube", description: "Subscribe to our YouTube channel for tutorials and updates", category: "social", taskType: "one_time", rewardCoins: 15000, requiredTier: null, link: "https://youtube.com/@cryptogames", icon: "Youtube", sortOrder: 3 },
-      { slug: "verify-bronze", title: "Verify Bronze Status", description: "Subscribe to Bronze tier to unlock this exclusive bonus", category: "pro", taskType: "one_time", rewardCoins: 100000, requiredTier: "BRONZE", link: null, icon: "Shield", sortOrder: 4 },
-      { slug: "verify-silver", title: "Verify Silver Status", description: "Subscribe to Silver tier for a massive coin bonus", category: "pro", taskType: "one_time", rewardCoins: 250000, requiredTier: "SILVER", link: null, icon: "Crown", sortOrder: 5 },
-      { slug: "verify-gold", title: "Verify Gold Status", description: "Subscribe to Gold tier for the ultimate coin bonus", category: "pro", taskType: "one_time", rewardCoins: 500000, requiredTier: "GOLD", link: null, icon: "Star", sortOrder: 6 },
-      { slug: "daily-share", title: "Share Daily Winnings", description: "Share your daily winning screenshot on X", category: "daily", taskType: "daily", rewardCoins: 20000, requiredTier: null, link: null, icon: "Share2", sortOrder: 7 },
-      { slug: "daily-invite", title: "Invite 3 Friends", description: "Invite 3 friends to join today", category: "daily", taskType: "daily", rewardCoins: 50000, requiredTier: null, link: null, icon: "Users", sortOrder: 8 },
-      { slug: "daily-tap-1000", title: "Tap 1,000 Times", description: "Earn at least 1,000 coins from tapping today", category: "daily", taskType: "daily", rewardCoins: 5000, requiredTier: null, link: null, icon: "Coins", sortOrder: 9 },
-      { slug: "daily-prediction", title: "Make a Prediction", description: "Submit a BTC price prediction today", category: "daily", taskType: "daily", rewardCoins: 3000, requiredTier: null, link: null, icon: "TrendingUp", sortOrder: 10 },
+      { slug: "join-telegram", title: "Join Vault60 News", description: "Join our announcement channel for daily BTC predictions, leaderboard legends, and lucky wheel winners", category: "social", taskType: "one_time", rewardCoins: 5000, requiredTier: null, link: "https://t.me/Vault60News", icon: "Megaphone", sortOrder: 1 },
+      { slug: "join-lobby", title: "Join Vault60 Lobby", description: "Join our public community group to chat, ask questions, and share referral milestones", category: "social", taskType: "one_time", rewardCoins: 7500, requiredTier: null, link: "https://t.me/Vault60Lobby", icon: "MessageCircle", sortOrder: 2 },
+      { slug: "follow-x", title: "Follow on X", description: "Follow our official X (Twitter) account", category: "social", taskType: "one_time", rewardCoins: 10000, requiredTier: null, link: "https://x.com/cryptogames", icon: "Twitter", sortOrder: 3 },
+      { slug: "subscribe-youtube", title: "Subscribe on YouTube", description: "Subscribe to our YouTube channel for tutorials and updates", category: "social", taskType: "one_time", rewardCoins: 15000, requiredTier: null, link: "https://youtube.com/@cryptogames", icon: "Youtube", sortOrder: 4 },
+      { slug: "verify-bronze", title: "Verify Bronze Status", description: "Subscribe to Bronze tier to unlock this exclusive bonus", category: "pro", taskType: "one_time", rewardCoins: 100000, requiredTier: "BRONZE", link: null, icon: "Shield", sortOrder: 5 },
+      { slug: "verify-silver", title: "Verify Silver Status", description: "Subscribe to Silver tier for a massive coin bonus", category: "pro", taskType: "one_time", rewardCoins: 250000, requiredTier: "SILVER", link: null, icon: "Crown", sortOrder: 6 },
+      { slug: "verify-gold", title: "Verify Gold Status", description: "Subscribe to Gold tier for the ultimate coin bonus", category: "pro", taskType: "one_time", rewardCoins: 500000, requiredTier: "GOLD", link: null, icon: "Star", sortOrder: 7 },
+      { slug: "daily-share", title: "Share Daily Winnings", description: "Share your daily winning screenshot on X", category: "daily", taskType: "daily", rewardCoins: 20000, requiredTier: null, link: null, icon: "Share2", sortOrder: 8 },
+      { slug: "daily-invite", title: "Invite 3 Friends", description: "Invite 3 friends to join today", category: "daily", taskType: "daily", rewardCoins: 50000, requiredTier: null, link: null, icon: "Users", sortOrder: 9 },
+      { slug: "daily-tap-1000", title: "Tap 1,000 Times", description: "Earn at least 1,000 coins from tapping today", category: "daily", taskType: "daily", rewardCoins: 5000, requiredTier: null, link: null, icon: "Coins", sortOrder: 10 },
+      { slug: "daily-prediction", title: "Make a Prediction", description: "Submit a BTC price prediction today", category: "daily", taskType: "daily", rewardCoins: 3000, requiredTier: null, link: null, icon: "TrendingUp", sortOrder: 11 },
     ];
 
     for (const t of taskDefinitions) {
