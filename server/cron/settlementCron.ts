@@ -8,6 +8,7 @@ import { users } from "@shared/schema";
 import { eq, and, gt, lte, sql } from "drizzle-orm";
 
 const DEFAULT_TAP_POT_SHARE = 0.50;
+const DEFAULT_TREASURY_SPLIT = 0.60;
 
 export async function midnightPulse(): Promise<void> {
   try {
@@ -18,6 +19,7 @@ export async function midnightPulse(): Promise<void> {
     log(`[Midnight Pulse] Starting daily settlement for ${dateKey}`);
 
     const globalConfig = await storage.getGlobalConfig();
+    const TREASURY_SPLIT = globalConfig.treasury_split ?? DEFAULT_TREASURY_SPLIT;
     const TAP_POT_SHARE = globalConfig.tap_share ?? DEFAULT_TAP_POT_SHARE;
 
     const allTiers = await storage.getAllTiers();
@@ -58,7 +60,7 @@ export async function midnightPulse(): Promise<void> {
         dailyPool += dailyUnit;
       }
 
-      const tapPotAmount = dailyPool * TAP_POT_SHARE;
+      const tapPotAmount = dailyPool * TREASURY_SPLIT * TAP_POT_SHARE;
 
       if (tapPotAmount <= 0) continue;
 

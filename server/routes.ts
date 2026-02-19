@@ -1298,6 +1298,16 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/trigger-tap-settlement", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      await midnightPulse();
+      res.json({ message: "Tap settlement (midnight pulse) triggered successfully" });
+    } catch (error: any) {
+      log(`Manual tap settlement error: ${error.message}`);
+      res.status(500).json({ message: `Tap settlement failed: ${error.message}` });
+    }
+  });
+
   app.post("/api/admin/seed-vault", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { tier, amount } = req.body;
