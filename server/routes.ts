@@ -111,25 +111,7 @@ export async function registerRoutes(
     GOLD: null,
   };
 
-  const LEAGUE_THRESHOLDS = [
-    { name: "BRONZE", minCoins: 0, payoutMultiplier: 1.0 },
-    { name: "SILVER", minCoins: 50000, payoutMultiplier: 1.1 },
-    { name: "GOLD", minCoins: 250000, payoutMultiplier: 1.2 },
-    { name: "PLATINUM", minCoins: 1000000, payoutMultiplier: 1.3 },
-    { name: "DIAMOND", minCoins: 5000000, payoutMultiplier: 1.5 },
-  ];
-
-  function computeLeague(totalCoins: number): string {
-    let league = "BRONZE";
-    for (const l of LEAGUE_THRESHOLDS) {
-      if (totalCoins >= l.minCoins) league = l.name;
-    }
-    return league;
-  }
-
-  function getLeagueMultiplier(league: string): number {
-    return LEAGUE_THRESHOLDS.find(l => l.name === league)?.payoutMultiplier || 1.0;
-  }
+  const { LEAGUE_THRESHOLDS, computeLeague, getLeagueMultiplier } = await import("./constants/leagues");
 
   function isTierSufficient(userTier: string, requiredTier: string): boolean {
     const tierOrder = ["FREE", "BRONZE", "SILVER", "GOLD"];
@@ -1479,7 +1461,7 @@ export async function registerRoutes(
 
   app.get("/api/payments/config", async (_req: Request, res: Response) => {
     try {
-      const config = getPaymentConfig();
+      const config = await getPaymentConfig();
       res.json(config);
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get payment config" });
@@ -1763,6 +1745,12 @@ export async function registerRoutes(
       }
       if (!existing.wheel_share) {
         await storage.setGlobalConfigValue("wheel_share", 0.20, "Percentage of daily unit allocated to wheel vault");
+      }
+      if (!existing.admin_split) {
+        await storage.setGlobalConfigValue("admin_split", 0.40, "Admin profit share of subscription payments (0-1)");
+      }
+      if (!existing.treasury_split) {
+        await storage.setGlobalConfigValue("treasury_split", 0.60, "Game treasury share of subscription payments (0-1)");
       }
 
       const allTiers = await storage.getAllTiers();

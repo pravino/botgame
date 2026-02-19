@@ -2,6 +2,7 @@ import { storage, db } from "../storage";
 import { log } from "../index";
 import { recordLedgerEntry } from "../middleware/ledger";
 import { getValidatedBTCPriceWithRetry, clearPriceCache, setPriceFrozen } from "../services/priceService";
+import { getLeagueMultiplier } from "../constants/leagues";
 import { users } from "@shared/schema";
 import { eq, and, gt, lte, sql } from "drizzle-orm";
 
@@ -71,16 +72,12 @@ export async function midnightPulse(): Promise<void> {
         continue;
       }
 
-      const LEAGUE_MULTIPLIERS: Record<string, number> = {
-        BRONZE: 1.0, SILVER: 1.1, GOLD: 1.2, PLATINUM: 1.3, DIAMOND: 1.5,
-      };
-
       let weightedTotalCoins = 0;
       const entriesWithWeight: Array<{ entry: typeof tierTapEntries[0]; user: any; weight: number }> = [];
       for (const entry of tierTapEntries) {
         const user = await storage.getUser(entry.userId);
         if (!user) continue;
-        const leagueMultiplier = LEAGUE_MULTIPLIERS[user.league] || 1.0;
+        const leagueMultiplier = getLeagueMultiplier(user.league);
         const weight = entry.coinsEarned * leagueMultiplier;
         weightedTotalCoins += weight;
         entriesWithWeight.push({ entry, user, weight });
@@ -107,7 +104,7 @@ export async function midnightPulse(): Promise<void> {
           balanceBefore: walletBefore,
           balanceAfter: walletAfter,
           game: "tapPot",
-          note: `Daily tap payout: $${payout} USDT (${entry.coinsEarned} coins x${(LEAGUE_MULTIPLIERS[user.league] || 1.0).toFixed(1)} ${user.league} league = ${(share * 100).toFixed(1)}% of $${tapPotAmount.toFixed(2)} ${tierName} pot) for ${dateKey}`,
+          note: `Daily tap payout: $${payout} USDT (${entry.coinsEarned} coins x${getLeagueMultiplier(user.league).toFixed(1)} ${user.league} league = ${(share * 100).toFixed(1)}% of $${tapPotAmount.toFixed(2)} ${tierName} pot) for ${dateKey}`,
         });
 
         tierDistributed += payout;

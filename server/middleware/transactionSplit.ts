@@ -2,8 +2,20 @@ import { storage } from "../storage";
 import { log } from "../index";
 import { recordLedgerEntry } from "./ledger";
 
-const ADMIN_SPLIT = 0.40;
-const TREASURY_SPLIT = 0.60;
+const DEFAULT_ADMIN_SPLIT = 0.40;
+const DEFAULT_TREASURY_SPLIT = 0.60;
+
+async function getAdminTreasurySplit(): Promise<{ adminSplit: number; treasurySplit: number }> {
+  try {
+    const config = await storage.getGlobalConfig();
+    return {
+      adminSplit: config.admin_split ?? DEFAULT_ADMIN_SPLIT,
+      treasurySplit: config.treasury_split ?? DEFAULT_TREASURY_SPLIT,
+    };
+  } catch {
+    return { adminSplit: DEFAULT_ADMIN_SPLIT, treasurySplit: DEFAULT_TREASURY_SPLIT };
+  }
+}
 
 const DEFAULT_POOL_SPLIT = {
   tapPot: 0.50,
@@ -30,11 +42,17 @@ const SPIN_TICKETS_PER_SUBSCRIPTION = 4;
 const ADMIN_PROFITS_WALLET = process.env.ADMIN_PROFITS_WALLET || "UQAdminWalletPlaceholder";
 const GAME_TREASURY_WALLET = process.env.GAME_TREASURY_WALLET || "UQTreasuryWalletPlaceholder";
 
-const TIER_PRICES: Record<string, number> = {
-  BRONZE: 5.00,
-  SILVER: 15.00,
-  GOLD: 50.00,
-};
+const FALLBACK_TIER_PRICES: Record<string, number> = { BRONZE: 5.00, SILVER: 15.00, GOLD: 50.00 };
+
+async function getTierPrice(tierName: string): Promise<number | undefined> {
+  try {
+    const allTiers = await storage.getAllTiers();
+    const tier = allTiers.find(t => t.name === tierName.toUpperCase());
+    return tier ? parseFloat(String(tier.price)) : FALLBACK_TIER_PRICES[tierName.toUpperCase()];
+  } catch {
+    return FALLBACK_TIER_PRICES[tierName.toUpperCase()];
+  }
+}
 
 const FOUNDER_LIMITS: Record<string, number> = {
   BRONZE: 100,
@@ -70,7 +88,7 @@ export async function processSubscriptionPayment(
 ): Promise<SplitResult> {
   const normalizedTier = tierName.toUpperCase();
 
-  const expectedPrice = TIER_PRICES[normalizedTier];
+  const expectedPrice = await getTierPrice(normalizedTier);
   if (!expectedPrice) {
     throw new Error(`Invalid tier: ${tierName}. Must be BRONZE, SILVER, or GOLD.`);
   }
@@ -81,8 +99,9 @@ export async function processSubscriptionPayment(
     );
   }
 
-  const adminAmount = parseFloat((verifiedAmount * ADMIN_SPLIT).toFixed(2));
-  const treasuryAmount = parseFloat((verifiedAmount * TREASURY_SPLIT).toFixed(2));
+  const { adminSplit, treasurySplit } = await getAdminTreasurySplit();
+  const adminAmount = parseFloat((verifiedAmount * adminSplit).toFixed(2));
+  const treasuryAmount = parseFloat((verifiedAmount * treasurySplit).toFixed(2));
 
   const tx = await storage.createTransaction({
     userId,

@@ -7,14 +7,47 @@ const TON_PAY_SECRET = process.env.TON_PAY_SECRET || "sandbox_default_secret_key
 const TON_ADMIN_PROFIT_WALLET = process.env.TON_ADMIN_PROFIT_WALLET || process.env.ADMIN_PROFITS_WALLET || "UQAdminTestnetWallet";
 const TON_GAME_TREASURY_WALLET = process.env.TON_GAME_TREASURY_WALLET || process.env.GAME_TREASURY_WALLET || "UQTreasuryTestnetWallet";
 
-const ADMIN_SPLIT = 40;
-const TREASURY_SPLIT = 60;
+const DEFAULT_ADMIN_SPLIT = 40;
+const DEFAULT_TREASURY_SPLIT = 60;
 
-const TIER_PRICES: Record<string, number> = {
-  BRONZE: 5.00,
-  SILVER: 15.00,
-  GOLD: 50.00,
-};
+async function getAdminTreasurySplitPercent(): Promise<{ adminSplit: number; treasurySplit: number }> {
+  try {
+    const config = await storage.getGlobalConfig();
+    return {
+      adminSplit: config.admin_split ? Math.round(config.admin_split * 100) : DEFAULT_ADMIN_SPLIT,
+      treasurySplit: config.treasury_split ? Math.round(config.treasury_split * 100) : DEFAULT_TREASURY_SPLIT,
+    };
+  } catch {
+    return { adminSplit: DEFAULT_ADMIN_SPLIT, treasurySplit: DEFAULT_TREASURY_SPLIT };
+  }
+}
+
+const FALLBACK_TIER_PRICES: Record<string, number> = { BRONZE: 5.00, SILVER: 15.00, GOLD: 50.00 };
+
+async function getTierPrice(tierName: string): Promise<number | undefined> {
+  try {
+    const allTiers = await storage.getAllTiers();
+    const tier = allTiers.find(t => t.name === tierName.toUpperCase());
+    return tier ? parseFloat(String(tier.price)) : FALLBACK_TIER_PRICES[tierName.toUpperCase()];
+  } catch {
+    return FALLBACK_TIER_PRICES[tierName.toUpperCase()];
+  }
+}
+
+async function getAllTierPrices(): Promise<Record<string, number>> {
+  try {
+    const allTiers = await storage.getAllTiers();
+    const prices: Record<string, number> = {};
+    for (const t of allTiers) {
+      if (t.name !== "FREE") {
+        prices[t.name] = parseFloat(String(t.price));
+      }
+    }
+    return prices;
+  } catch {
+    return { BRONZE: 5.00, SILVER: 15.00, GOLD: 50.00 };
+  }
+}
 
 const INVOICE_EXPIRY_MINUTES = 30;
 
@@ -92,7 +125,7 @@ export async function createInvoice(
   tierName: string
 ): Promise<InvoiceResult> {
   const normalizedTier = tierName.toUpperCase();
-  const amount = TIER_PRICES[normalizedTier];
+  const amount = await getTierPrice(normalizedTier);
   if (!amount) {
     throw new Error(`Invalid tier: ${tierName}. Must be BRONZE, SILVER, or GOLD.`);
   }
@@ -102,9 +135,10 @@ export async function createInvoice(
   const sandbox = isSandbox();
   const expiresAt = new Date(Date.now() + INVOICE_EXPIRY_MINUTES * 60 * 1000);
 
+  const { adminSplit, treasurySplit } = await getAdminTreasurySplitPercent();
   const splits = [
-    { address: TON_ADMIN_PROFIT_WALLET, percentage: ADMIN_SPLIT },
-    { address: TON_GAME_TREASURY_WALLET, percentage: TREASURY_SPLIT },
+    { address: TON_ADMIN_PROFIT_WALLET, percentage: adminSplit },
+    { address: TON_GAME_TREASURY_WALLET, percentage: treasurySplit },
   ];
 
   await storage.createPaymentInvoice({
@@ -122,7 +156,7 @@ export async function createInvoice(
   });
 
   log(`[TON Pay ${sandbox ? "SANDBOX" : "LIVE"}] Invoice ${invoiceId} created: ${normalizedTier} tier ($${amount}) for user ${userId}`);
-  log(`[TON Pay] Splits: Admin ${ADMIN_SPLIT}% -> ${TON_ADMIN_PROFIT_WALLET}, Treasury ${TREASURY_SPLIT}% -> ${TON_GAME_TREASURY_WALLET}`);
+  log(`[TON Pay] Splits: Admin ${adminSplit}% -> ${TON_ADMIN_PROFIT_WALLET}, Treasury ${treasurySplit}% -> ${TON_GAME_TREASURY_WALLET}`);
 
   return {
     invoiceId,
@@ -219,15 +253,17 @@ export async function sandboxConfirmInvoice(
   return result;
 }
 
-export function getPaymentConfig() {
+export async function getPaymentConfig() {
+  const { adminSplit, treasurySplit } = await getAdminTreasurySplitPercent();
+  const tiers = await getAllTierPrices();
   return {
     mode: TON_PAY_MODE,
     sandbox: isSandbox(),
     adminWallet: TON_ADMIN_PROFIT_WALLET,
     treasuryWallet: TON_GAME_TREASURY_WALLET,
-    adminSplit: ADMIN_SPLIT,
-    treasurySplit: TREASURY_SPLIT,
+    adminSplit,
+    treasurySplit,
     invoiceExpiryMinutes: INVOICE_EXPIRY_MINUTES,
-    tiers: TIER_PRICES,
+    tiers,
   };
 }
