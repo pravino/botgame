@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Coins, TrendingUp, CircleDot, ShieldAlert } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -33,7 +32,6 @@ declare global {
 }
 
 export default function Welcome({ onLogin }: { onLogin: () => void }) {
-  const [referralCode, setReferralCode] = useState("");
   const [isMiniApp, setIsMiniApp] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
@@ -63,11 +61,8 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
     for (const key of Object.keys(user)) {
       widgetData[key] = String(user[key]);
     }
-    telegramAuthMutation.mutate({
-      widgetData,
-      referralCode: referralCode.trim().toUpperCase() || undefined,
-    });
-  }, [referralCode]);
+    telegramAuthMutation.mutate({ widgetData });
+  }, []);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -185,17 +180,6 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
 
         <Card>
           <CardContent className="p-5 space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Referral code <span className="text-muted-foreground font-normal">(optional)</span></label>
-              <Input
-                value={referralCode}
-                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                placeholder="e.g. REF12ABC"
-                maxLength={20}
-                data-testid="input-referral-code"
-              />
-            </div>
-
             <div id="telegram-login-container" className="flex justify-center min-h-[44px]" data-testid="telegram-login-widget" />
 
             <Button

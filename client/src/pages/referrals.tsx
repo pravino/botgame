@@ -4,9 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Copy, Check, Gift, Lock, Unlock, DollarSign, Trophy, Star, Zap, ArrowRight } from "lucide-react";
+import { Users, Copy, Check, Gift, Lock, Unlock, DollarSign, Trophy, Star, Zap, ArrowRight, Share2 } from "lucide-react";
+import { SiTelegram } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import { formatUSD } from "@/lib/game-utils";
+
+const BOT_USERNAME = "Vault60Bot";
 
 type MilestoneData = {
   id: number;
@@ -65,15 +68,30 @@ export default function Referrals() {
     queryKey: ["/api/referral-status"],
   });
 
+  const referralLink = data?.referralCode ? `https://t.me/${BOT_USERNAME}?start=${data.referralCode}` : "";
+
   const handleCopy = async () => {
-    if (!data?.referralCode) return;
+    if (!referralLink) return;
     try {
-      await navigator.clipboard.writeText(data.referralCode);
+      await navigator.clipboard.writeText(referralLink);
       setCopied(true);
-      toast({ title: "Copied!", description: "Referral code copied to clipboard" });
+      toast({ title: "Copied!", description: "Referral link copied to clipboard" });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast({ title: "Copy failed", description: "Please copy manually", variant: "destructive" });
+    }
+  };
+
+  const handleShare = () => {
+    if (!referralLink) return;
+    const shareText = `Join me on Vault60! Tap, predict & spin to earn crypto rewards.\n${referralLink}`;
+    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Join me on Vault60! Tap, predict & spin to earn crypto rewards.")}`;
+    if (window.Telegram?.WebApp) {
+      window.open(tgShareUrl, "_blank");
+    } else if (navigator.share) {
+      navigator.share({ title: "Join Vault60", text: shareText }).catch(() => {});
+    } else {
+      window.open(tgShareUrl, "_blank");
     }
   };
 
@@ -150,24 +168,32 @@ export default function Referrals() {
       <Card>
         <CardContent className="p-5 space-y-3">
           <div className="flex items-center gap-2 flex-wrap mb-2">
-            <Users className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Your Referral Code</span>
+            <SiTelegram className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Your Referral Link</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-muted rounded-md px-4 py-2.5 font-mono text-center text-lg tracking-wider" data-testid="text-referral-code">
-              {data?.referralCode || "—"}
+            <div className="flex-1 bg-muted rounded-md px-3 py-2.5 text-sm truncate" data-testid="text-referral-link">
+              {referralLink || "—"}
             </div>
             <Button
               size="icon"
               variant="outline"
               onClick={handleCopy}
-              data-testid="button-copy-code"
+              data-testid="button-copy-link"
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
+          <Button
+            className="w-full"
+            onClick={handleShare}
+            data-testid="button-share-referral"
+          >
+            <Share2 className="h-4 w-4 mr-2" />
+            Share with Friends
+          </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Share this code with friends — they enter it when signing up
+            Friends click the link to open the bot and start playing with your referral
           </p>
         </CardContent>
       </Card>
@@ -320,7 +346,7 @@ export default function Referrals() {
             <div className="py-6 text-center space-y-2" data-testid="text-empty-friends">
               <Users className="h-8 w-8 text-muted-foreground mx-auto" />
               <p className="text-sm text-muted-foreground">
-                No friends yet — share your code to start earning
+                No friends yet — share your link to start earning
               </p>
             </div>
           )}
