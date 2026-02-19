@@ -2,7 +2,7 @@ import { storage } from "../storage";
 import { recordLedgerEntry, ledgerEntryExists } from "../middleware/ledger";
 import { log } from "../index";
 
-export async function checkAndAwardMilestones(referrerId: string, newPaidReferralId?: string): Promise<{
+export async function checkAndAwardMilestones(referrerId: string, newPaidReferralId?: string, paymentRefId?: string): Promise<{
   milestonesReached: string[];
   totalBonusAwarded: number;
   wheelUnlocked: boolean;
@@ -18,8 +18,8 @@ export async function checkAndAwardMilestones(referrerId: string, newPaidReferra
   let totalBonusAwarded = 0;
   let wheelShouldUnlock = false;
 
-  if (newPaidReferralId) {
-    const perFriendRefId = `referral_friend_${newPaidReferralId}`;
+  if (newPaidReferralId && paymentRefId) {
+    const perFriendRefId = `referral_pay_${newPaidReferralId}_${paymentRefId}`;
     const alreadyCredited = await ledgerEntryExists(referrerId, perFriendRefId);
 
     if (!alreadyCredited) {
@@ -43,11 +43,11 @@ export async function checkAndAwardMilestones(referrerId: string, newPaidReferra
         balanceAfter: walletAfter,
         game: undefined,
         refId: perFriendRefId,
-        note: `Referral reward: +$${perFriendReward} USDT for paid friend (user ${newPaidReferralId})`,
+        note: `Referral reward: +$${perFriendReward} USDT for friend ${newPaidReferralId} (payment: ${paymentRefId})`,
       });
 
       totalBonusAwarded += perFriendReward;
-      log(`[Referral] User ${referrerId} earned $${perFriendReward} for paid referral ${newPaidReferralId}`);
+      log(`[Referral] User ${referrerId} earned $${perFriendReward} for referral payment by ${newPaidReferralId} (tx: ${paymentRefId})`);
     }
   }
 

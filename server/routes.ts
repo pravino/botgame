@@ -1341,7 +1341,7 @@ export async function registerRoutes(
       const paidUser = await storage.getUser(req.session.userId!);
       if (paidUser?.referredBy) {
         try {
-          await checkAndAwardMilestones(paidUser.referredBy, paidUser.id);
+          await checkAndAwardMilestones(paidUser.referredBy, paidUser.id, sanitizedTxHash);
         } catch (err: any) {
           log(`Referral milestone check error after subscription: ${err.message}`);
         }
