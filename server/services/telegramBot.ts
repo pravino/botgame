@@ -198,6 +198,23 @@ export async function announceNewSubscriber(username: string, tierName: string):
   await sendToApex(msg);
 }
 
+export async function announceSettlementReminder(hoursLeft: number): Promise<void> {
+  const timeLabel = hoursLeft === 1 ? "1 HOUR" : `${hoursLeft} HOURS`;
+  const msg = `<b>DAILY REWARDS COUNTDOWN</b>\n\n` +
+    `${timeLabel} until today's rewards are calculated!\n\n` +
+    `Every tap, every prediction, every spin counts toward your daily payout.\n\n` +
+    `<b>Tap coins</b> to grow your share of the tap pot\n` +
+    `<b>Predict BTC</b> to compete for the prediction pot\n` +
+    `<b>Spin the wheel</b> for instant prizes\n\n` +
+    `Don't leave USDT on the table — get in now!`;
+
+  await Promise.all([
+    sendToNewsChannel(msg),
+    sendToLobby(msg),
+    sendToApex(msg),
+  ]);
+}
+
 export async function detectChatIds(): Promise<{
   detected: Array<{ title: string; chatId: string; type: string }>;
 }> {

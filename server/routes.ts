@@ -18,7 +18,7 @@ import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
 import { spinWheel } from "./services/wheelService";
-import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, sendDirectMessage, announceLeaderboard, announceNewSubscriber, generateApexInviteLink, kickFromApex, checkTelegramMembership } from "./services/telegramBot";
+import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, sendDirectMessage, announceLeaderboard, announceNewSubscriber, announceSettlementReminder, generateApexInviteLink, kickFromApex, checkTelegramMembership } from "./services/telegramBot";
 
 async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
   try {
@@ -1474,6 +1474,45 @@ export async function registerRoutes(
   setInterval(subscriberRetentionCheck, 24 * 60 * 60 * 1000);
   setTimeout(subscriberRetentionCheck, 35000);
 
+  async function scheduleSettlementReminder() {
+    const config = await storage.getGlobalConfig();
+    const reminderHoursBefore = config.settlement_reminder_hours ?? 3;
+
+    const now = new Date();
+    const targetHourUTC = 24 - reminderHoursBefore;
+
+    let nextFire = new Date(now);
+    nextFire.setUTCHours(targetHourUTC, 0, 0, 0);
+    if (nextFire <= now) {
+      nextFire.setUTCDate(nextFire.getUTCDate() + 1);
+    }
+
+    const msUntilFire = nextFire.getTime() - now.getTime();
+    log(`[Reminder] Settlement reminder scheduled for ${nextFire.toUTCString()} (${Math.round(msUntilFire / 60000)} min from now)`);
+
+    setTimeout(async () => {
+      try {
+        const freshConfig = await storage.getGlobalConfig();
+        const hours = freshConfig.settlement_reminder_hours ?? 3;
+        await announceSettlementReminder(hours);
+        log(`[Reminder] Settlement reminder sent — ${hours}h before midnight UTC`);
+      } catch (err: any) {
+        log(`[Reminder] Error sending settlement reminder: ${err.message}`);
+      }
+      setInterval(async () => {
+        try {
+          const freshConfig = await storage.getGlobalConfig();
+          const hours = freshConfig.settlement_reminder_hours ?? 3;
+          await announceSettlementReminder(hours);
+          log(`[Reminder] Settlement reminder sent — ${hours}h before midnight UTC`);
+        } catch (err: any) {
+          log(`[Reminder] Error sending settlement reminder: ${err.message}`);
+        }
+      }, 24 * 60 * 60 * 1000);
+    }, msUntilFire);
+  }
+  scheduleSettlementReminder();
+
   app.get("/api/tiers", async (_req: Request, res: Response) => {
     try {
       const allTiers = await storage.getAllTiers();
@@ -2064,6 +2103,9 @@ export async function registerRoutes(
       }
       if (!existing.expiry_warning_hours) {
         await storage.setGlobalConfigValue("expiry_warning_hours", 48, "Hours before subscription expiry to send warning notification");
+      }
+      if (!existing.settlement_reminder_hours) {
+        await storage.setGlobalConfigValue("settlement_reminder_hours", 3, "Hours before midnight UTC to send daily reward reminder to Telegram groups");
       }
       if (!existing.spins_free) {
         await storage.setGlobalConfigValue("spins_free", 1, "Monthly spin allocation for Free tier users");
