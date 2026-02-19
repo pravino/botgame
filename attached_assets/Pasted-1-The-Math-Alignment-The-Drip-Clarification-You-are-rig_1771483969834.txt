@@ -1,0 +1,53 @@
+1. The Math Alignment (The "Drip" Clarification)
+You are right. The daily_unit (0.10 USDT) is the total amount available for all games for that user that day.
+Tap Pot (50%): $0.05
+Prediction Pot (30%): $0.03
+Wheel Vault (20%): $0.02
+Total: $0.10 (Matches the $3.00/month math perfectly).
+Action: Keep the dailyUnit at 0.10 in the database, but ensure the Settlement Cron explicitly uses the TAP_POT_SHARE (0.50) so you don't overpay.
+2. The Upgrade System: "Spend Coins to Level Up"
+Decision: YES, we need this.
+If users can't spend their "Group Coins," the numbers will just inflate into the billions, making the game feel cheap. We need a "Coin Sink."
+The Logic: Bronze starts at 1 Coin/Tap.
+The Upgrade: A user can spend 50,000 Group Coins to upgrade to Level 2 (2 Coins/Tap).
+The Admin Benefit: This encourages users to "Burn" their coins rather than hoarding them for the USDT payout. It keeps the Total Group Coins lower, making each remaining coin worth more USDT for the active players. It’s a "deflationary" mechanic for your virtual economy.
+3. The Flush Interval (500ms vs 5s)
+The Issue: 500ms is great for UX, but if 1,000 users are tapping at 5-10 taps/sec, you are hitting your server with 2,000 requests per second. This will crash a $20 server.
+The Fix: Change the frontend flush to 2,000ms (2 seconds) or 50 taps.
+It’s still fast enough that the user won't notice a "lag" in their balance update.
+It reduces server load by 400%, protecting your $15,000 profit from high hosting costs.
+4. Implementation: The Multiplier Upgrade API
+We need a new endpoint: POST /api/games/upgrade-multiplier.
+typescript
+// server/routes/gameRoutes.ts
+
+export const upgradeMultiplier = async (req, res) => {
+  const { userId } = req.user;
+  const user = await db.getUser(userId);
+  
+  // Calculate cost: (Current Multiplier * 25,000 coins)
+  const upgradeCost = user.tapMultiplier * 25000;
+
+  if (user.total_lifetime_coins < upgradeCost) {
+    return res.status(400).json({ error: "Not enough coins!" });
+  }
+
+  await db.transaction(async (tx) => {
+    // 1. DEDUCT THE COINS (The "Sink")
+    await tx.update(users)
+      .set({ 
+        total_lifetime_coins: user.total_lifetime_coins - upgradeCost,
+        tapMultiplier: user.tapMultiplier + 1 
+      })
+      .where(eq(users.id, userId));
+  });
+
+  return res.json({ newMultiplier: user.tapMultiplier + 1 });
+};
+Use code with caution.
+
+5. Final "Tap-to-Earn" Summary
+Fixed Math: $0.05/day/user goes to the Tap Pot.
+Performance: 2-second batching to save server costs.
+Economy: Users spend coins to increase their "Earning Power" (Multipliers).
+This completes Layer 1 (The Engine). Your 40% profit is safe, the 50% tap pool is automated, and the users have a reason to stay addicted.

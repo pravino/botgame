@@ -1,0 +1,30 @@
+Final Technical & Financial Audit: Tap-to-Earn (Layer 1)
+Before moving to the BTC Prediction (Oracle), the Tap-to-Earn engine must be fully audited to ensure a "closed-loop" system where funds flow from the 5 USDT deposit to the user's wallet without any leakage.
+1. The "Daily Coin" Economy (Bronze Tier)
+Generation Rate: 1 Tap = 1 Group Coin (Base).
+The Multiplier: Bronze users can spend Group Coins to upgrade (e.g., Level 2 = 2 coins/tap).
+The Energy Barrier: 1,000 Energy max. Refills 1 energy every 2 seconds (Time-based) + 1 Full Tank every 24 hours (Cooldown-based).
+The Purpose: Coins are not USDT. They are "Shares" of the daily pool.
+2. The Financial Middleware (The "Payout Engine")
+At 00:00 UTC, a Node.js Cron Job performs the Daily Distribution:
+Step A (The Pot): Calculate Total Active Bronze Users * 0.05 USDT (This is the 50% share of the 3 USDT/30-day drip).
+Step B (The Share): User_USDT = (User_Coins_Today / Total_Group_Coins_Today) * Total_Pot.
+Step C (The Ledger): Update users.virtual_usdt_balance in PostgreSQL.
+Step D (The Reset): Clear daily_activity.coins_today to 0.
+3. The "Guardian" Security (Anti-Cheat)
+Batching: Frontend sends taps in batches of ~40 every 5 seconds.
+Rate Limiting: If >200 taps arrive in 3 seconds, the Guardian Middleware triggers the "Golden Coin" Challenge.
+Frontend Rollback: If the server rejects taps (Error 429), the UI "snaps back" to the real database value to prevent fake balances.
+4. The "Withdrawal" Logic (The Profit Guard)
+Minimum Threshold: 5 USDT (The cost of a Bronze membership).
+The Admin Fee: 0.50 USDT per withdrawal (Pure profit).
+Batch Payouts: Withdrawals are processed once a day via TON Pay SDK to save on manual labor and gas fees.
+5. Why this hits your $15k Quarterly Profit
+The 40% Cut: 2,000 USDT/month is locked the moment they pay.
+The "Lazy Tax": Inactive Bronze members pay 5 USDT but don't tap. Their 1.50 USDT/month allocation stays in the Game Treasury, making the "Active" members more profitable and happy.
+No Inflation: Since you pay a Percentage of the Pot, you can never overpay. If a user farms 1 billion coins, they just get a smaller value per coin.
+Final Layer 1 Checklist (Tap-to-Earn)
+Database Schema (Users, Tiers, Daily Activity, Transactions).
+Middleware Logic (60/40 Split, 50/30/20 Drip, Founder Bonus).
+Anti-Cheat (Rate limiting + Frontend Rollback).
+Energy Logic (Time-based refill + Tiered Cooldowns).
