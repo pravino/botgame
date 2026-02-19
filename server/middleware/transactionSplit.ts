@@ -117,7 +117,14 @@ export async function processSubscriptionPayment(
 
   const { adminSplit, treasurySplit } = await getAdminTreasurySplit();
   const adminAmount = parseFloat((verifiedAmount * adminSplit).toFixed(2));
-  const treasuryAmount = parseFloat((verifiedAmount * treasurySplit).toFixed(2));
+  const grossTreasury = parseFloat((verifiedAmount * treasurySplit).toFixed(2));
+
+  const payer = await storage.getUser(userId);
+  const config = await storage.getGlobalConfig();
+  const referralRewardAmount = config.referral_reward_amount ?? 1;
+  const hasReferrer = !!(payer?.referredBy);
+  const referralDeduction = hasReferrer ? Math.min(referralRewardAmount, grossTreasury) : 0;
+  const treasuryAmount = parseFloat((grossTreasury - referralDeduction).toFixed(2));
 
   const tx = await storage.createTransaction({
     userId,
@@ -130,7 +137,22 @@ export async function processSubscriptionPayment(
     treasuryWallet: GAME_TREASURY_WALLET,
   });
 
-  log(`Transaction ${tx.id}: ${verifiedAmount} USDT -> Admin: $${adminAmount} (${ADMIN_PROFITS_WALLET}), Treasury: $${treasuryAmount} (${GAME_TREASURY_WALLET})`);
+  log(`Transaction ${tx.id}: ${verifiedAmount} USDT -> Admin: $${adminAmount}, Referral: $${referralDeduction}, Treasury (net): $${treasuryAmount}`);
+
+  if (referralDeduction > 0 && payer?.referredBy) {
+    await recordLedgerEntry({
+      userId: payer.referredBy,
+      entryType: "referral_treasury_deduction",
+      direction: "credit",
+      amount: referralDeduction,
+      currency: "USDT",
+      balanceBefore: 0,
+      balanceAfter: 0,
+      game: undefined,
+      refId: `treasury_deduct_${txHash}`,
+      note: `$${referralDeduction} deducted from treasury for referral reward (payer: ${userId}, tx: ${txHash})`,
+    });
+  }
 
   const now = new Date();
   const expiryDate = new Date(now.getTime() + DRIP_DAYS * 24 * 60 * 60 * 1000);

@@ -23,7 +23,15 @@ export async function checkAndAwardMilestones(referrerId: string, newPaidReferra
     const alreadyCredited = await ledgerEntryExists(referrerId, perFriendRefId);
 
     if (!alreadyCredited) {
-      const perFriendReward = milestones.length > 0 ? milestones[0].usdtPerFriend : 1;
+      const configReward = config.referral_reward_amount ?? (milestones.length > 0 ? milestones[0].usdtPerFriend : 1);
+      const treasurySplit = config.treasury_split ?? 0.60;
+      const allTiers = await storage.getAllTiers();
+      const paidUserData = await storage.getUser(newPaidReferralId);
+      const tierName = paidUserData?.tier || "BRONZE";
+      const tierInfo = allTiers.find(t => t.name === tierName);
+      const tierPrice = tierInfo ? parseFloat(String(tierInfo.price)) : 5;
+      const grossTreasury = tierPrice * treasurySplit;
+      const perFriendReward = Math.min(configReward, grossTreasury);
       const freshUser = (await storage.getUser(referrerId))!;
       const walletBefore = freshUser.walletBalance;
       const walletAfter = parseFloat((walletBefore + perFriendReward).toFixed(4));

@@ -26,6 +26,7 @@ export type LedgerEntryType =
   | "referral_bonus"
   | "referral_reward"
   | "referral_milestone_bonus"
+  | "referral_treasury_deduction"
   | "tier_upgrade"
   | "tier_downgrade"
   | "refund"

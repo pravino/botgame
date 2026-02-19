@@ -1842,6 +1842,9 @@ export async function registerRoutes(
       if (!existing.wheel_unlock_gold) {
         await storage.setGlobalConfigValue("wheel_unlock_gold", 0, "Paid referrals required for Gold to unlock wheel (0 = instant)");
       }
+      if (!existing.referral_reward_amount) {
+        await storage.setGlobalConfigValue("referral_reward_amount", 1, "USDT reward per referral subscription payment (deducted from treasury share)");
+      }
 
       const allTiers = await storage.getAllTiers();
       for (const tier of allTiers) {
