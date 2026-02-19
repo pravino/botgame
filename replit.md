@@ -46,7 +46,9 @@ The application is built with a modern web stack, featuring a React + TypeScript
     - Per-tier EV calibration: common win ceiling adjusted per tier so average payout = exactly 0.15 USDT/spin regardless of jackpot size (Bronze $100, Silver $200, Gold $500).
     - `FOR UPDATE` row locking on vault reads inside transactions to prevent concurrent jackpot double-payouts.
     - Safe Fallback: If RNG hits but vault balance insufficient, downgrades to coins/energy prize.
-    - 4 spin tickets per 30-day membership, tickets expire with subscription, unused spins stay as vault liquidity.
+    - Tiered Spin Allocation (DB-driven via `global_config`): Free=1/month, Bronze=4, Silver=12, Gold=40.
+    - Free tier spins restricted to coins/energy only — no USDT payouts. Locked USDT slices show upgrade popup.
+    - Spin tickets expire with subscription, unused spins stay as vault liquidity.
     - Admin vault seeding endpoint (`POST /api/admin/seed-vault`) for marketing float injection.
 
 ## External Dependencies

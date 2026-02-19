@@ -64,11 +64,13 @@ export async function spinWheel(userId: string): Promise<{
   label: string;
   sliceIndex: number;
   tier: string;
+  lockedPrize?: boolean;
 }> {
   const user = await storage.getUser(userId);
   if (!user) throw new Error("User not found");
 
-  const isPaidTier = user.tier !== "FREE" && user.subscriptionExpiry && new Date(user.subscriptionExpiry) > new Date();
+  const isFree = user.tier === "FREE" || !user.subscriptionExpiry || new Date(user.subscriptionExpiry) <= new Date();
+  const isPaidTier = !isFree;
 
   if (isPaidTier) {
     const ticketsExpired = user.spinTicketsExpiry && new Date(user.spinTicketsExpiry) <= new Date();
@@ -77,7 +79,7 @@ export async function spinWheel(userId: string): Promise<{
     }
   } else {
     if (user.spinsRemaining <= 0) {
-      throw new Error("No spins remaining. Come back tomorrow!");
+      throw new Error("No spins remaining this month. Upgrade to get more spins!");
     }
   }
 
@@ -88,6 +90,7 @@ export async function spinWheel(userId: string): Promise<{
 
   const walletBefore = user.walletBalance;
   let prize: WheelPrize;
+  let lockedPrize = false;
 
   const result = await db.transaction(async (tx) => {
     let lockedVaultBalance = 0;
@@ -109,7 +112,24 @@ export async function spinWheel(userId: string): Promise<{
 
     const commonCeiling = TIER_COMMON_CEILINGS[user.tier.toUpperCase()] || (BIG_WIN_CEILING + 2300);
 
-    if (rng === JACKPOT_TRIGGER && lockedVaultBalance >= jackpotValue) {
+    if (isFree) {
+      let lockedTier: "jackpot" | "big_win" | "common" | null = null;
+      if (rng === JACKPOT_TRIGGER) {
+        lockedTier = "jackpot";
+      } else if (rng < BIG_WIN_CEILING) {
+        lockedTier = "big_win";
+      } else if (rng < commonCeiling) {
+        lockedTier = "common";
+      }
+      if (lockedTier) {
+        lockedPrize = true;
+        prize = { tier: lockedTier, label: "Locked $100 USDT", usdtValue: 0, coinsValue: 5000, energyValue: 0 };
+        log(`[Wheel] Free user ${userId} hit ${lockedTier} USDT slice (RNG=${rng}) — locked, awarded 5,000 coins instead`);
+      } else {
+        const noCash = pickNoCashPrize();
+        prize = { tier: "no_cash", label: noCash.label, usdtValue: 0, coinsValue: noCash.coins, energyValue: noCash.energy };
+      }
+    } else if (rng === JACKPOT_TRIGGER && lockedVaultBalance >= jackpotValue) {
       prize = { tier: "jackpot", label: `GRAND JACKPOT $${jackpotValue}!`, usdtValue: jackpotValue, coinsValue: 0, energyValue: 0 };
     } else if (rng < BIG_WIN_CEILING && lockedVaultBalance >= 5) {
       prize = { tier: "big_win", label: "Big Win $5!", usdtValue: 5.00, coinsValue: 0, energyValue: 0 };
@@ -219,6 +239,7 @@ export async function spinWheel(userId: string): Promise<{
     label: prize!.label,
     sliceIndex,
     tier: prize!.tier,
+    lockedPrize,
   };
 }
 

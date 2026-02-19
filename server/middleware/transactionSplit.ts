@@ -37,7 +37,23 @@ async function getPoolSplit(): Promise<{ tapPot: number; predictPot: number; whe
 }
 
 const DRIP_DAYS = 30;
-const SPIN_TICKETS_PER_SUBSCRIPTION = 4;
+
+const DEFAULT_SPIN_ALLOCATIONS: Record<string, number> = {
+  FREE: 1,
+  BRONZE: 4,
+  SILVER: 12,
+  GOLD: 40,
+};
+
+async function getSpinAllocation(tierName: string): Promise<number> {
+  try {
+    const config = await storage.getGlobalConfig();
+    const key = `spins_${tierName.toLowerCase()}`;
+    return config[key] ?? DEFAULT_SPIN_ALLOCATIONS[tierName.toUpperCase()] ?? 4;
+  } catch {
+    return DEFAULT_SPIN_ALLOCATIONS[tierName.toUpperCase()] ?? 4;
+  }
+}
 
 const ADMIN_PROFITS_WALLET = process.env.ADMIN_PROFITS_WALLET || "UQAdminWalletPlaceholder";
 const GAME_TREASURY_WALLET = process.env.GAME_TREASURY_WALLET || "UQTreasuryWalletPlaceholder";
@@ -171,17 +187,19 @@ export async function processSubscriptionPayment(
   const founderLimit = FOUNDER_LIMITS[normalizedTier] || 100;
   const isFounder = subscriberCount <= founderLimit;
 
+  const spinTicketsForTier = await getSpinAllocation(normalizedTier);
+
   const subscriptionExpiry = new Date(now.getTime() + DRIP_DAYS * 24 * 60 * 60 * 1000);
   await storage.updateUser(userId, {
     tier: normalizedTier,
     subscriptionExpiry,
     subscriptionStartedAt: now,
     isFounder: isFounder || undefined,
-    spinTickets: SPIN_TICKETS_PER_SUBSCRIPTION,
+    spinTickets: spinTicketsForTier,
     spinTicketsExpiry: expiryDate,
   });
 
-  log(`User ${userId}: ${normalizedTier} tier activated (Founder: ${isFounder}), ${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted, expires ${subscriptionExpiry.toISOString()}`);
+  log(`User ${userId}: ${normalizedTier} tier activated (Founder: ${isFounder}), ${spinTicketsForTier} spin tickets granted, expires ${subscriptionExpiry.toISOString()}`);
 
   const user = await storage.getUser(userId);
   const walletBefore = user ? user.walletBalance : 0;
@@ -203,13 +221,13 @@ export async function processSubscriptionPayment(
     userId,
     entryType: "spin_ticket_grant",
     direction: "credit",
-    amount: SPIN_TICKETS_PER_SUBSCRIPTION,
+    amount: spinTicketsForTier,
     currency: "TICKETS",
     balanceBefore: 0,
-    balanceAfter: SPIN_TICKETS_PER_SUBSCRIPTION,
+    balanceAfter: spinTicketsForTier,
     game: "wheelVault",
     refId: tx.id,
-    note: `${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted with ${normalizedTier} subscription`,
+    note: `${spinTicketsForTier} spin tickets granted with ${normalizedTier} subscription`,
   });
 
   const minutesLeftInDay = ((23 - now.getUTCHours()) * 60) + (60 - now.getUTCMinutes());
@@ -232,10 +250,10 @@ export async function processSubscriptionPayment(
       predictPot: { total: predictPotTotal, dailyDrip: predictPotDaily },
       wheelVault: { total: wheelVaultTotal, instantCredit: true },
     },
-    spinTickets: SPIN_TICKETS_PER_SUBSCRIPTION,
+    spinTickets: spinTicketsForTier,
     isFounder,
     isProRated,
     proRateNote,
-    message: `${normalizedTier} Tier Activated! ${SPIN_TICKETS_PER_SUBSCRIPTION} spin tickets granted.${proRateNote}`,
+    message: `${normalizedTier} Tier Activated! ${spinTicketsForTier} spin tickets granted.${proRateNote}`,
   };
 }

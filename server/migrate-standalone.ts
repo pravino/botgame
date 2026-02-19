@@ -356,6 +356,7 @@ async function baselineSync(pool: pg.Pool) {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "challenge_paused_until" timestamp`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "coins_since_last_challenge" integer DEFAULT 0 NOT NULL`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_free_refill" timestamp`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_spin_refill" timestamp`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "daily_refills_used" integer DEFAULT 0 NOT NULL`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "tap_multiplier" integer DEFAULT 1 NOT NULL`,
     `ALTER TABLE "tiers" ADD COLUMN IF NOT EXISTS "energy_refill_rate_ms" integer DEFAULT 2000 NOT NULL`,

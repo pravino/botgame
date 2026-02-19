@@ -175,12 +175,15 @@ export async function registerRoutes(
       updates.lastEnergyRefill = advancedRefillTime;
     }
 
-    const lastSpinRefill = new Date(user.lastEnergyRefill);
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const lastRefillDay = new Date(lastSpinRefill.getFullYear(), lastSpinRefill.getMonth(), lastSpinRefill.getDate());
-
-    if (today.getTime() > lastRefillDay.getTime() && user.spinsRemaining < 1) {
-      updates.spinsRemaining = 1;
+    const isFreeUser = user.tier === "FREE" || !user.subscriptionExpiry || new Date(user.subscriptionExpiry) <= now;
+    if (isFreeUser && user.spinsRemaining <= 0) {
+      const lastRefill = user.lastSpinRefill ? new Date(user.lastSpinRefill) : null;
+      const shouldRefill = !lastRefill ||
+        (now.getMonth() !== lastRefill.getMonth() || now.getFullYear() !== lastRefill.getFullYear());
+      if (shouldRefill) {
+        updates.spinsRemaining = 1;
+        updates.lastSpinRefill = now;
+      }
     }
 
     if (Object.keys(updates).length > 0) {
@@ -734,6 +737,7 @@ export async function registerRoutes(
         sliceLabel: result.label,
         sliceIndex: result.sliceIndex,
         prizeTier: result.tier,
+        lockedPrize: result.lockedPrize || false,
         spinTicketsRemaining: isPaidTier ? user!.spinTickets : undefined,
         spinsRemaining: !isPaidTier ? user?.spinsRemaining : undefined,
       });
@@ -1082,12 +1086,21 @@ export async function registerRoutes(
         return res.status(400).json({ message: "key and value are required" });
       }
       const numValue = parseFloat(value);
-      if (isNaN(numValue) || numValue < 0 || numValue > 1) {
-        return res.status(400).json({ message: "value must be a number between 0 and 1" });
-      }
-      const allowedKeys = ["prediction_share", "tap_share", "wheel_share"];
+      const shareKeys = ["prediction_share", "tap_share", "wheel_share", "admin_split", "treasury_split"];
+      const spinKeys = ["spins_free", "spins_bronze", "spins_silver", "spins_gold"];
+      const hourKeys = ["audit_delay_hours", "expiry_warning_hours"];
+      const allowedKeys = [...shareKeys, ...spinKeys, ...hourKeys];
       if (!allowedKeys.includes(key)) {
         return res.status(400).json({ message: `key must be one of: ${allowedKeys.join(", ")}` });
+      }
+      if (shareKeys.includes(key) && (isNaN(numValue) || numValue < 0 || numValue > 1)) {
+        return res.status(400).json({ message: "Share values must be between 0 and 1" });
+      }
+      if (spinKeys.includes(key) && (isNaN(numValue) || numValue < 0 || numValue > 100 || !Number.isInteger(numValue))) {
+        return res.status(400).json({ message: "Spin allocations must be whole numbers between 0 and 100" });
+      }
+      if (hourKeys.includes(key) && (isNaN(numValue) || numValue < 0 || numValue > 720)) {
+        return res.status(400).json({ message: "Hour values must be between 0 and 720" });
       }
       const updated = await storage.setGlobalConfigValue(key, numValue, description);
       log(`[Admin] Global config updated: ${key} = ${numValue}`);
@@ -1709,6 +1722,18 @@ export async function registerRoutes(
       }
       if (!existing.expiry_warning_hours) {
         await storage.setGlobalConfigValue("expiry_warning_hours", 48, "Hours before subscription expiry to send warning notification");
+      }
+      if (!existing.spins_free) {
+        await storage.setGlobalConfigValue("spins_free", 1, "Monthly spin allocation for Free tier users");
+      }
+      if (!existing.spins_bronze) {
+        await storage.setGlobalConfigValue("spins_bronze", 4, "Monthly spin allocation for Bronze tier subscribers");
+      }
+      if (!existing.spins_silver) {
+        await storage.setGlobalConfigValue("spins_silver", 12, "Monthly spin allocation for Silver tier subscribers");
+      }
+      if (!existing.spins_gold) {
+        await storage.setGlobalConfigValue("spins_gold", 40, "Monthly spin allocation for Gold tier subscribers");
       }
 
       const allTiers = await storage.getAllTiers();
