@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Coins, Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp } from "lucide-react";
@@ -129,7 +130,10 @@ export default function TapToEarn() {
     tapMultiplier: number;
     tapMultiplierLevel: number;
     tierBaseMultiplier: number;
-    upgradeCost: number;
+    upgradeCost: number | null;
+    maxUpgradeLevel: number;
+    isMaxed: boolean;
+    nextTier: string | null;
   }
 
   const { data: earnings } = useQuery<EstimatedEarnings>({
@@ -395,33 +399,75 @@ export default function TapToEarn() {
                 <span className="font-medium text-sm">Tap Power</span>
               </div>
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" data-testid="text-effective-multiplier">
-                Level {earnings.tapMultiplierLevel} ({earnings.tapMultiplier}x)
+                Level {earnings.tapMultiplierLevel}/{earnings.maxUpgradeLevel} ({earnings.tapMultiplier}x)
               </span>
             </div>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="space-y-0.5">
-                <p className="text-xs text-muted-foreground">
-                  Next level: {formatNumber(earnings.upgradeCost)} coins
-                </p>
-                {earnings.tierBaseMultiplier > 1 && (
+            {earnings.tierBaseMultiplier > 1 && (
+              <p className="text-xs text-muted-foreground">
+                Tier bonus: {earnings.tierBaseMultiplier}x
+              </p>
+            )}
+            {user?.tier === "FREE" ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <p className="text-xs text-muted-foreground">
-                    Tier bonus: {earnings.tierBaseMultiplier}x
+                    Upgrades locked on Free tier
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => window.location.href = "/subscription"}
+                    data-testid="button-unlock-upgrades"
+                  >
+                    Unlock Upgrades
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  Subscribe to Bronze or higher to start upgrading your multiplier!
+                </p>
+              </div>
+            ) : earnings.isMaxed ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <Badge variant="secondary" data-testid="badge-max-level">
+                    {user?.tier} Peak Reached
+                  </Badge>
+                  {earnings.nextTier && (
+                    <Button
+                      size="sm"
+                      onClick={() => window.location.href = "/subscription"}
+                      data-testid="button-unlock-tier"
+                    >
+                      Unlock {earnings.nextTier} Power
+                    </Button>
+                  )}
+                </div>
+                {earnings.nextTier && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    You've maxed out at {earnings.tapMultiplier}x. Upgrade to {earnings.nextTier} to unlock even higher multipliers!
                   </p>
                 )}
               </div>
-              <Button
-                size="sm"
-                onClick={() => upgradeMutation.mutate()}
-                disabled={upgradeMutation.isPending || (user?.totalCoins ?? 0) < earnings.upgradeCost}
-                data-testid="button-upgrade-multiplier"
-              >
-                {upgradeMutation.isPending ? "Upgrading..." : "Upgrade"}
-              </Button>
-            </div>
-            {(user?.totalCoins ?? 0) < earnings.upgradeCost && (
-              <p className="text-xs text-muted-foreground text-center">
-                Need {formatNumber(earnings.upgradeCost - (user?.totalCoins ?? 0))} more coins
-              </p>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-xs text-muted-foreground">
+                    Next level: {formatNumber(earnings.upgradeCost!)} coins
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => upgradeMutation.mutate()}
+                    disabled={upgradeMutation.isPending || (user?.totalCoins ?? 0) < (earnings.upgradeCost ?? Infinity)}
+                    data-testid="button-upgrade-multiplier"
+                  >
+                    {upgradeMutation.isPending ? "Upgrading..." : "Upgrade"}
+                  </Button>
+                </div>
+                {(user?.totalCoins ?? 0) < (earnings.upgradeCost ?? 0) && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Need {formatNumber((earnings.upgradeCost ?? 0) - (user?.totalCoins ?? 0))} more coins
+                  </p>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

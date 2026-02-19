@@ -96,6 +96,20 @@ export async function registerRoutes(
     })
   );
 
+  const TIER_MAX_UPGRADE: Record<string, number> = {
+    FREE: 1,
+    BRONZE: 2,
+    SILVER: 3,
+    GOLD: 10,
+  };
+
+  const TIER_NEXT: Record<string, string | null> = {
+    FREE: "BRONZE",
+    BRONZE: "SILVER",
+    SILVER: "GOLD",
+    GOLD: null,
+  };
+
   interface CachedTierConfig {
     energyRefillRateMs: number;
     freeRefillsPerDay: number;
@@ -279,7 +293,9 @@ export async function registerRoutes(
       user = await refillUserResources(user);
       const tc = await getTierConfig(user.tier);
 
-      const effectiveMultiplier = (user.tapMultiplier ?? 1) * (tc.tapMultiplier ?? 1);
+      const userLevel = user.tapMultiplier ?? 1;
+      const effectiveMultiplier = userLevel * (tc.tapMultiplier ?? 1);
+      const maxUpgradeLevel = TIER_MAX_UPGRADE[user.tier] ?? 1;
       res.json({
         ...user,
         tierConfig: {
@@ -287,8 +303,11 @@ export async function registerRoutes(
           refillCooldownMs: tc.refillCooldownMs,
           tapMultiplier: effectiveMultiplier,
         },
-        tapMultiplierLevel: user.tapMultiplier ?? 1,
+        tapMultiplierLevel: userLevel,
         tierBaseMultiplier: tc.tapMultiplier ?? 1,
+        maxUpgradeLevel,
+        isMaxedUpgrade: userLevel >= maxUpgradeLevel,
+        nextTier: TIER_NEXT[user.tier] ?? null,
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get user" });
@@ -372,8 +391,12 @@ export async function registerRoutes(
       const dateKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
 
       const tierConfig = await getTierConfig(user.tier);
-      const effectiveMultiplier = (user.tapMultiplier ?? 1) * (tierConfig.tapMultiplier ?? 1);
-      const upgradeCost = (user.tapMultiplier ?? 1) * 25000;
+      const userLevel = user.tapMultiplier ?? 1;
+      const effectiveMultiplier = userLevel * (tierConfig.tapMultiplier ?? 1);
+      const maxLevel = TIER_MAX_UPGRADE[user.tier] ?? 1;
+      const isMaxed = userLevel >= maxLevel;
+      const upgradeCost = isMaxed ? null : userLevel * 25000;
+      const nextTier = TIER_NEXT[user.tier] ?? null;
 
       if (user.tier === "FREE") {
         return res.json({
@@ -384,9 +407,12 @@ export async function registerRoutes(
           tapPotSize: 0,
           tierName: "FREE",
           tapMultiplier: effectiveMultiplier,
-          tapMultiplierLevel: user.tapMultiplier ?? 1,
+          tapMultiplierLevel: userLevel,
           tierBaseMultiplier: tierConfig.tapMultiplier ?? 1,
           upgradeCost,
+          maxUpgradeLevel: maxLevel,
+          isMaxed,
+          nextTier,
         });
       }
 
@@ -414,9 +440,12 @@ export async function registerRoutes(
         tapPotSize: parseFloat(tapPotSize.toFixed(4)),
         tierName: user.tier,
         tapMultiplier: effectiveMultiplier,
-        tapMultiplierLevel: user.tapMultiplier ?? 1,
+        tapMultiplierLevel: userLevel,
         tierBaseMultiplier: tierConfig.tapMultiplier ?? 1,
         upgradeCost,
+        maxUpgradeLevel: maxLevel,
+        isMaxed,
+        nextTier,
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get estimated earnings" });
@@ -429,6 +458,20 @@ export async function registerRoutes(
       if (!user) return res.status(404).json({ message: "User not found" });
 
       const currentLevel = user.tapMultiplier ?? 1;
+      const maxLevel = TIER_MAX_UPGRADE[user.tier] ?? 1;
+      const nextTier = TIER_NEXT[user.tier] ?? null;
+
+      if (currentLevel >= maxLevel) {
+        return res.status(403).json({
+          message: nextTier
+            ? `You've reached the ${user.tier} peak (Level ${maxLevel}). Upgrade to ${nextTier} to unlock higher multipliers!`
+            : `You're at the maximum upgrade level (${maxLevel}).`,
+          isMaxed: true,
+          maxLevel,
+          nextTier,
+        });
+      }
+
       const upgradeCost = currentLevel * 25000;
 
       if (user.totalCoins < upgradeCost) {
@@ -480,7 +523,9 @@ export async function registerRoutes(
         effectiveMultiplier,
         coinsSpent: upgradeCost,
         remainingCoins: updated.totalCoins,
-        nextUpgradeCost: newMultiplier * 25000,
+        nextUpgradeCost: newMultiplier < maxLevel ? newMultiplier * 25000 : null,
+        isMaxed: newMultiplier >= maxLevel,
+        maxLevel,
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to upgrade multiplier" });
