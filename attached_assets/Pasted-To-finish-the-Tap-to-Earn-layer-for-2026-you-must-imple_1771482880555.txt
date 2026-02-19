@@ -1,0 +1,31 @@
+To finish the Tap-to-Earn layer for 2026, you must implement the "Daily Revenue Share" logic. Users do not get USDT instantly per tap; they earn "Group Coins" which act as shares of the daily 50% reward pool.
+Here is exactly how the Bronze (and higher) users get their USDT:
+1. The 24-Hour "Mining" Phase
+Throughout the day, Bronze, Silver, and Gold users tap to earn Group Coins.
+Bronze: 1 Coin/Tap (Base).
+Silver: 3 Coins/Tap (Multiplier).
+Gold: 10 Coins/Tap (Multiplier).
+Action: These coins are stored in the daily_activity table.
+2. The Midnight "Pot Settlement" (The Middleware)
+At 00:00 UTC, the middleware runs a calculation script. It looks at the total USDT Tap Pot allocated for that day (calculated from your 5 USDT memberships).
+The Formula:
+
+3. The "Virtual-to-Real" Conversion
+Once the math is done, the middleware performs an Atomic Update in your PostgreSQL database:
+Calculate: User A earned 0.45 USDT today.
+Update: users.virtual_usdt_balance += 0.45.
+Reset: daily_activity.coins_today = 0 (Ready for the next day).
+Notify: The Telegram bot sends a message: "Congratulations! You earned 0.45 USDT from today's Tapping Pool! 💰"
+4. The "Withdrawal" Trigger
+The user now sees 0.45 USDT in their app dashboard under "Withdrawable Balance."
+The Rule: They can click "Withdraw" once they reach the 5 USDT Minimum (to save you on TON gas fees).
+The Transaction: When they hit withdraw, the TON Pay SDK moves the real USDT from your Game Treasury Wallet to the user's Personal TON Wallet.
+5. Why this protects your $15,000 Profit
+Fixed Costs: You only ever pay out the 50% Tap Pot. If users tap 1 million times or 1 trillion times, the USDT amount stays the same.
+Tier Incentive: Because Gold users get 10 coins per tap, they naturally take a 10x larger slice of the daily USDT pot than Bronze users. This forces people to upgrade to higher tiers to "compete" for the money.
+Inactive Redistribution: If a Bronze user pays 5 USDT but forgets to tap, their $1.50 monthly allocation stays in the pot and is shared by the active members. This is the "Lazy Tax" that makes your active users profitable.
+6. Summary for the Developer (Layer 1 Implementation)
+Frontend: Show "Estimated Earnings" based on the current pool.
+Backend: Run the Midnight Cron Job to convert coins to USDT.
+Audit: Ensure the total USDT distributed exactly matches your 60% Pool Allocation.
+The Tap-to-Earn logic is now 100% complete.
