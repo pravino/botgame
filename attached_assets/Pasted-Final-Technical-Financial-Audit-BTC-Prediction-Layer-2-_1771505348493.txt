@@ -1,0 +1,29 @@
+Final Technical & Financial Audit: BTC Prediction (Layer 2)
+Before we lock the "Skill" layer and move to the Lucky Wheel, we must verify that the Oracle Middleware is mathematically closed and tier-secure.
+1. The Data Integrity Audit (The "Oracle")
+Validation: Middleware uses a Median Price from 3 sources (CoinGecko, Binance, CoinMarketCap).
+Fail-Safe: If APIs are down at 00:00 UTC, the system triggers Exponential Backoff (retrying every 5s, then 30s) and pauses payouts until a valid price is confirmed.
+Entry Lock: Users must submit predictions by 12:00 UTC. The price is frozen at that exact second to prevent "last-minute sniping" after the trend is obvious.
+2. The Financial Audit (The "Pools")
+Allocation: 30% of the daily prize drip (0.60 USDT total per user).
+Tier Segregation: Bronze, Silver, and Gold pots are strictly separated. A Bronze winner cannot touch the Gold pot.
+The Math Check (1,000 Users):
+Daily Revenue: 166.66 USDT.
+Admin Profit (40%): 66.66 USDT.
+Total Daily Prize Pool (60%): 100.00 USDT.
+Daily Prediction Pot (30% of Prize): 30.00 USDT.
+Dynamic Scaling: The formula activeUsers * (tier.daily_unit * config.prediction_share) ensures that if 10 users join mid-day, the pot grows by exactly their pro-rated share.
+3. The "Rollover" Audit (The Engagement)
+Logic: If no winners exist in a specific tier, the entire 30% pot for that tier moves to the next day's rollover balance.
+Social Proof: The bot automatically announces "Mega Pots" when rollovers occur, driving Tiers Upgrades (from Free to Bronze or Bronze to Gold).
+Safety: Rollovers stay within their respective tiers.
+4. Why this protects your $15,000 Profit
+No Fixed Liabilities: You never promise a "fixed $5 win." You promise a share of the pot. If 1,000 people win, they get cents. If 1 wins, they get the whole pot. You never pay out more than you have.
+Fixed Margin: Your 40% cut is extracted by the Membership Middleware before the Oracle even starts its loop.
+Tier Incentive: The massive difference in "Daily Units" ($0.03 vs $0.30) makes the Gold Tier 10x more lucrative, justifying the 50 USDT price tag.
+Final Layer 2 Checklist (BTC Prediction)
+Multi-Source Oracle (Median price calculation).
+Tier-Agnostic Loop (Dynamic DB-driven math).
+Segregated Rollovers (Tier-specific carry-over).
+12:00 UTC Lock (Anti-sniping protection).
+Atomic Ledger Updates (Updating virtual_usdt_balance in one transaction
