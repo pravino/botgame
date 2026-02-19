@@ -23,7 +23,7 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - **Authentication**: Email-based OTP authentication (6-digit code, 10-minute expiry), with new users automatically provisioned.
 - **Gamification**:
     - **Tap-to-Earn**: Coin tapping with an energy system (refills every 24 hours, visual animations). Features a multiplier upgrade system where users spend in-game currency to increase their tap multiplier.
-    - **Price Prediction**: Users predict BTC price movement, with results resolving after 12 hours based on real-time data.
+    - **Price Prediction**: Users predict BTC price movement, with results resolving after 12 hours based on real-time data. Submissions are locked at 12:00 UTC daily to prevent last-minute sniping.
     - **Lucky Wheel**: A spin-the-wheel game offering various USDT rewards, with limited spins.
 - **Wallet & Deposits**: USDT wallet functionality, supporting deposits via TON and TRC-20 networks with QR code generation.
 - **Leaderboards**: Three categories (Coins, Predictions, Wheel winnings) showcasing top players.
@@ -40,7 +40,7 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - **Scalability**: Batched tap processing (50 taps/2000ms) to reduce server load.
 - **Reliability**: Multi-oracle BTC price system (CoinGecko, Binance, CoinMarketCap) with median calculation and retry mechanisms for robust price data.
 - **Admin Control**: Admin endpoints are protected by email-based authorization (`ADMIN_EMAILS` env var).
-- **Dynamic Oracle Settlement**: Prediction payouts are fully dynamic — driven by a `global_config` database table (prediction_share, tap_share, wheel_share). Each tier's prediction pot is calculated from `active_users * daily_unit * prediction_share`, with per-tier rollover tracking in `tier_rollovers`. If no winners, the pot accumulates for the next settlement. Tier pots are fully segregated — no cross-tier sharing.
+- **Dynamic Oracle Settlement**: Prediction payouts are fully dynamic — driven by a `global_config` database table (prediction_share, tap_share, wheel_share). Each tier's prediction pot is calculated with per-subscriber pro-rating (mid-day joiners contribute proportionally), with per-tier rollover tracking in `tier_rollovers`. If no winners, the pot accumulates for the next settlement and a "Mega Pot" Telegram announcement is sent. Tier pots are fully segregated — no cross-tier sharing. Oracle payouts (wallet + ledger) are wrapped in atomic DB transactions for consistency.
 
 ## External Dependencies
 - **Email Service**: Resend (for OTP delivery)
