@@ -73,7 +73,7 @@ async function baselineSync(pool: pg.Pool) {
       "energy" integer DEFAULT 1000 NOT NULL,
       "max_energy" integer DEFAULT 1000 NOT NULL,
       "last_energy_refill" timestamp DEFAULT now() NOT NULL,
-      "spins_remaining" integer DEFAULT 1 NOT NULL,
+      "spins_remaining" integer DEFAULT 0 NOT NULL,
       "spin_tickets" integer DEFAULT 0 NOT NULL,
       "spin_tickets_expiry" timestamp,
       "total_spins" integer DEFAULT 0 NOT NULL,
