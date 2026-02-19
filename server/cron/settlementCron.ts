@@ -3,7 +3,7 @@ import { log } from "../index";
 import { recordLedgerEntry } from "../middleware/ledger";
 import { getValidatedBTCPriceWithRetry, clearPriceCache, setPriceFrozen } from "../services/priceService";
 import { getLeagueMultiplier } from "../constants/leagues";
-import { sendDirectMessage, kickFromApex } from "../services/telegramBot";
+import { sendDirectMessage, kickFromApex, announceSettlementResults } from "../services/telegramBot";
 import { users } from "@shared/schema";
 import { eq, and, gt, lte, sql } from "drizzle-orm";
 
@@ -30,6 +30,7 @@ export async function midnightPulse(): Promise<void> {
 
     const tierNames = allTiers.filter(t => t.name !== "FREE").map(t => t.name);
     let totalDistributed = 0;
+    const allEarners: Array<{ username: string; payout: number }> = [];
 
     for (const tierName of tierNames) {
       const subscribers = await storage.getActiveSubscribersByTier(tierName);
@@ -111,6 +112,7 @@ export async function midnightPulse(): Promise<void> {
         });
 
         tierDistributed += payout;
+        allEarners.push({ username: user.username || user.firstName || `User#${user.id.slice(-4)}`, payout });
       }
 
       log(`[Midnight Pulse] ${tierName}: Distributed $${tierDistributed.toFixed(4)} to ${tierTapEntries.length} users from ${dateKey}`);
@@ -133,6 +135,16 @@ export async function midnightPulse(): Promise<void> {
     }
 
     log(`[Midnight Pulse] Settlement complete. Total distributed: $${totalDistributed.toFixed(4)}`);
+
+    if (allEarners.length > 0 && totalDistributed > 0) {
+      try {
+        allEarners.sort((a, b) => b.payout - a.payout);
+        await announceSettlementResults(allEarners.slice(0, 3), totalDistributed);
+        log(`[Midnight Pulse] Settlement proof announcement sent with top ${Math.min(3, allEarners.length)} earners`);
+      } catch (announceErr: any) {
+        log(`[Midnight Pulse] Failed to send settlement proof: ${announceErr.message}`);
+      }
+    }
   } catch (error: any) {
     log(`[Midnight Pulse] Error: ${error.message}`);
   }

@@ -198,20 +198,78 @@ export async function announceNewSubscriber(username: string, tierName: string):
   await sendToApex(msg);
 }
 
-export async function announceSettlementReminder(hoursLeft: number): Promise<void> {
-  const timeLabel = hoursLeft === 1 ? "1 HOUR" : `${hoursLeft} HOURS`;
-  const msg = `<b>DAILY REWARDS COUNTDOWN</b>\n\n` +
-    `${timeLabel} until today's rewards are calculated!\n\n` +
-    `Every tap, every prediction, every spin counts toward your daily payout.\n\n` +
-    `<b>Tap coins</b> to grow your share of the tap pot\n` +
-    `<b>Predict BTC</b> to compete for the prediction pot\n` +
-    `<b>Spin the wheel</b> for instant prizes\n\n` +
-    `Don't leave USDT on the table — get in now!`;
+export async function announceFomoCountdown(potData: { tierName: string; potSize: number }[], miniAppUrl: string): Promise<void> {
+  let potLines = "";
+  for (const p of potData) {
+    if (p.potSize > 0) {
+      potLines += `  ${p.tierName}: <b>$${p.potSize.toFixed(2)} USDT</b>\n`;
+    }
+  }
+  if (!potLines) potLines = "  Building up for tomorrow!\n";
+
+  const msg = `<b>4 HOURS UNTIL THE VAULT LOCKS!</b>\n\n` +
+    `Today's Tap Pots:\n${potLines}\n` +
+    `...and they're waiting for the winners!\n\n` +
+    `Check your Energy: Don't let your full tank sit idle.\n` +
+    `Pro Tip: Use your Daily Full Tank refill NOW to climb the leaderboard before the 00:00 UTC settlement.\n\n` +
+    `Every tap you miss is USDT left for someone else. GET TAPPING!\n\n` +
+    `<a href="${miniAppUrl}">Open Vault60</a>`;
+
+  await Promise.all([
+    sendToNewsChannel(msg),
+    sendToLobby(msg),
+  ]);
+}
+
+export async function announceMathWarrior(inactivePct: number, topEarnerEstimate: number, miniAppUrl: string): Promise<void> {
+  const msg = `<b>THE "LAZY TAX" IS ACCUMULATING!</b>\n\n` +
+    `Our sensors show <b>${inactivePct}%</b> of paid members haven't tapped today. ` +
+    `You know what that means? THEIR SHARE GOES TO YOU.\n\n` +
+    `The USDT per Coin value is spiking right now. If you finish your energy bars in the next 2 hours, you're stealing the "Ghost" rewards.\n\n` +
+    `Current Top earners are on track for <b>$${topEarnerEstimate.toFixed(4)} USDT</b> today. ` +
+    `Are you going to let them take it all?\n\n` +
+    `Empty your tanks now!\n\n` +
+    `<a href="${miniAppUrl}">Launch Vault60</a>`;
+
+  await Promise.all([
+    sendToNewsChannel(msg),
+    sendToLobby(msg),
+  ]);
+}
+
+export async function announceLastCall(miniAppUrl: string): Promise<void> {
+  const msg = `<b>30 MINUTE WARNING: RESET IMMINENT!</b>\n\n` +
+    `In 30 minutes, the Midnight Settlement runs.\n\n` +
+    `All taps today will be converted to REAL USDT in your balance.\n` +
+    `Any unused energy will be WASTED.\n\n` +
+    `This is your last chance to squeeze every cent out of the Vault60 60% Prize Pool.\n\n` +
+    `TAP. TAP. TAP.\n\n` +
+    `<a href="${miniAppUrl}">Final Sprint to Midnight</a>`;
 
   await Promise.all([
     sendToNewsChannel(msg),
     sendToLobby(msg),
     sendToApex(msg),
+  ]);
+}
+
+export async function announceSettlementResults(topEarners: Array<{ username: string; payout: number }>, totalDistributed: number): Promise<void> {
+  if (topEarners.length === 0) return;
+
+  let msg = `<b>SETTLEMENT COMPLETE</b>\n\n`;
+  msg += `While you slept, the top tappers earned REAL USDT:\n\n`;
+
+  const medals = ["1st", "2nd", "3rd"];
+  topEarners.slice(0, 3).forEach((e, i) => {
+    msg += `${medals[i]}: <b>${escapeHtml(e.username)}</b> — $${e.payout.toFixed(4)} USDT\n`;
+  });
+
+  msg += `\nTotal distributed: <b>$${totalDistributed.toFixed(4)} USDT</b>\n\n`;
+  msg += `Don't miss tomorrow's pot — start tapping NOW!`;
+
+  await Promise.all([
+    sendToNewsChannel(msg),
+    sendToLobby(msg),
   ]);
 }
 

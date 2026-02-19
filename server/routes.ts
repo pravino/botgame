@@ -18,7 +18,7 @@ import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
 import { spinWheel } from "./services/wheelService";
-import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, sendDirectMessage, announceLeaderboard, announceNewSubscriber, announceSettlementReminder, generateApexInviteLink, kickFromApex, checkTelegramMembership } from "./services/telegramBot";
+import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, sendDirectMessage, announceLeaderboard, announceNewSubscriber, announceFomoCountdown, announceMathWarrior, announceLastCall, generateApexInviteLink, kickFromApex, checkTelegramMembership } from "./services/telegramBot";
 
 async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
   try {
@@ -1474,44 +1474,150 @@ export async function registerRoutes(
   setInterval(subscriberRetentionCheck, 24 * 60 * 60 * 1000);
   setTimeout(subscriberRetentionCheck, 35000);
 
-  async function scheduleSettlementReminder() {
-    const config = await storage.getGlobalConfig();
-    const reminderHoursBefore = config.settlement_reminder_hours ?? 3;
-
+  function scheduleAtUTC(hourUTC: number, minuteUTC: number, label: string, fn: () => Promise<void>) {
     const now = new Date();
-    const targetHourUTC = 24 - reminderHoursBefore;
+    let next = new Date(now);
+    next.setUTCHours(hourUTC, minuteUTC, 0, 0);
+    if (next <= now) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
+    const ms = next.getTime() - now.getTime();
+    log(`[Promo] ${label} scheduled for ${next.toUTCString()} (${Math.round(ms / 60000)} min from now)`);
 
-    let nextFire = new Date(now);
-    nextFire.setUTCHours(targetHourUTC, 0, 0, 0);
-    if (nextFire <= now) {
-      nextFire.setUTCDate(nextFire.getUTCDate() + 1);
+    const run = async () => {
+      try {
+        await fn();
+        log(`[Promo] ${label} sent successfully`);
+      } catch (err: any) {
+        log(`[Promo] ${label} error: ${err.message}`);
+      }
+      scheduleAtUTC(hourUTC, minuteUTC, label, fn);
+    };
+    setTimeout(run, ms);
+  }
+
+  const miniAppUrl = process.env.REPLIT_DEV_DOMAIN
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+    : (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : "https://vault60.app");
+
+  async function gatherTapPotData(): Promise<{ tierName: string; potSize: number }[]> {
+    const config = await storage.getGlobalConfig();
+    const treasurySplit = config.treasury_split ?? 0.60;
+    const tapShare = config.tap_share ?? 0.50;
+    const allTiers = await storage.getAllTiers();
+    const results: { tierName: string; potSize: number }[] = [];
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setUTCHours(23, 59, 59, 999);
+
+    for (const tier of allTiers) {
+      if (tier.name === "FREE") continue;
+      const subs = await storage.getActiveSubscribersByTier(tier.name);
+      const dailyUnit = parseFloat(tier.dailyUnit);
+
+      let dailyPool = 0;
+      for (const sub of subs) {
+        if (sub.subscriptionStartedAt) {
+          const joinedAt = new Date(sub.subscriptionStartedAt);
+          if (joinedAt > todayEnd) continue;
+          if (joinedAt >= todayStart && joinedAt <= todayEnd) {
+            const minutesActive = Math.max(0, (todayEnd.getTime() - joinedAt.getTime()) / (1000 * 60));
+            dailyPool += parseFloat(((minutesActive / 1440) * dailyUnit).toFixed(4));
+            continue;
+          }
+        }
+        dailyPool += dailyUnit;
+      }
+
+      const pot = dailyPool * treasurySplit * tapShare;
+      if (pot > 0) results.push({ tierName: tier.name, potSize: pot });
+    }
+    return results;
+  }
+
+  async function gatherInactiveAndTopData(): Promise<{ inactivePct: number; topEarnerEstimate: number }> {
+    const { getLeagueMultiplier } = await import("./constants/leagues");
+    const now = new Date();
+    const dateKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
+    const config = await storage.getGlobalConfig();
+    const treasurySplit = config.treasury_split ?? 0.60;
+    const tapShare = config.tap_share ?? 0.50;
+    const allTiers = await storage.getAllTiers();
+    const todayStart = new Date(now);
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setUTCHours(23, 59, 59, 999);
+
+    let totalPaidSubs = 0;
+    const activeUserIds = new Set<string>();
+    let bestEstimate = 0;
+
+    for (const tier of allTiers) {
+      if (tier.name === "FREE") continue;
+      const subs = await storage.getActiveSubscribersByTier(tier.name);
+      totalPaidSubs += subs.length;
+      if (subs.length === 0) continue;
+
+      const dailyUnit = parseFloat(tier.dailyUnit);
+      let dailyPool = 0;
+      for (const sub of subs) {
+        if (sub.subscriptionStartedAt) {
+          const joinedAt = new Date(sub.subscriptionStartedAt);
+          if (joinedAt > todayEnd) continue;
+          if (joinedAt >= todayStart && joinedAt <= todayEnd) {
+            const minutesActive = Math.max(0, (todayEnd.getTime() - joinedAt.getTime()) / (1000 * 60));
+            dailyPool += parseFloat(((minutesActive / 1440) * dailyUnit).toFixed(4));
+            continue;
+          }
+        }
+        dailyPool += dailyUnit;
+      }
+      const tapPot = dailyPool * treasurySplit * tapShare;
+
+      const dailyTaps = await storage.getDailyTapsForDate(dateKey);
+      const tierTaps = dailyTaps.filter(dt => dt.tierAtTime === tier.name && subs.some(s => s.id === dt.userId));
+
+      const uniqueTierTappers = new Set(tierTaps.map(dt => dt.userId));
+      uniqueTierTappers.forEach(id => activeUserIds.add(id));
+
+      let weightedTotalCoins = 0;
+      const entriesWithWeight: Array<{ coins: number; weight: number }> = [];
+      for (const entry of tierTaps) {
+        const user = await storage.getUser(entry.userId);
+        if (!user) continue;
+        const leagueMultiplier = getLeagueMultiplier(user.league);
+        const weight = entry.coinsEarned * leagueMultiplier;
+        weightedTotalCoins += weight;
+        entriesWithWeight.push({ coins: entry.coinsEarned, weight });
+      }
+
+      if (weightedTotalCoins > 0 && entriesWithWeight.length > 0) {
+        const topWeight = Math.max(...entriesWithWeight.map(e => e.weight));
+        const topShare = topWeight / weightedTotalCoins;
+        const topPayout = tapPot * topShare;
+        if (topPayout > bestEstimate) bestEstimate = topPayout;
+      }
     }
 
-    const msUntilFire = nextFire.getTime() - now.getTime();
-    log(`[Reminder] Settlement reminder scheduled for ${nextFire.toUTCString()} (${Math.round(msUntilFire / 60000)} min from now)`);
-
-    setTimeout(async () => {
-      try {
-        const freshConfig = await storage.getGlobalConfig();
-        const hours = freshConfig.settlement_reminder_hours ?? 3;
-        await announceSettlementReminder(hours);
-        log(`[Reminder] Settlement reminder sent — ${hours}h before midnight UTC`);
-      } catch (err: any) {
-        log(`[Reminder] Error sending settlement reminder: ${err.message}`);
-      }
-      setInterval(async () => {
-        try {
-          const freshConfig = await storage.getGlobalConfig();
-          const hours = freshConfig.settlement_reminder_hours ?? 3;
-          await announceSettlementReminder(hours);
-          log(`[Reminder] Settlement reminder sent — ${hours}h before midnight UTC`);
-        } catch (err: any) {
-          log(`[Reminder] Error sending settlement reminder: ${err.message}`);
-        }
-      }, 24 * 60 * 60 * 1000);
-    }, msUntilFire);
+    const inactivePct = totalPaidSubs > 0 ? Math.round(((totalPaidSubs - activeUserIds.size) / totalPaidSubs) * 100) : 0;
+    return { inactivePct: Math.max(0, inactivePct), topEarnerEstimate: bestEstimate };
   }
-  scheduleSettlementReminder();
+
+  scheduleAtUTC(20, 0, "FOMO Countdown (8PM UTC)", async () => {
+    const potData = await gatherTapPotData();
+    await announceFomoCountdown(potData, miniAppUrl);
+  });
+
+  scheduleAtUTC(22, 0, "Math-Warrior Hype (10PM UTC)", async () => {
+    const { inactivePct, topEarnerEstimate } = await gatherInactiveAndTopData();
+    await announceMathWarrior(inactivePct, topEarnerEstimate, miniAppUrl);
+  });
+
+  scheduleAtUTC(23, 30, "Last Call (11:30PM UTC)", async () => {
+    await announceLastCall(miniAppUrl);
+  });
 
   app.get("/api/tiers", async (_req: Request, res: Response) => {
     try {
@@ -2103,9 +2209,6 @@ export async function registerRoutes(
       }
       if (!existing.expiry_warning_hours) {
         await storage.setGlobalConfigValue("expiry_warning_hours", 48, "Hours before subscription expiry to send warning notification");
-      }
-      if (!existing.settlement_reminder_hours) {
-        await storage.setGlobalConfigValue("settlement_reminder_hours", 3, "Hours before midnight UTC to send daily reward reminder to Telegram groups");
       }
       if (!existing.spins_free) {
         await storage.setGlobalConfigValue("spins_free", 1, "Monthly spin allocation for Free tier users");

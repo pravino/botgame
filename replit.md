@@ -71,11 +71,12 @@ The application is built with a modern web stack, featuring a React + TypeScript
     - Three-channel system: News (public announcements), Lobby (public community), Apex (private paid members).
     - Chat IDs stored in `global_config` (`telegram_news_channel_id`, `telegram_lobby_group_id`, `telegram_apex_group_id`).
     - Bot initialization runs after seeding in routes.ts startup sequence with auto-detection of chats.
-    - Service provides: `sendToNewsChannel`, `sendToLobby`, `sendToApex`, `sendDirectMessage`, `kickFromApex`, `generateApexInviteLink`, `announcePredictionResults`, `announceMegaPot`, `announceWheelWinner`, `announceLeaderboard`, `announceNewSubscriber`.
+    - Service provides: `sendToNewsChannel`, `sendToLobby`, `sendToApex`, `sendDirectMessage`, `kickFromApex`, `generateApexInviteLink`, `announcePredictionResults`, `announceMegaPot`, `announceWheelWinner`, `announceLeaderboard`, `announceNewSubscriber`, `announceFomoCountdown`, `announceMathWarrior`, `announceLastCall`, `announceSettlementResults`.
     - Admin endpoints: `/api/admin/telegram/status`, `/api/admin/telegram/detect-chats`, `/api/admin/telegram/set-chat`, `/api/admin/telegram/send`, `/api/admin/telegram/announce-leaderboard`.
     - Oracle service uses bot for prediction results and mega pot announcements.
     - Wheel service uses bot for jackpot/big-win announcements (wins >= $10).
-    - Settlement cron uses bot for expiry DMs and Apex group kicks on expired subscriptions.
+    - Settlement cron uses bot for expiry DMs, Apex group kicks on expired subscriptions, and post-settlement "Proof" announcements (top 3 earners + total distributed).
+    - **3-Stage Promo System**: UTC-aware scheduler fires at 8PM (FOMO Countdown with live pot data), 10PM (Math-Warrior with inactive % and top earner estimates using league multipliers), and 11:30PM (Last Call). All use prorated pool calculations matching settlement formulas. Self-rescheduling via recursive setTimeout.
 
 ## External Dependencies
 - **Email Service**: Resend (for OTP delivery)
