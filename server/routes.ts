@@ -13,6 +13,7 @@ import { recordLedgerEntry, getUserLedger, verifyLedgerIntegrity } from "./middl
 import { runGuardianChecks, updateCoinsSinceChallenge, resolveChallenge, checkWalletUnique, detectBotPattern } from "./middleware/guardian";
 import { midnightPulse, batchWithdrawalSettlement, subscriberRetentionCheck } from "./cron/settlementCron";
 import { getValidatedBTCPrice, isPriceFrozen } from "./services/priceService";
+import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
 const WHEEL_SLICES = [
@@ -1157,6 +1158,50 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/global-config", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const config = await storage.getAllGlobalConfig();
+      const rollovers = await storage.getAllTierRollovers();
+      res.json({ config, rollovers });
+    } catch (error: any) {
+      log(`Global config fetch error: ${error.message}`);
+      res.status(500).json({ message: "Failed to get global config" });
+    }
+  });
+
+  app.post("/api/admin/global-config", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { key, value, description } = req.body;
+      if (!key || value === undefined || value === null) {
+        return res.status(400).json({ message: "key and value are required" });
+      }
+      const numValue = parseFloat(value);
+      if (isNaN(numValue) || numValue < 0 || numValue > 1) {
+        return res.status(400).json({ message: "value must be a number between 0 and 1" });
+      }
+      const allowedKeys = ["prediction_share", "tap_share", "wheel_share"];
+      if (!allowedKeys.includes(key)) {
+        return res.status(400).json({ message: `key must be one of: ${allowedKeys.join(", ")}` });
+      }
+      const updated = await storage.setGlobalConfigValue(key, numValue, description);
+      log(`[Admin] Global config updated: ${key} = ${numValue}`);
+      res.json(updated);
+    } catch (error: any) {
+      log(`Global config update error: ${error.message}`);
+      res.status(500).json({ message: "Failed to update global config" });
+    }
+  });
+
+  app.post("/api/admin/trigger-oracle-settlement", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const result = await settleAllTiers();
+      res.json(result);
+    } catch (error: any) {
+      log(`Manual oracle settlement error: ${error.message}`);
+      res.status(500).json({ message: `Oracle settlement failed: ${error.message}` });
+    }
+  });
+
   app.get("/api/leaderboard/:type", async (req: Request, res: Response) => {
     try {
       const { type } = req.params;
@@ -1185,88 +1230,17 @@ export async function registerRoutes(
     }
   });
 
-  async function resolvePredictions() {
+  async function runOracleSettlement() {
     try {
-      const unresolved = await storage.getUnresolvedPredictions();
-      const now = new Date();
-
-      for (const pred of unresolved) {
-        const createdAt = new Date(pred.createdAt);
-        const hoursSince = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-
-        if (hoursSince >= 12) {
-          const btcData = await getBtcPrice();
-          const currentPrice = btcData.price;
-          const correct =
-            (pred.prediction === "higher" && currentPrice > pred.btcPriceAtPrediction) ||
-            (pred.prediction === "lower" && currentPrice < pred.btcPriceAtPrediction);
-
-          await storage.resolvePrediction(pred.id, currentPrice, correct);
-
-          const user = await storage.getUser(pred.userId);
-          if (user) {
-            const PREDICT_REWARD = 0.10;
-
-            if (correct) {
-              const walletBefore = user.walletBalance;
-              const walletAfter = parseFloat((walletBefore + PREDICT_REWARD).toFixed(4));
-
-              await storage.updateUser(user.id, {
-                correctPredictions: user.correctPredictions + 1,
-                walletBalance: walletAfter,
-              });
-
-              await recordLedgerEntry({
-                userId: user.id,
-                entryType: "predict_win",
-                direction: "credit",
-                amount: 1,
-                currency: "COINS",
-                balanceBefore: user.correctPredictions,
-                balanceAfter: user.correctPredictions + 1,
-                game: "predictPot",
-                refId: pred.id,
-                note: `Correct prediction: BTC ${pred.prediction} from $${pred.btcPriceAtPrediction} → $${currentPrice}`,
-              });
-
-              await recordLedgerEntry({
-                userId: user.id,
-                entryType: "predict_reward",
-                direction: "credit",
-                amount: PREDICT_REWARD,
-                currency: "USDT",
-                balanceBefore: walletBefore,
-                balanceAfter: walletAfter,
-                game: "predictPot",
-                refId: pred.id,
-                note: `Prediction reward: $${PREDICT_REWARD} USDT credited for correct BTC prediction`,
-              });
-            } else {
-              await recordLedgerEntry({
-                userId: user.id,
-                entryType: "predict_loss",
-                direction: "debit",
-                amount: 0,
-                currency: "COINS",
-                balanceBefore: user.correctPredictions,
-                balanceAfter: user.correctPredictions,
-                game: "predictPot",
-                refId: pred.id,
-                note: `Wrong prediction: BTC ${pred.prediction} from $${pred.btcPriceAtPrediction} → $${currentPrice}`,
-              });
-            }
-          }
-
-          log(`Resolved prediction ${pred.id}: ${correct ? "correct" : "wrong"}`);
-        }
-      }
+      const result = await settleAllTiers();
+      log(`[Oracle] Settlement run complete: ${result.btcResult}, $${result.totalDistributed.toFixed(4)} distributed across ${result.tiers.length} tiers`);
     } catch (error: any) {
-      log(`Error resolving predictions: ${error.message}`);
+      log(`[Oracle] Settlement error: ${error.message}`);
     }
   }
 
-  setInterval(resolvePredictions, 5 * 60 * 1000);
-  setTimeout(resolvePredictions, 10000);
+  setInterval(runOracleSettlement, 5 * 60 * 1000);
+  setTimeout(runOracleSettlement, 10000);
 
   setInterval(expireStaleAllocations, 24 * 60 * 60 * 1000);
   setTimeout(expireStaleAllocations, 30000);
@@ -1778,10 +1752,39 @@ export async function registerRoutes(
     }
   }
 
+  async function seedGlobalConfig() {
+    try {
+      const existing = await storage.getGlobalConfig();
+      if (!existing.prediction_share) {
+        await storage.setGlobalConfigValue("prediction_share", 0.30, "Percentage of daily unit allocated to prediction pot");
+      }
+      if (!existing.tap_share) {
+        await storage.setGlobalConfigValue("tap_share", 0.50, "Percentage of daily unit allocated to tap pot");
+      }
+      if (!existing.wheel_share) {
+        await storage.setGlobalConfigValue("wheel_share", 0.20, "Percentage of daily unit allocated to wheel vault");
+      }
+
+      const allTiers = await storage.getAllTiers();
+      for (const tier of allTiers) {
+        if (tier.name === "FREE") continue;
+        const rollover = await storage.getTierRollover(tier.name);
+        if (rollover === 0) {
+          await storage.setTierRollover(tier.name, 0);
+        }
+      }
+
+      log("Global config and tier rollovers seeded");
+    } catch (error: any) {
+      log(`Global config seed error: ${error.message}`);
+    }
+  }
+
   async function seedData() {
     try {
       await seedTiers();
       await seedTasks();
+      await seedGlobalConfig();
 
       const existingUsers = await storage.getTopUsersByCoins(1);
       if (existingUsers.length > 0) return;

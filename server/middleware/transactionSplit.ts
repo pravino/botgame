@@ -5,11 +5,24 @@ import { recordLedgerEntry } from "./ledger";
 const ADMIN_SPLIT = 0.40;
 const TREASURY_SPLIT = 0.60;
 
-const POOL_SPLIT = {
+const DEFAULT_POOL_SPLIT = {
   tapPot: 0.50,
   predictPot: 0.30,
   wheelVault: 0.20,
-} as const;
+};
+
+async function getPoolSplit(): Promise<{ tapPot: number; predictPot: number; wheelVault: number }> {
+  try {
+    const config = await storage.getGlobalConfig();
+    return {
+      tapPot: config.tap_share ?? DEFAULT_POOL_SPLIT.tapPot,
+      predictPot: config.prediction_share ?? DEFAULT_POOL_SPLIT.predictPot,
+      wheelVault: config.wheel_share ?? DEFAULT_POOL_SPLIT.wheelVault,
+    };
+  } catch {
+    return DEFAULT_POOL_SPLIT;
+  }
+}
 
 const DRIP_DAYS = 30;
 const SPIN_TICKETS_PER_SUBSCRIPTION = 4;
@@ -87,9 +100,10 @@ export async function processSubscriptionPayment(
   const now = new Date();
   const expiryDate = new Date(now.getTime() + DRIP_DAYS * 24 * 60 * 60 * 1000);
 
-  const tapPotTotal = parseFloat((treasuryAmount * POOL_SPLIT.tapPot).toFixed(2));
-  const predictPotTotal = parseFloat((treasuryAmount * POOL_SPLIT.predictPot).toFixed(2));
-  const wheelVaultTotal = parseFloat((treasuryAmount * POOL_SPLIT.wheelVault).toFixed(2));
+  const poolSplit = await getPoolSplit();
+  const tapPotTotal = parseFloat((treasuryAmount * poolSplit.tapPot).toFixed(2));
+  const predictPotTotal = parseFloat((treasuryAmount * poolSplit.predictPot).toFixed(2));
+  const wheelVaultTotal = parseFloat((treasuryAmount * poolSplit.wheelVault).toFixed(2));
 
   const tapPotDaily = parseFloat((tapPotTotal / DRIP_DAYS).toFixed(4));
   const predictPotDaily = parseFloat((predictPotTotal / DRIP_DAYS).toFixed(4));

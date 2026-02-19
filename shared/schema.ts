@@ -277,6 +277,22 @@ export const dailyComboAttempts = pgTable("daily_combo_attempts", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const globalConfig = pgTable("global_config", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  value: decimal("value", { precision: 10, scale: 4 }).notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const tierRollovers = pgTable("tier_rollovers", {
+  id: serial("id").primaryKey(),
+  tierName: text("tier_name").notNull().unique(),
+  rolloverAmount: decimal("rollover_amount", { precision: 12, scale: 4 }).notNull().default("0"),
+  lastSettledAt: timestamp("last_settled_at"),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
 export const insertPaymentInvoiceSchema = createInsertSchema(paymentInvoices).omit({
   id: true,
   createdAt: true,
@@ -329,3 +345,5 @@ export type Task = typeof tasks.$inferSelect;
 export type UserTask = typeof userTasks.$inferSelect;
 export type DailyCombo = typeof dailyCombos.$inferSelect;
 export type DailyComboAttempt = typeof dailyComboAttempts.$inferSelect;
+export type GlobalConfig = typeof globalConfig.$inferSelect;
+export type TierRollover = typeof tierRollovers.$inferSelect;

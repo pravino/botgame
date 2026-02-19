@@ -5,7 +5,7 @@ import { getValidatedBTCPriceWithRetry, clearPriceCache, setPriceFrozen } from "
 import { users } from "@shared/schema";
 import { eq, and, gt, lte, sql } from "drizzle-orm";
 
-const TAP_POT_SHARE = 0.50;
+const DEFAULT_TAP_POT_SHARE = 0.50;
 
 export async function midnightPulse(): Promise<void> {
   try {
@@ -15,13 +15,16 @@ export async function midnightPulse(): Promise<void> {
 
     log(`[Midnight Pulse] Starting daily settlement for ${dateKey}`);
 
+    const globalConfig = await storage.getGlobalConfig();
+    const TAP_POT_SHARE = globalConfig.tap_share ?? DEFAULT_TAP_POT_SHARE;
+
     const allTiers = await storage.getAllTiers();
     const tierDailyUnits: Record<string, number> = {};
     for (const t of allTiers) {
       tierDailyUnits[t.name] = parseFloat(t.dailyUnit);
     }
 
-    const tierNames = ["BRONZE", "SILVER", "GOLD"];
+    const tierNames = allTiers.filter(t => t.name !== "FREE").map(t => t.name);
     let totalDistributed = 0;
 
     for (const tierName of tierNames) {

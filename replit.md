@@ -40,6 +40,7 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - **Scalability**: Batched tap processing (50 taps/2000ms) to reduce server load.
 - **Reliability**: Multi-oracle BTC price system (CoinGecko, Binance, CoinMarketCap) with median calculation and retry mechanisms for robust price data.
 - **Admin Control**: Admin endpoints are protected by email-based authorization (`ADMIN_EMAILS` env var).
+- **Dynamic Oracle Settlement**: Prediction payouts are fully dynamic — driven by a `global_config` database table (prediction_share, tap_share, wheel_share). Each tier's prediction pot is calculated from `active_users * daily_unit * prediction_share`, with per-tier rollover tracking in `tier_rollovers`. If no winners, the pot accumulates for the next settlement. Tier pots are fully segregated — no cross-tier sharing.
 
 ## External Dependencies
 - **Email Service**: Resend (for OTP delivery)

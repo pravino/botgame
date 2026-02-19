@@ -20,6 +20,8 @@ import {
   type UserTask,
   type DailyCombo,
   type DailyComboAttempt,
+  type GlobalConfig,
+  type TierRollover,
   users,
   tapSessions,
   predictions,
@@ -40,6 +42,8 @@ import {
   userTasks,
   dailyCombos,
   dailyComboAttempts,
+  globalConfig,
+  tierRollovers,
 } from "@shared/schema";
 import { eq, desc, sql, and, gt, lte, lt, or, inArray, sum } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -793,6 +797,109 @@ export class DatabaseStorage {
       solvedAt: solved ? new Date() : null,
     }).returning();
     return attempt;
+  }
+
+  async getGlobalConfig(): Promise<Record<string, number>> {
+    const rows = await db.select().from(globalConfig);
+    const config: Record<string, number> = {};
+    for (const row of rows) {
+      config[row.key] = parseFloat(row.value);
+    }
+    return config;
+  }
+
+  async getGlobalConfigValue(key: string): Promise<number | undefined> {
+    const [row] = await db.select().from(globalConfig).where(eq(globalConfig.key, key));
+    return row ? parseFloat(row.value) : undefined;
+  }
+
+  async setGlobalConfigValue(key: string, value: number, description?: string): Promise<GlobalConfig> {
+    const existing = await db.select().from(globalConfig).where(eq(globalConfig.key, key));
+    if (existing.length > 0) {
+      const [updated] = await db.update(globalConfig)
+        .set({ value: value.toFixed(4), updatedAt: new Date(), ...(description ? { description } : {}) })
+        .where(eq(globalConfig.key, key))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(globalConfig)
+      .values({ key, value: value.toFixed(4), description: description || null, updatedAt: new Date() })
+      .returning();
+    return created;
+  }
+
+  async getAllGlobalConfig(): Promise<GlobalConfig[]> {
+    return db.select().from(globalConfig);
+  }
+
+  async getTierRollover(tierName: string): Promise<number> {
+    const [row] = await db.select().from(tierRollovers).where(eq(tierRollovers.tierName, tierName.toUpperCase()));
+    return row ? parseFloat(row.rolloverAmount) : 0;
+  }
+
+  async setTierRollover(tierName: string, amount: number): Promise<void> {
+    const normalized = tierName.toUpperCase();
+    const existing = await db.select().from(tierRollovers).where(eq(tierRollovers.tierName, normalized));
+    if (existing.length > 0) {
+      await db.update(tierRollovers)
+        .set({ rolloverAmount: amount.toFixed(4), lastSettledAt: new Date(), updatedAt: new Date() })
+        .where(eq(tierRollovers.tierName, normalized));
+    } else {
+      await db.insert(tierRollovers)
+        .values({ tierName: normalized, rolloverAmount: amount.toFixed(4), lastSettledAt: new Date(), updatedAt: new Date() });
+    }
+  }
+
+  async getAllTierRollovers(): Promise<TierRollover[]> {
+    return db.select().from(tierRollovers);
+  }
+
+  async getActiveCountByTier(tierName: string): Promise<number> {
+    const result = await this.getActiveSubscribersByTier(tierName);
+    return result.length;
+  }
+
+  async getWinnersByTier(tierName: string, result: "HIGHER" | "LOWER"): Promise<Array<{ userId: string; predictionId: string }>> {
+    const predictionDirection = result === "HIGHER" ? "higher" : "lower";
+    const subscribers = await this.getActiveSubscribersByTier(tierName);
+    if (subscribers.length === 0) return [];
+    const subscriberIds = subscribers.map(s => s.id);
+
+    const winners = await db
+      .select()
+      .from(predictions)
+      .where(
+        and(
+          eq(predictions.resolved, true),
+          eq(predictions.correct, true),
+          eq(predictions.prediction, predictionDirection),
+          inArray(predictions.userId, subscriberIds)
+        )
+      );
+
+    return winners.map(w => ({ userId: w.userId, predictionId: w.id }));
+  }
+
+  async getRecentlyResolvedCorrectPredictions(tierName: string): Promise<Array<{ userId: string; predictionId: string }>> {
+    const subscribers = await this.getActiveSubscribersByTier(tierName);
+    if (subscribers.length === 0) return [];
+    const subscriberIds = subscribers.map(s => s.id);
+
+    const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const winners = await db
+      .select()
+      .from(predictions)
+      .where(
+        and(
+          eq(predictions.resolved, true),
+          eq(predictions.correct, true),
+          gt(predictions.resolvedAt, windowStart),
+          inArray(predictions.userId, subscriberIds)
+        )
+      );
+
+    return winners.map(w => ({ userId: w.userId, predictionId: w.id }));
   }
 }
 

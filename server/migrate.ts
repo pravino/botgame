@@ -329,6 +329,24 @@ async function baselineSync(pool: pg.Pool) {
       "solved_at" timestamp,
       "created_at" timestamp DEFAULT now() NOT NULL
     )`,
+
+    `CREATE TABLE IF NOT EXISTS "global_config" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "key" text NOT NULL,
+      "value" numeric(10, 4) NOT NULL,
+      "description" text,
+      "updated_at" timestamp DEFAULT now() NOT NULL,
+      CONSTRAINT "global_config_key_unique" UNIQUE("key")
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS "tier_rollovers" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "tier_name" text NOT NULL,
+      "rollover_amount" numeric(12, 4) DEFAULT '0' NOT NULL,
+      "last_settled_at" timestamp,
+      "updated_at" timestamp DEFAULT now() NOT NULL,
+      CONSTRAINT "tier_rollovers_tier_name_unique" UNIQUE("tier_name")
+    )`,
   ];
 
   const addColumnStatements = [

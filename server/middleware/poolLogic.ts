@@ -1,14 +1,16 @@
 import { storage } from "../storage";
 import { log } from "../index";
 
-const TIER_DAILY_UNITS: Record<string, number> = {
-  FREE: 0,
-  BRONZE: 0.10,
-  SILVER: 0.30,
-  GOLD: 1.00,
-};
-
 const MINIMUM_POOL_SEED = 1.00;
+
+async function getTierDailyUnits(): Promise<Record<string, number>> {
+  const allTiers = await storage.getAllTiers();
+  const units: Record<string, number> = {};
+  for (const t of allTiers) {
+    units[t.name] = parseFloat(t.dailyUnit);
+  }
+  return units;
+}
 
 export interface TierPoolStatus {
   tierName: string;
@@ -20,13 +22,15 @@ export interface TierPoolStatus {
     predictPot: number;
     total: number;
   };
+  predictPotRollover: number;
   jackpotVault: number;
   seeded: boolean;
 }
 
 export async function getActivePools(tierName: string): Promise<TierPoolStatus> {
   const normalizedTier = tierName.toUpperCase();
-  const dailyUnit = TIER_DAILY_UNITS[normalizedTier] || 0;
+  const tierDailyUnits = await getTierDailyUnits();
+  const dailyUnit = tierDailyUnits[normalizedTier] || 0;
 
   const activeSubscribers = await storage.getSubscriberCountByTier(normalizedTier);
 
@@ -35,6 +39,7 @@ export async function getActivePools(tierName: string): Promise<TierPoolStatus> 
 
   const { tapPot, predictPot } = await storage.getReleasedPoolTotalByTier(normalizedTier);
   const jackpotBalance = await storage.getJackpotVaultBalance(normalizedTier);
+  const predictPotRollover = await storage.getTierRollover(normalizedTier);
 
   return {
     tierName: normalizedTier,
@@ -46,13 +51,15 @@ export async function getActivePools(tierName: string): Promise<TierPoolStatus> 
       predictPot,
       total: tapPot + predictPot,
     },
+    predictPotRollover,
     jackpotVault: jackpotBalance,
     seeded,
   };
 }
 
 export async function getAllTierPools(): Promise<TierPoolStatus[]> {
-  const tierNames = ["BRONZE", "SILVER", "GOLD"];
+  const allTiers = await storage.getAllTiers();
+  const tierNames = allTiers.filter(t => t.name !== "FREE").map(t => t.name);
   return Promise.all(tierNames.map(getActivePools));
 }
 
