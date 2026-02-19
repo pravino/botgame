@@ -1,0 +1,40 @@
+Correct. That is a vital rule for maintaining the "Social Hierarchy" and protecting your $15,000 quarterly profit. If a Silver user could out-earn a Gold user just by grinding, nobody would pay the 50 USDT Gold fee.
+In 2026, your "Tier Power" must never overlap. The Base of a higher tier must always be stronger than the Max of the tier below it.
+1. The Adjusted "Power Gap" (No-Overlap Rule)
+To keep Gold exclusive, we must cap Silver below 10x.
+Tier	Base Multiplier	Max Upgrade Level	Total Max Power	Why?
+Free	1x	1 (No upgrade)	1x	The "Trial"
+Bronze (5 USDT)	1x	2	2x	The "Entry"
+Silver (15 USDT)	3x	3	9x	Stops before Gold
+Gold (50 USDT)	10x	10	100x	The King
+2. Why "9x" is the Magic Number for Silver
+The Ceiling: A Silver user works hard to hit 9x. They look at the Gold tier and see that Gold starts at 10x without even trying.
+The Incentive: To get that extra +1x (and unlock the path to 100x), they must upgrade to Gold.
+The Protection: This ensures that the 100 Gold members (who pay you 2,000 USDT profit/mo) always feel like the "Whales" compared to the 1,000 Bronze/Silver members.
+3. Middleware Implementation (The "Hard Cap")
+We update the TIER_CAPS to enforce this "No-Overlap" logic:
+typescript
+// server/middleware/tierEnforcer.ts
+
+const TIER_CONFIG = {
+  0: { base: 1, maxUpgrade: 1 },  // Free: Max 1x
+  1: { base: 1, maxUpgrade: 2 },  // Bronze: Max 2x
+  2: { base: 3, maxUpgrade: 3 },  // Silver: Max 9x (3 * 3)
+  3: { base: 10, maxUpgrade: 10 } // Gold: Max 100x (10 * 10)
+};
+
+export const getEffectiveMultiplier = (user) => {
+  const config = TIER_CONFIG[user.tier_id];
+  // Logic: Base Multiplier * Current Upgrade Level
+  return config.base * user.tapUpgradeLevel;
+};
+Use code with caution.
+
+4. The "Tier Upgrade" Push
+When the Silver user reaches 9x (Max), the "Upgrade" button in the app changes:
+Old Text: "Level Up Multiplier (50k Coins)"
+New Text: "🔥 UNLOCK GOLD POWER"
+Message: "You have reached the Silver Peak (9x). Upgrade to Gold to instantly jump to 10x and unlock the path to 100x Multipliers!"
+5. Why this protects your 15k Profit
+Prevents "Cheap" Whales: It stops a 15 USDT user from having the same impact on the prize pool as a 50 USDT user.
+Clears the Pool: Since Gold members have 100x power, they "eat" the daily Tap Pot faster. This sounds unfair, but it’s what drives the revenue. You want people to feel that "Power Gap" so they spend more to close it.
