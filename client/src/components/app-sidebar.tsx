@@ -11,9 +11,12 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LayoutDashboard, Coins, TrendingUp, CircleDot, Trophy, Wallet, Crown, ClipboardList, Puzzle, Medal, Users } from "lucide-react";
+import { LayoutDashboard, Coins, TrendingUp, CircleDot, Trophy, Wallet, Crown, ClipboardList, Puzzle, Medal, Users, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { User } from "@shared/schema";
 import { formatNumber } from "@/lib/game-utils";
+import { apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -73,6 +76,18 @@ export function AppSidebar({ user }: { user?: User }) {
               <p className="text-sm font-medium truncate">{user.username}</p>
               <p className="text-xs text-muted-foreground">{formatNumber(user.totalCoins)} coins</p>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              data-testid="button-logout"
+              onClick={async () => {
+                await apiRequest("POST", "/api/logout");
+                queryClient.clear();
+                window.location.href = "/";
+              }}
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </SidebarFooter>
       )}
