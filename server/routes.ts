@@ -98,6 +98,7 @@ export async function registerRoutes(
     energyRefillRateMs: number;
     freeRefillsPerDay: number;
     refillCooldownMs: number | null;
+    tapMultiplier: number;
   }
 
   let tierConfigCache: Record<string, CachedTierConfig> = {};
@@ -112,6 +113,7 @@ export async function registerRoutes(
         energyRefillRateMs: t.energyRefillRateMs ?? 2000,
         freeRefillsPerDay: t.freeRefillsPerDay ?? 0,
         refillCooldownMs: t.refillCooldownMs ?? null,
+        tapMultiplier: t.tapMultiplier ?? 1,
       };
     }
     tierConfigCache = cache;
@@ -122,7 +124,7 @@ export async function registerRoutes(
     if (Date.now() - tierConfigLoadedAt > TIER_CACHE_TTL_MS || Object.keys(tierConfigCache).length === 0) {
       await loadTierConfig();
     }
-    return tierConfigCache[tierName] || { energyRefillRateMs: 2000, freeRefillsPerDay: 0, refillCooldownMs: null };
+    return tierConfigCache[tierName] || { energyRefillRateMs: 2000, freeRefillsPerDay: 0, refillCooldownMs: null, tapMultiplier: 1 };
   }
 
   function getRefillRateForTierSync(tierName: string): number {
@@ -280,6 +282,7 @@ export async function registerRoutes(
         tierConfig: {
           energyRefillRateMs: tc.energyRefillRateMs,
           refillCooldownMs: tc.refillCooldownMs,
+          tapMultiplier: tc.tapMultiplier,
         },
       });
     } catch (error: any) {
@@ -321,7 +324,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No energy remaining" });
       }
 
-      const coinsEarned = actualTaps;
+      const tierConfig = await getTierConfig(user.tier);
+      const multiplier = tierConfig.tapMultiplier;
+      const coinsEarned = actualTaps * multiplier;
 
       const session = await storage.createTapSession({
         userId: user.id,
@@ -344,12 +349,63 @@ export async function registerRoutes(
         balanceAfter: updated?.totalCoins ?? user.totalCoins + coinsEarned,
         game: "tapPot",
         refId: session?.id,
-        note: `${coinsEarned} game coins from ${actualTaps} taps (points for upgrades & leaderboard)`,
+        note: `${coinsEarned} game coins from ${actualTaps} taps (${multiplier}x ${user.tier} multiplier)`,
       });
 
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: "Failed to process tap" });
+    }
+  });
+
+  app.get("/api/tap/estimated-earnings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const now = new Date();
+      const dateKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
+
+      if (user.tier === "FREE") {
+        return res.json({
+          myCoinsToday: 0,
+          totalTierCoins: 0,
+          mySharePct: 0,
+          estimatedUsdt: 0,
+          tapPotSize: 0,
+          tierName: "FREE",
+          tapMultiplier: 1,
+        });
+      }
+
+      const tierConfig = await getTierConfig(user.tier);
+      const allTiers = await storage.getAllTiers();
+      const tierData = allTiers.find(t => t.name === user.tier);
+      const dailyUnit = tierData ? parseFloat(tierData.dailyUnit) : 0;
+
+      const subscribers = await storage.getActiveSubscribersByTier(user.tier);
+      const dailyPool = subscribers.length * dailyUnit;
+      const tapPotSize = dailyPool * 0.50;
+
+      const myCoinsToday = await storage.getUserDailyCoins(dateKey, user.id);
+      const totalTierCoins = await storage.getTotalDailyCoinsByTier(dateKey, user.tier);
+
+      const mySharePct = totalTierCoins > 0 ? (myCoinsToday / totalTierCoins) * 100 : 0;
+      const estimatedUsdt = totalTierCoins > 0
+        ? parseFloat(((myCoinsToday / totalTierCoins) * tapPotSize).toFixed(4))
+        : 0;
+
+      res.json({
+        myCoinsToday,
+        totalTierCoins,
+        mySharePct: parseFloat(mySharePct.toFixed(1)),
+        estimatedUsdt,
+        tapPotSize: parseFloat(tapPotSize.toFixed(4)),
+        tierName: user.tier,
+        tapMultiplier: tierConfig.tapMultiplier,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get estimated earnings" });
     }
   });
 

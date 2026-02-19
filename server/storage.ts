@@ -556,6 +556,22 @@ export class DatabaseStorage {
     return parseInt(result?.total || "0");
   }
 
+  async getTotalDailyCoinsByTier(dateKey: string, tierName: string): Promise<number> {
+    const [result] = await db
+      .select({ total: sql<string>`COALESCE(SUM(coins_earned), 0)` })
+      .from(dailyTaps)
+      .where(and(eq(dailyTaps.date, dateKey), eq(dailyTaps.tierAtTime, tierName)));
+    return parseInt(result?.total || "0");
+  }
+
+  async getUserDailyCoins(dateKey: string, userId: string): Promise<number> {
+    const [result] = await db
+      .select()
+      .from(dailyTaps)
+      .where(and(eq(dailyTaps.date, dateKey), eq(dailyTaps.userId, userId)));
+    return result?.coinsEarned || 0;
+  }
+
   async truncateDailyTaps(dateKey: string): Promise<void> {
     await db.delete(dailyTaps).where(eq(dailyTaps.date, dateKey));
   }

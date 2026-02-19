@@ -15,9 +15,10 @@ export function getEnergyPercentage(energy: number, maxEnergy: number): number {
 export interface TierConfig {
   energyRefillRateMs: number;
   refillCooldownMs: number | null;
+  tapMultiplier?: number;
 }
 
-const DEFAULT_TIER_CONFIG: TierConfig = { energyRefillRateMs: 2000, refillCooldownMs: null };
+const DEFAULT_TIER_CONFIG: TierConfig = { energyRefillRateMs: 2000, refillCooldownMs: null, tapMultiplier: 1 };
 
 export function calculateCurrentEnergy(
   storedEnergy: number,

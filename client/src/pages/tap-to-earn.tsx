@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Coins, Zap, Clock, BatteryCharging, Lock } from "lucide-react";
+import { Coins, Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp } from "lucide-react";
 import {
   formatNumber,
   getEnergyPercentage,
@@ -119,7 +119,22 @@ export default function TapToEarn() {
     queryKey: ["/api/user"],
   });
 
-  const tc: TierConfig = user?.tierConfig ?? { energyRefillRateMs: 2000, refillCooldownMs: null };
+  interface EstimatedEarnings {
+    myCoinsToday: number;
+    totalTierCoins: number;
+    mySharePct: number;
+    estimatedUsdt: number;
+    tapPotSize: number;
+    tierName: string;
+    tapMultiplier: number;
+  }
+
+  const { data: earnings } = useQuery<EstimatedEarnings>({
+    queryKey: ["/api/tap/estimated-earnings"],
+    refetchInterval: 30000,
+  });
+
+  const tc: TierConfig = user?.tierConfig ?? { energyRefillRateMs: 2000, refillCooldownMs: null, tapMultiplier: 1 };
 
   useEffect(() => {
     if (!user) return;
@@ -151,6 +166,7 @@ export default function TapToEarn() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tap/estimated-earnings"] });
     },
     onError: (error: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
@@ -223,12 +239,13 @@ export default function TapToEarn() {
 
       setLiveEnergy((prev) => Math.max(0, (prev ?? currentEnergy) - 1));
 
+      const mult = tc.tapMultiplier ?? 1;
       queryClient.setQueryData<UserWithTierConfig>(["/api/user"], (old) =>
         old
           ? {
               ...old,
               energy: Math.max(0, old.energy - 1),
-              totalCoins: old.totalCoins + 1,
+              totalCoins: old.totalCoins + mult,
             }
           : old
       );
@@ -285,9 +302,61 @@ export default function TapToEarn() {
               {formatNumber(user?.totalCoins || 0)}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">Group Coins</p>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <p className="text-sm text-muted-foreground">Group Coins</p>
+            {(tc.tapMultiplier ?? 1) > 1 && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" data-testid="text-tap-multiplier">
+                {tc.tapMultiplier}x per tap
+              </span>
+            )}
+          </div>
         </CardContent>
       </Card>
+
+      {earnings && user?.tier !== "FREE" && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-green-500" />
+              <span className="font-medium text-sm">Estimated Daily Earnings</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="space-y-0.5">
+                <p className="text-lg font-bold text-green-500" data-testid="text-estimated-usdt">
+                  ${earnings.estimatedUsdt.toFixed(4)} USDT
+                </p>
+                <p className="text-xs text-muted-foreground" data-testid="text-pool-share">
+                  {earnings.mySharePct}% of ${earnings.tapPotSize.toFixed(2)} pot
+                </p>
+              </div>
+              <div className="text-right space-y-0.5">
+                <div className="flex items-center gap-1 justify-end">
+                  <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground" data-testid="text-coins-today">
+                    {formatNumber(earnings.myCoinsToday)} coins today
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  of {formatNumber(earnings.totalTierCoins)} total
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {user?.tier === "FREE" && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Upgrade to Bronze or higher to earn USDT from your daily taps
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex justify-center">
         <div
@@ -326,7 +395,7 @@ export default function TapToEarn() {
                 transition={{ duration: 0.7, ease: "easeOut" }}
                 className="absolute top-0 left-0 pointer-events-none text-primary font-bold text-lg"
               >
-                +1
+                +{tc.tapMultiplier ?? 1}
               </motion.div>
             ))}
           </AnimatePresence>

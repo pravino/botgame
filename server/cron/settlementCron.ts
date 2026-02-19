@@ -62,9 +62,9 @@ export async function midnightPulse(): Promise<void> {
         dt.tierAtTime === tierName && subscribers.some(s => s.id === dt.userId)
       );
 
-      const totalTaps = tierTapEntries.reduce((sum, dt) => sum + dt.tapsToday, 0);
-      if (totalTaps === 0) {
-        log(`[Midnight Pulse] ${tierName}: No taps recorded for ${dateKey}, skipping distribution`);
+      const totalCoins = tierTapEntries.reduce((sum, dt) => sum + dt.coinsEarned, 0);
+      if (totalCoins === 0) {
+        log(`[Midnight Pulse] ${tierName}: No coins earned for ${dateKey}, skipping distribution`);
         continue;
       }
 
@@ -74,7 +74,7 @@ export async function midnightPulse(): Promise<void> {
         const user = await storage.getUser(entry.userId);
         if (!user) continue;
 
-        const share = entry.tapsToday / totalTaps;
+        const share = entry.coinsEarned / totalCoins;
         const payout = parseFloat((tapPotAmount * share).toFixed(4));
         if (payout <= 0) continue;
 
@@ -92,7 +92,7 @@ export async function midnightPulse(): Promise<void> {
           balanceBefore: walletBefore,
           balanceAfter: walletAfter,
           game: "tapPot",
-          note: `Daily tap payout: $${payout} USDT (${entry.tapsToday}/${totalTaps} taps = ${(share * 100).toFixed(1)}% of $${tapPotAmount.toFixed(2)} ${tierName} pot) for ${dateKey}`,
+          note: `Daily tap payout: $${payout} USDT (${entry.coinsEarned}/${totalCoins} coins = ${(share * 100).toFixed(1)}% of $${tapPotAmount.toFixed(2)} ${tierName} pot) for ${dateKey}`,
         });
 
         tierDistributed += payout;
