@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,9 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ClipboardList, Lock, Check, Coins, ExternalLink,
-  MessageCircle, Share2, Users, TrendingUp, Shield, Crown, Star, Youtube
+  MessageCircle, Share2, Users, TrendingUp, Shield, Crown, Star, Youtube,
+  Timer, Megaphone
 } from "lucide-react";
-import { SiX } from "react-icons/si";
+import { SiX, SiTelegram } from "react-icons/si";
 import { formatNumber } from "@/lib/game-utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +32,7 @@ interface TaskItem {
 
 const ICON_MAP: Record<string, React.ElementType> = {
   MessageCircle,
+  Megaphone,
   Twitter: SiX,
   Youtube,
   Shield,
@@ -41,8 +44,154 @@ const ICON_MAP: Record<string, React.ElementType> = {
   TrendingUp,
 };
 
-function TaskCard({ task, onClaim, isPending }: { task: TaskItem; onClaim: (id: string) => void; isPending: boolean }) {
+const TELEGRAM_TASK_SLUGS = ["join-telegram", "join-lobby"];
+const EXTERNAL_LINK_SLUGS = ["follow-x", "subscribe-youtube"];
+const VISIT_COOLDOWN_SECONDS = 30;
+
+function TaskCard({
+  task,
+  onClaim,
+  isPending,
+}: {
+  task: TaskItem;
+  onClaim: (id: string) => void;
+  isPending: boolean;
+}) {
   const Icon = ICON_MAP[task.icon || ""] || ClipboardList;
+  const isTelegramTask = TELEGRAM_TASK_SLUGS.includes(task.slug);
+  const isExternalTask = EXTERNAL_LINK_SLUGS.includes(task.slug);
+
+  const [visited, setVisited] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  const handleVisitLink = useCallback(() => {
+    if (task.link) {
+      window.open(task.link, "_blank");
+      setVisited(true);
+      setCountdown(VISIT_COOLDOWN_SECONDS);
+    }
+  }, [task.link]);
+
+  const canClaim = () => {
+    if (task.completed || task.tierLocked) return false;
+    if (isTelegramTask) return true;
+    if (isExternalTask) return visited && countdown === 0;
+    return true;
+  };
+
+  const renderActions = () => {
+    if (task.completed) {
+      return (
+        <Badge variant="secondary" data-testid={`badge-task-done-${task.slug}`}>
+          <Check className="h-3 w-3 mr-1" />
+          Done
+        </Badge>
+      );
+    }
+
+    if (task.tierLocked) {
+      return (
+        <Button size="sm" variant="outline" disabled data-testid={`button-task-locked-${task.slug}`}>
+          <Lock className="h-3 w-3 mr-1" />
+          Locked
+        </Button>
+      );
+    }
+
+    if (isTelegramTask) {
+      return (
+        <div className="flex items-center gap-1.5">
+          {task.link && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => window.open(task.link!, "_blank")}
+              data-testid={`button-task-link-${task.slug}`}
+            >
+              <SiTelegram className="h-3.5 w-3.5 mr-1" />
+              Join
+            </Button>
+          )}
+          <Button
+            size="sm"
+            onClick={() => onClaim(task.id)}
+            disabled={isPending}
+            data-testid={`button-task-claim-${task.slug}`}
+          >
+            Verify
+          </Button>
+        </div>
+      );
+    }
+
+    if (isExternalTask) {
+      return (
+        <div className="flex items-center gap-1.5">
+          {!visited ? (
+            <Button
+              size="sm"
+              onClick={handleVisitLink}
+              data-testid={`button-task-visit-${task.slug}`}
+            >
+              <ExternalLink className="h-3.5 w-3.5 mr-1" />
+              Visit
+            </Button>
+          ) : countdown > 0 ? (
+            <Button size="sm" variant="outline" disabled data-testid={`button-task-timer-${task.slug}`}>
+              <Timer className="h-3.5 w-3.5 mr-1" />
+              {countdown}s
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => onClaim(task.id)}
+              disabled={isPending}
+              data-testid={`button-task-claim-${task.slug}`}
+            >
+              Claim
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-1.5">
+        {task.link && (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => window.open(task.link!, "_blank")}
+            data-testid={`button-task-link-${task.slug}`}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        )}
+        <Button
+          size="sm"
+          onClick={() => onClaim(task.id)}
+          disabled={isPending}
+          data-testid={`button-task-claim-${task.slug}`}
+        >
+          Claim
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <Card data-testid={`card-task-${task.slug}`}>
@@ -58,6 +207,11 @@ function TaskCard({ task, onClaim, isPending }: { task: TaskItem; onClaim: (id: 
                 {task.requiredTier}+
               </Badge>
             )}
+            {isTelegramTask && !task.completed && (
+              <Badge variant="outline" className="text-xs">
+                Verified
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
           <div className="flex items-center gap-1 mt-1">
@@ -66,38 +220,7 @@ function TaskCard({ task, onClaim, isPending }: { task: TaskItem; onClaim: (id: 
           </div>
         </div>
         <div className="shrink-0">
-          {task.completed ? (
-            <Badge variant="secondary" data-testid={`badge-task-done-${task.slug}`}>
-              <Check className="h-3 w-3 mr-1" />
-              Done
-            </Badge>
-          ) : task.tierLocked ? (
-            <Button size="sm" variant="outline" disabled data-testid={`button-task-locked-${task.slug}`}>
-              <Lock className="h-3 w-3 mr-1" />
-              Locked
-            </Button>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              {task.link && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => window.open(task.link!, "_blank")}
-                  data-testid={`button-task-link-${task.slug}`}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                size="sm"
-                onClick={() => onClaim(task.id)}
-                disabled={isPending}
-                data-testid={`button-task-claim-${task.slug}`}
-              >
-                Claim
-              </Button>
-            </div>
-          )}
+          {renderActions()}
         </div>
       </CardContent>
     </Card>
@@ -125,9 +248,15 @@ export default function Tasks() {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
     },
     onError: (error: Error) => {
+      let description = error.message;
+      try {
+        const jsonPart = error.message.replace(/^\d+:\s*/, "");
+        const parsed = JSON.parse(jsonPart);
+        if (parsed.message) description = parsed.message;
+      } catch {}
       toast({
         title: "Cannot claim",
-        description: error.message,
+        description,
         variant: "destructive",
       });
     },

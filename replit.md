@@ -41,6 +41,10 @@ The application is built with a modern web stack, featuring a React + TypeScript
     - Frontend: `/referrals` page with code sharing, progress bar, milestone tracker, squad list.
     - Wheel page shows referral lock overlay with progress when locked for paid subscribers.
     - Referral leaderboard endpoint at `/api/leaderboard/referrals`.
+- **Task Verification System**: Social tasks use verification before awarding coins.
+    - Telegram tasks (join channel/group): Backend verifies membership via bot `getChatMember` API. If chat IDs aren't configured, verification is skipped with a log.
+    - External link tasks (Twitter/YouTube): Frontend enforces a "Visit → 30-second countdown → Claim" flow to ensure users visit the page.
+    - Verification error messages from the server are properly parsed and displayed to users.
 - **Database Migrations**: Drizzle ORM handles automated database schema synchronization on server startup.
 
 **System Design Choices:**

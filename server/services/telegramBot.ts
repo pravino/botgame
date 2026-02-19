@@ -73,6 +73,27 @@ export async function sendDirectMessage(telegramUserId: string, text: string, pa
   return result?.ok === true;
 }
 
+export async function checkTelegramMembership(telegramUserId: string, chatConfigKey: string): Promise<{ isMember: boolean; status: string }> {
+  const chatId = await getChatId(chatConfigKey);
+  if (!chatId) {
+    log(`[Telegram] Chat ID not configured for ${chatConfigKey} — skipping membership check`);
+    return { isMember: false, status: "chat_not_configured" };
+  }
+
+  const result = await callApi("getChatMember", {
+    chat_id: chatId,
+    user_id: parseInt(telegramUserId),
+  });
+
+  if (!result?.ok) {
+    return { isMember: false, status: "not_found" };
+  }
+
+  const memberStatus = result.result?.status;
+  const isMember = ["member", "administrator", "creator"].includes(memberStatus);
+  return { isMember, status: memberStatus || "unknown" };
+}
+
 export async function kickFromApex(telegramUserId: string): Promise<boolean> {
   const chatId = await getChatId("telegram_apex_group_id");
   if (!chatId) return false;

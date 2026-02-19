@@ -18,7 +18,7 @@ import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
 import { spinWheel } from "./services/wheelService";
-import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, sendDirectMessage, announceLeaderboard, announceNewSubscriber, generateApexInviteLink, kickFromApex } from "./services/telegramBot";
+import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, sendDirectMessage, announceLeaderboard, announceNewSubscriber, generateApexInviteLink, kickFromApex, checkTelegramMembership } from "./services/telegramBot";
 
 async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
   try {
@@ -1771,6 +1771,11 @@ export async function registerRoutes(
     }
   });
 
+  const TELEGRAM_TASK_CHAT_MAP: Record<string, string> = {
+    "join-telegram": "telegram_news_channel_id",
+    "join-lobby": "telegram_lobby_group_id",
+  };
+
   app.post("/api/tasks/:taskId/claim", requireAuth, async (req: Request, res: Response) => {
     try {
       const { taskId } = req.params;
@@ -1790,6 +1795,23 @@ export async function registerRoutes(
       const alreadyDone = await storage.hasUserCompletedTask(userId, taskId, dateCheck);
       if (alreadyDone) {
         return res.status(400).json({ message: "Task already completed" });
+      }
+
+      const telegramChatKey = TELEGRAM_TASK_CHAT_MAP[task.slug];
+      if (telegramChatKey) {
+        if (!user.telegramId) {
+          return res.status(400).json({ message: "Link your Telegram account first to verify membership" });
+        }
+        const { isMember, status } = await checkTelegramMembership(user.telegramId, telegramChatKey);
+        if (status === "chat_not_configured") {
+          log(`[Tasks] Skipping verification for "${task.slug}" — chat ID not configured`);
+        } else if (!isMember) {
+          const chatName = task.slug === "join-telegram" ? "the News channel" : "the Lobby group";
+          return res.status(400).json({
+            message: `You must join ${chatName} first. Please join via the link, then try claiming again.`,
+            verificationFailed: true,
+          });
+        }
       }
 
       await storage.completeTask(userId, taskId, dateCheck);
