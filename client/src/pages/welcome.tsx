@@ -88,20 +88,43 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
     return () => { delete window.onTelegramAuth; };
   }, [handleTelegramWidgetAuth]);
 
-  const loadTelegramWidget = useCallback(() => {
+  const openTelegramLogin = useCallback(() => {
+    const botUsername = "Vault60Bot";
+    const origin = window.location.origin;
+    const authUrl = `https://oauth.telegram.org/auth?bot_id=&scope=write&public_key=&nonce=&return_to=${encodeURIComponent(origin)}`;
+
+    const width = 550;
+    const height = 470;
+    const left = Math.max(0, (window.screen.width - width) / 2);
+    const top = Math.max(0, (window.screen.height - height) / 2);
+
     const container = document.getElementById("telegram-login-container");
     if (!container) return;
     container.innerHTML = "";
 
     const script = document.createElement("script");
     script.src = "https://telegram.org/js/telegram-widget.js?22";
-    script.setAttribute("data-telegram-login", "Vault60Bot");
+    script.setAttribute("data-telegram-login", botUsername);
     script.setAttribute("data-size", "large");
     script.setAttribute("data-radius", "8");
     script.setAttribute("data-onauth", "onTelegramAuth(user)");
     script.setAttribute("data-request-access", "write");
+    script.setAttribute("data-auth-url", origin);
     script.async = true;
     container.appendChild(script);
+
+    script.onload = () => {
+      setTimeout(() => {
+        const iframe = container.querySelector("iframe");
+        if (iframe) {
+          iframe.style.width = "100%";
+          iframe.style.height = "44px";
+          iframe.style.border = "none";
+          iframe.style.overflow = "hidden";
+          iframe.style.colorScheme = "auto";
+        }
+      }, 500);
+    };
   }, []);
 
   if (isMiniApp) {
@@ -180,11 +203,11 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
 
         <Card>
           <CardContent className="p-5 space-y-4">
-            <div id="telegram-login-container" className="flex justify-center min-h-[44px]" data-testid="telegram-login-widget" />
+            <div id="telegram-login-container" className="flex justify-center [&:empty]:hidden" data-testid="telegram-login-widget" />
 
             <Button
               className="w-full"
-              onClick={loadTelegramWidget}
+              onClick={openTelegramLogin}
               variant="outline"
               data-testid="button-load-telegram-login"
             >
