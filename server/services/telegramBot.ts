@@ -159,15 +159,32 @@ export async function announceMegaPot(tierName: string, totalPot: number): Promi
   await sendToNewsChannel(msg);
 }
 
-export async function announceWheelWinner(username: string, amount: number, tierName: string): Promise<void> {
-  if (amount < 10) return;
+export async function announceWheelWinner(username: string, amount: number, tierName: string, jackpotSize?: number): Promise<void> {
+  if (amount < 5) return;
 
-  const msg = `<b>LUCKY WHEEL WINNER!</b>\n\n` +
-    `${escapeHtml(username)} just won <b>$${amount.toFixed(2)} USDT</b> on the Lucky Wheel!\n\n` +
-    `Tier: ${tierName}\n\n` +
-    `Spin the wheel for your chance to win big!`;
+  const isJackpot = amount >= 100;
+  const isBigWin = amount >= 10;
 
-  await sendToNewsChannel(msg);
+  let msg: string;
+  if (isJackpot) {
+    msg = `<b>JACKPOT HIT!</b>\n\n` +
+      `${escapeHtml(username)} just cracked the vault for <b>$${amount.toFixed(2)} USDT</b> on the Lucky Wheel!\n\n` +
+      `Tier: ${tierName}\n\n` +
+      `The vault is being reloaded. WHO IS NEXT?`;
+  } else {
+    msg = `<b>WE HAVE A WINNER!</b>\n\n` +
+      `Congrats to ${escapeHtml(username)} who just hit a <b>$${amount.toFixed(2)} USDT</b> ${isBigWin ? "Big Win" : "win"} on the Lucky Wheel!\n\n` +
+      `Tier: ${tierName}\n\n` +
+      `How to play:\n` +
+      `1. Refer 5 friends to unlock the Wheel\n` +
+      `2. Use your weekly Gold/Silver spins\n\n` +
+      (jackpotSize ? `Your <b>$${jackpotSize} USDT Jackpot</b> is waiting in the vault. WHO IS NEXT?` : `Spin the wheel for your chance to win big!`);
+  }
+
+  await Promise.all([
+    sendToNewsChannel(msg),
+    sendToLobby(msg),
+  ]);
 }
 
 export async function announceLeaderboard(category: string, leaders: Array<{ username: string; value: number }>, unit?: string): Promise<void> {
@@ -196,6 +213,71 @@ function escapeHtml(text: string): string {
 export async function announceNewSubscriber(username: string, tierName: string): Promise<void> {
   const msg = `Welcome <b>${escapeHtml(username)}</b> to the ${tierName} tier! Let's earn together.`;
   await sendToApex(msg);
+}
+
+export async function announceMorningAlpha(btcPrice: number, change24h: number, miniAppUrl: string): Promise<void> {
+  const direction = change24h >= 0 ? "UP" : "DOWN";
+  const changeStr = `${change24h >= 0 ? "+" : ""}${change24h.toFixed(2)}%`;
+  const sentiment = change24h >= 0 ? "Bulls are charging" : "Bears are prowling";
+
+  const msg = `<b>MORNING ALPHA — BTC MARKET UPDATE</b>\n\n` +
+    `Bitcoin is currently trading at <b>$${btcPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })}</b>\n` +
+    `24h Change: <b>${changeStr}</b> ${direction}\n\n` +
+    `${sentiment}. The Oracle locks at <b>12:00 UTC</b> — place your "Higher" or "Lower" prediction before then.\n\n` +
+    `30% of the daily treasury goes to correct predictors. Don't miss your shot.\n\n` +
+    `<a href="${miniAppUrl}">Place My Prediction</a>`;
+
+  await Promise.all([
+    sendToNewsChannel(msg),
+    sendToLobby(msg),
+  ]);
+}
+
+export async function announceOracleWarning(predictionPotData: { tierName: string; potSize: number }[], higherPct: number, lowerPct: number, totalVotes: number, miniAppUrl: string): Promise<void> {
+  let potLines = "";
+  for (const p of predictionPotData) {
+    if (p.potSize > 0) {
+      potLines += `  ${p.tierName}: <b>$${p.potSize.toFixed(2)} USDT</b>\n`;
+    }
+  }
+  if (!potLines) potLines = "  Pots are building!\n";
+
+  const sentimentLine = totalVotes > 0
+    ? `Market Sentiment: <b>${higherPct}%</b> think Bitcoin is going HIGHER, <b>${lowerPct}%</b> say LOWER. Do you know something they don't?`
+    : `No predictions yet — be the first to claim the pot!`;
+
+  const msg = `<b>THE ORACLE IS CLOSING IN 2 HOURS!</b>\n\n` +
+    `The BTC Prediction Pots:\n${potLines}\n` +
+    `At 12:00 UTC, the price is LOCKED. If you haven't placed your "Higher" or "Lower" vote, you are forfeiting your share of the 30% Skill Pool.\n\n` +
+    `${sentimentLine}\n\n` +
+    `Lock in your prediction before the Oracle shuts down!\n\n` +
+    `<a href="${miniAppUrl}">Place My Prediction</a>`;
+
+  await Promise.all([
+    sendToNewsChannel(msg),
+    sendToLobby(msg),
+  ]);
+}
+
+export async function announceTierGap(tierMultipliers: { tierName: string; maxMultiplier: number }[], miniAppUrl: string): Promise<void> {
+  let multiplierLines = "";
+  for (const t of tierMultipliers) {
+    if (t.tierName === "FREE") continue;
+    const label = t.tierName === "BRONZE" ? "Bronze" : t.tierName === "SILVER" ? "Silver" : "Gold";
+    multiplierLines += `  ${label} Members: mining at up to <b>${t.maxMultiplier}x Power</b>\n`;
+  }
+
+  const msg = `<b>FEELING THE CEILING? TIME TO UPGRADE!</b>\n\n` +
+    `You've maxed out your multiplier. You're a legend, but you're leaving money on the table.\n\n` +
+    `${multiplierLines}\n` +
+    `While you earn pennies per tap, the Gold Whales are swallowing the daily pot. Don't be a fish. Be a Whale.\n\n` +
+    `Unlock higher multipliers NOW:\n\n` +
+    `<a href="${miniAppUrl}">Upgrade My Tier</a>`;
+
+  await Promise.all([
+    sendToNewsChannel(msg),
+    sendToLobby(msg),
+  ]);
 }
 
 export async function announceFomoCountdown(potData: { tierName: string; potSize: number }[], miniAppUrl: string): Promise<void> {

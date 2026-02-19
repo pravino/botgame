@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { storage, db } from "./storage";
-import { users, referralMilestones } from "@shared/schema";
+import { users, referralMilestones, predictions } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { log } from "./index";
@@ -18,7 +18,7 @@ import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
 import { spinWheel } from "./services/wheelService";
-import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, sendDirectMessage, announceLeaderboard, announceNewSubscriber, announceFomoCountdown, announceMathWarrior, announceLastCall, generateApexInviteLink, kickFromApex, checkTelegramMembership } from "./services/telegramBot";
+import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, sendDirectMessage, announceLeaderboard, announceNewSubscriber, announceMorningAlpha, announceOracleWarning, announceTierGap, announceFomoCountdown, announceMathWarrior, announceLastCall, generateApexInviteLink, kickFromApex, checkTelegramMembership } from "./services/telegramBot";
 
 async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
   try {
@@ -1604,6 +1604,81 @@ export async function registerRoutes(
     const inactivePct = totalPaidSubs > 0 ? Math.round(((totalPaidSubs - activeUserIds.size) / totalPaidSubs) * 100) : 0;
     return { inactivePct: Math.max(0, inactivePct), topEarnerEstimate: bestEstimate };
   }
+
+  async function gatherPredictionPotData(): Promise<{ pots: { tierName: string; potSize: number }[]; higherPct: number; lowerPct: number; totalVotes: number }> {
+    const config = await storage.getGlobalConfig();
+    const treasurySplit = config.treasury_split ?? 0.60;
+    const predictionShare = config.prediction_share ?? 0.30;
+    const allTiers = await storage.getAllTiers();
+    const pots: { tierName: string; potSize: number }[] = [];
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setUTCHours(23, 59, 59, 999);
+
+    for (const tier of allTiers) {
+      if (tier.name === "FREE") continue;
+      const subs = await storage.getActiveSubscribersByTier(tier.name);
+      const dailyUnit = parseFloat(tier.dailyUnit);
+      let dailyPool = 0;
+      for (const sub of subs) {
+        if (sub.subscriptionStartedAt) {
+          const joinedAt = new Date(sub.subscriptionStartedAt);
+          if (joinedAt > todayEnd) continue;
+          if (joinedAt >= todayStart && joinedAt <= todayEnd) {
+            const minutesActive = Math.max(0, (todayEnd.getTime() - joinedAt.getTime()) / (1000 * 60));
+            dailyPool += parseFloat(((minutesActive / 1440) * dailyUnit).toFixed(4));
+            continue;
+          }
+        }
+        dailyPool += dailyUnit;
+      }
+      const pot = dailyPool * treasurySplit * predictionShare;
+      if (pot > 0) pots.push({ tierName: tier.name, potSize: pot });
+    }
+
+    const recentPredictions = await db.select().from(predictions).where(gte(predictions.createdAt, todayStart));
+    const totalVotes = recentPredictions.length;
+    const higherCount = recentPredictions.filter(p => p.prediction === "higher").length;
+    const lowerCount = totalVotes - higherCount;
+    const higherPct = totalVotes > 0 ? Math.round((higherCount / totalVotes) * 100) : 0;
+    const lowerPct = totalVotes > 0 ? 100 - higherPct : 0;
+
+    return { pots, higherPct, lowerPct, totalVotes };
+  }
+
+  async function gatherTierMultipliers(): Promise<{ tierName: string; maxMultiplier: number }[]> {
+    const allTiers = await storage.getAllTiers();
+    const results: { tierName: string; maxMultiplier: number }[] = [];
+    for (const tier of allTiers) {
+      if (tier.name === "FREE") continue;
+      const maxUpgrade = TIER_MAX_UPGRADE[tier.name] ?? 1;
+      const tierBaseMultiplier = tier.tapMultiplier ?? 1;
+      const maxEffective = maxUpgrade * tierBaseMultiplier;
+      results.push({ tierName: tier.name, maxMultiplier: maxEffective });
+    }
+    return results;
+  }
+
+  scheduleAtUTC(8, 0, "Morning Alpha (8AM UTC)", async () => {
+    try {
+      const priceData = await getBtcPrice();
+      await announceMorningAlpha(priceData.price, priceData.change24h, miniAppUrl);
+    } catch (err: any) {
+      log(`[Promo] Morning Alpha failed to fetch BTC price: ${err.message}`);
+    }
+  });
+
+  scheduleAtUTC(10, 0, "Oracle Warning (10AM UTC)", async () => {
+    const { pots, higherPct, lowerPct, totalVotes } = await gatherPredictionPotData();
+    await announceOracleWarning(pots, higherPct, lowerPct, totalVotes, miniAppUrl);
+  });
+
+  scheduleAtUTC(14, 0, "Tier Gap Push (2PM UTC)", async () => {
+    const tierMultipliers = await gatherTierMultipliers();
+    await announceTierGap(tierMultipliers, miniAppUrl);
+  });
 
   scheduleAtUTC(20, 0, "FOMO Countdown (8PM UTC)", async () => {
     const potData = await gatherTapPotData();

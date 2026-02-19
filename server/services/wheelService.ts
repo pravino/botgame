@@ -225,8 +225,8 @@ export async function spinWheel(userId: string): Promise<{
     return { walletAfter };
   });
 
-  if (prize!.tier === "jackpot" || prize!.usdtValue >= 10) {
-    announceWheelWinner(user.username || user.email, prize!.usdtValue, user.tier);
+  if (prize!.tier === "jackpot" || prize!.usdtValue >= 5) {
+    announceWheelWinner(user.username || user.email, prize!.usdtValue, user.tier, jackpotValue);
   }
 
   log(`[Wheel] Result: ${prize!.tier} — ${prize!.label} (RNG=${rng}, vault locked inside tx)`);
