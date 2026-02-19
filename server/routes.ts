@@ -31,8 +31,6 @@ async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
   }
 }
 
-const ALLOWED_TESTERS = (process.env.ALLOWED_TESTERS || "").split(",").map(t => t.trim()).filter(Boolean);
-
 function validateTelegramWebAppData(initData: string, botToken: string): { valid: boolean; user?: any } {
   try {
     const params = new URLSearchParams(initData);
@@ -316,10 +314,6 @@ export async function registerRoutes(
       }
 
       const tgId = telegramUser.id.toString();
-
-      if (ALLOWED_TESTERS.length > 0 && !ALLOWED_TESTERS.includes(tgId)) {
-        return res.status(403).json({ message: "Access restricted during testing phase. Your Telegram ID is not whitelisted." });
-      }
 
       let user = await storage.getUserByTelegramId(tgId);
 
