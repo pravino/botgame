@@ -525,7 +525,11 @@ export async function registerRoutes(
 
       const subscribers = await storage.getActiveSubscribersByTier(user.tier);
       const dailyPool = subscribers.length * dailyUnit;
-      const tapPotSize = dailyPool * 0.50;
+
+      const config = await storage.getGlobalConfig();
+      const treasurySplit = config.treasury_split ?? 0.60;
+      const tapShare = config.tap_share ?? 0.50;
+      const tapPotSize = dailyPool * treasurySplit * tapShare;
 
       const myCoinsToday = await storage.getUserDailyCoins(dateKey, user.id);
       const totalTierCoins = await storage.getTotalDailyCoinsByTier(dateKey, user.tier);
