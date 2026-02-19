@@ -76,8 +76,8 @@ function computeEntryHash(data: {
   return createHash("sha256").update(payload).digest("hex");
 }
 
-async function getLastLedgerEntry(userId: string) {
-  const [last] = await db
+async function getLastLedgerEntry(userId: string, dbClient: any = db) {
+  const [last] = await dbClient
     .select()
     .from(userLedger)
     .where(eq(userLedger.userId, userId))
@@ -86,15 +86,16 @@ async function getLastLedgerEntry(userId: string) {
   return last || null;
 }
 
-export async function recordLedgerEntry(input: LedgerInput): Promise<void> {
+export async function recordLedgerEntry(input: LedgerInput, txClient?: any): Promise<void> {
+  const dbClient = txClient || db;
   const user = await storage.getUser(input.userId);
   const tierAtTime = user?.tier || "FREE";
   const currency = input.currency || "COINS";
 
-  const lastEntry = await getLastLedgerEntry(input.userId);
+  const lastEntry = await getLastLedgerEntry(input.userId, dbClient);
   const prevHash = lastEntry?.entryHash || null;
 
-  const [inserted] = await db.insert(userLedger).values({
+  const [inserted] = await dbClient.insert(userLedger).values({
     userId: input.userId,
     entryType: input.entryType,
     direction: input.direction,
@@ -121,7 +122,7 @@ export async function recordLedgerEntry(input: LedgerInput): Promise<void> {
     prevHash,
   });
 
-  await db
+  await dbClient
     .update(userLedger)
     .set({ entryHash })
     .where(eq(userLedger.id, inserted.id));

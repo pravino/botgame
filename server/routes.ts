@@ -672,6 +672,16 @@ export async function registerRoutes(
         });
       }
 
+      const nowUtc = new Date();
+      const currentHourUtc = nowUtc.getUTCHours();
+      if (currentHourUtc >= 12) {
+        const hoursUntilReset = 24 - currentHourUtc;
+        return res.status(400).json({
+          message: `Predictions are locked after 12:00 UTC to prevent last-minute sniping. Submissions reopen in ${hoursUntilReset} hour${hoursUntilReset !== 1 ? "s" : ""}.`,
+          lockedUntil: "00:00 UTC",
+        });
+      }
+
       const { prediction } = req.body;
       if (!prediction || !["higher", "lower"].includes(prediction)) {
         return res.status(400).json({ message: "Prediction must be 'higher' or 'lower'" });

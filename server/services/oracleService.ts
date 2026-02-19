@@ -1,7 +1,33 @@
-import { storage } from "../storage";
+import { storage, db } from "../storage";
 import { log } from "../index";
 import { recordLedgerEntry } from "../middleware/ledger";
 import { getValidatedBTCPriceWithRetry, clearPriceCache, setPriceFrozen } from "./priceService";
+import { users } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
+
+async function announceMegaPot(tierName: string, totalPot: number): Promise<void> {
+  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  const TELEGRAM_GROUP_ID = process.env.TELEGRAM_GROUP_ID;
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_GROUP_ID) {
+    log(`[Oracle] Mega Pot alert skipped for ${tierName} ($${totalPot.toFixed(2)}) — Telegram not configured`);
+    return;
+  }
+
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_GROUP_ID,
+        text: `MEGA POT ALERT!\n\nThe ${tierName} prediction pot has rolled over!\n\nAccumulated Pot: $${totalPot.toFixed(2)} USDT\n\nNo one predicted correctly today — the entire pot carries forward. Tomorrow's winner takes it ALL.\n\nUpgrade your tier now to compete for the biggest pots!`,
+        parse_mode: "HTML",
+      }),
+    });
+    log(`[Oracle] Mega Pot announcement sent for ${tierName}: $${totalPot.toFixed(2)}`);
+  } catch (e: any) {
+    log(`[Oracle] Failed to send Mega Pot announcement for ${tierName}: ${e.message}`);
+  }
+}
 
 export async function settleAllTiers(): Promise<{
   settled: boolean;
@@ -119,8 +145,31 @@ export async function settleAllTiers(): Promise<{
     const tierName = tier.name;
     const dailyUnit = parseFloat(tier.dailyUnit);
 
-    const activeUsers = await storage.getActiveCountByTier(tierName);
-    const dailyAllocation = parseFloat((activeUsers * dailyUnit * predictionShare).toFixed(4));
+    const subscribers = await storage.getActiveSubscribersByTier(tierName);
+    const activeUsers = subscribers.length;
+
+    let dailyAllocation = 0;
+    const settlementDayStart = new Date(now);
+    settlementDayStart.setUTCHours(0, 0, 0, 0);
+    const settlementDayEnd = new Date(now);
+    settlementDayEnd.setUTCHours(23, 59, 59, 999);
+
+    for (const sub of subscribers) {
+      if (sub.subscriptionStartedAt) {
+        const joinedAt = new Date(sub.subscriptionStartedAt);
+        if (joinedAt > settlementDayEnd) {
+          continue;
+        }
+        if (joinedAt >= settlementDayStart && joinedAt <= settlementDayEnd) {
+          const minutesActive = Math.max(0, (settlementDayEnd.getTime() - joinedAt.getTime()) / (1000 * 60));
+          const proRatedUnit = (minutesActive / 1440) * dailyUnit * predictionShare;
+          dailyAllocation += parseFloat(proRatedUnit.toFixed(4));
+          continue;
+        }
+      }
+      dailyAllocation += dailyUnit * predictionShare;
+    }
+    dailyAllocation = parseFloat(dailyAllocation.toFixed(4));
 
     const rollover = await storage.getTierRollover(tierName);
     const totalPot = parseFloat((dailyAllocation + rollover).toFixed(4));
@@ -134,10 +183,10 @@ export async function settleAllTiers(): Promise<{
       continue;
     }
 
-    const subscribers = await storage.getActiveSubscribersByTier(tierName);
     if (subscribers.length === 0) {
       await storage.setTierRollover(tierName, totalPot);
       log(`[Oracle] ${tierName}: No subscribers, $${totalPot.toFixed(4)} rolled over`);
+      await announceMegaPot(tierName, totalPot);
       tierResults.push({
         tierName, activeUsers, dailyAllocation, rollover,
         totalPot, winnersCount: 0, sharePerWinner: 0, newRollover: totalPot,
@@ -160,19 +209,23 @@ export async function settleAllTiers(): Promise<{
         const walletBefore = user.walletBalance;
         const walletAfter = parseFloat((walletBefore + sharePerWinner).toFixed(4));
 
-        await storage.updateUser(user.id, { walletBalance: walletAfter });
+        await db.transaction(async (tx) => {
+          await tx.update(users)
+            .set({ walletBalance: walletAfter })
+            .where(eq(users.id, user.id));
 
-        await recordLedgerEntry({
-          userId: user.id,
-          entryType: "predict_reward",
-          direction: "credit",
-          amount: sharePerWinner,
-          currency: "USDT",
-          balanceBefore: walletBefore,
-          balanceAfter: walletAfter,
-          game: "predictPot",
-          refId: winner.predictionId,
-          note: `Oracle payout: $${sharePerWinner} USDT (1/${winners.length} share of $${totalPot.toFixed(4)} ${tierName} pot)`,
+          await recordLedgerEntry({
+            userId: user.id,
+            entryType: "predict_reward",
+            direction: "credit",
+            amount: sharePerWinner,
+            currency: "USDT",
+            balanceBefore: walletBefore,
+            balanceAfter: walletAfter,
+            game: "predictPot",
+            refId: winner.predictionId,
+            note: `Oracle payout: $${sharePerWinner} USDT (1/${winners.length} share of $${totalPot.toFixed(4)} ${tierName} pot)`,
+          }, tx);
         });
       }
 
@@ -189,6 +242,7 @@ export async function settleAllTiers(): Promise<{
       await storage.setTierRollover(tierName, totalPot);
 
       log(`[Oracle] ${tierName}: No winners. $${totalPot.toFixed(4)} rolled over to next settlement.`);
+      await announceMegaPot(tierName, totalPot);
 
       tierResults.push({
         tierName, activeUsers, dailyAllocation, rollover,
