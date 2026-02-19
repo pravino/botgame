@@ -815,6 +815,11 @@ export class DatabaseStorage {
     return row ? parseFloat(row.value) : undefined;
   }
 
+  async getGlobalConfigRow(key: string): Promise<GlobalConfig | undefined> {
+    const [row] = await db.select().from(globalConfig).where(eq(globalConfig.key, key));
+    return row || undefined;
+  }
+
   async setGlobalConfigValue(key: string, value: number, description?: string): Promise<GlobalConfig> {
     const existing = await db.select().from(globalConfig).where(eq(globalConfig.key, key));
     if (existing.length > 0) {

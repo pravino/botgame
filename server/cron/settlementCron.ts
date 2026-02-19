@@ -3,6 +3,7 @@ import { log } from "../index";
 import { recordLedgerEntry } from "../middleware/ledger";
 import { getValidatedBTCPriceWithRetry, clearPriceCache, setPriceFrozen } from "../services/priceService";
 import { getLeagueMultiplier } from "../constants/leagues";
+import { sendDirectMessage, kickFromApex } from "../services/telegramBot";
 import { users } from "@shared/schema";
 import { eq, and, gt, lte, sql } from "drizzle-orm";
 
@@ -228,9 +229,6 @@ export async function subscriberRetentionCheck(): Promise<void> {
   try {
     log(`[Retention] Checking subscription expirations`);
 
-    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-    const TELEGRAM_GROUP_ID = process.env.TELEGRAM_GROUP_ID;
-
     const globalConfig = await storage.getGlobalConfig();
     const expiryWarningHours = globalConfig.expiry_warning_hours ?? 48;
 
@@ -258,23 +256,18 @@ export async function subscriberRetentionCheck(): Promise<void> {
         note: `Subscription expiry warning: ${user.tier} expires in <${expiryWarningHours} hours. Renewal reminder sent.`,
       });
 
-      if (TELEGRAM_BOT_TOKEN && TELEGRAM_GROUP_ID && user.telegramId) {
-        try {
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: user.telegramId,
-              text: `REMINDER: Your ${user.tier} subscription expires in less than ${expiryWarningHours} hours.\n\nRenew now to keep your ${user.totalCoins.toLocaleString()} coins and continue earning.\n\nDon't lose your spot!`,
-              parse_mode: "HTML",
-            }),
-          });
+      if (user.telegramId) {
+        const sent = await sendDirectMessage(
+          user.telegramId,
+          `<b>REMINDER:</b> Your ${user.tier} subscription expires in less than ${expiryWarningHours} hours.\n\nRenew now to keep your ${user.totalCoins.toLocaleString()} coins and continue earning.\n\nDon't lose your spot!`
+        );
+        if (sent) {
           log(`[Retention] Sent ${expiryWarningHours}hr warning to user ${user.id} (${user.username})`);
-        } catch (e: any) {
-          log(`[Retention] Failed to send Telegram message to ${user.id}: ${e.message}`);
+        } else {
+          log(`[Retention] ${expiryWarningHours}hr warning flagged for user ${user.id} (${user.username}) — Telegram delivery failed`);
         }
       } else {
-        log(`[Retention] ${expiryWarningHours}hr warning flagged for user ${user.id} (${user.username}) — Telegram not configured`);
+        log(`[Retention] ${expiryWarningHours}hr warning flagged for user ${user.id} (${user.username}) — no Telegram ID`);
       }
 
       warningsSent++;
@@ -305,22 +298,15 @@ export async function subscriberRetentionCheck(): Promise<void> {
         note: `Subscription expired: ${user.tier} → FREE. User downgraded.`,
       });
 
-      if (TELEGRAM_BOT_TOKEN && TELEGRAM_GROUP_ID && user.telegramId) {
-        try {
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/banChatMember`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: TELEGRAM_GROUP_ID,
-              user_id: parseInt(user.telegramId),
-            }),
-          });
-          log(`[Retention] Kicked user ${user.id} (${user.username}) from Telegram group — subscription expired`);
-        } catch (e: any) {
-          log(`[Retention] Failed to kick ${user.id} from Telegram: ${e.message}`);
+      if (user.telegramId) {
+        const kicked = await kickFromApex(user.telegramId);
+        if (kicked) {
+          log(`[Retention] Kicked user ${user.id} (${user.username}) from Apex group — subscription expired`);
+        } else {
+          log(`[Retention] Could not kick user ${user.id} from Apex — bot may not be configured`);
         }
       } else {
-        log(`[Retention] Expired kick flagged for user ${user.id} (${user.username}) — Telegram not configured`);
+        log(`[Retention] Expired kick flagged for user ${user.id} (${user.username}) — no Telegram ID`);
       }
 
       kicksProcessed++;

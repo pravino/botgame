@@ -3,6 +3,7 @@ import { log } from "../index";
 import { users, jackpotVault, wheelSpins } from "@shared/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { recordLedgerEntry } from "../middleware/ledger";
+import { announceWheelWinner } from "./telegramBot";
 
 interface WheelPrize {
   tier: "jackpot" | "big_win" | "common" | "no_cash";
@@ -224,8 +225,8 @@ export async function spinWheel(userId: string): Promise<{
     return { walletAfter };
   });
 
-  if (prize!.tier === "jackpot") {
-    announceJackpotWin(user.username || user.email, prize!.usdtValue, user.tier);
+  if (prize!.tier === "jackpot" || prize!.usdtValue >= 10) {
+    announceWheelWinner(user.username || user.email, prize!.usdtValue, user.tier);
   }
 
   log(`[Wheel] Result: ${prize!.tier} — ${prize!.label} (RNG=${rng}, vault locked inside tx)`);
@@ -243,26 +244,3 @@ export async function spinWheel(userId: string): Promise<{
   };
 }
 
-async function announceJackpotWin(username: string, amount: number, tier: string): Promise<void> {
-  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-  const TELEGRAM_GROUP_ID = process.env.TELEGRAM_GROUP_ID;
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_GROUP_ID) {
-    log(`[Wheel] Jackpot announcement skipped — Telegram not configured. ${username} won $${amount} (${tier})`);
-    return;
-  }
-
-  try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_GROUP_ID,
-        text: `JACKPOT WINNER!\n\n${username} just hit the $${amount} USDT GRAND JACKPOT on the ${tier} Lucky Wheel!\n\nWho's next? Spin now!`,
-        parse_mode: "HTML",
-      }),
-    });
-    log(`[Wheel] Jackpot announcement sent: ${username} won $${amount} (${tier})`);
-  } catch (e: any) {
-    log(`[Wheel] Failed to send jackpot announcement: ${e.message}`);
-  }
-}

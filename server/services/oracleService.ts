@@ -2,32 +2,9 @@ import { storage, db } from "../storage";
 import { log } from "../index";
 import { recordLedgerEntry } from "../middleware/ledger";
 import { getValidatedBTCPriceWithRetry, clearPriceCache, setPriceFrozen } from "./priceService";
+import { announceMegaPot, announcePredictionResults } from "./telegramBot";
 import { users } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
-
-async function announceMegaPot(tierName: string, totalPot: number): Promise<void> {
-  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-  const TELEGRAM_GROUP_ID = process.env.TELEGRAM_GROUP_ID;
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_GROUP_ID) {
-    log(`[Oracle] Mega Pot alert skipped for ${tierName} ($${totalPot.toFixed(2)}) — Telegram not configured`);
-    return;
-  }
-
-  try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_GROUP_ID,
-        text: `MEGA POT ALERT!\n\nThe ${tierName} prediction pot has rolled over!\n\nAccumulated Pot: $${totalPot.toFixed(2)} USDT\n\nNo one predicted correctly today — the entire pot carries forward. Tomorrow's winner takes it ALL.\n\nUpgrade your tier now to compete for the biggest pots!`,
-        parse_mode: "HTML",
-      }),
-    });
-    log(`[Oracle] Mega Pot announcement sent for ${tierName}: $${totalPot.toFixed(2)}`);
-  } catch (e: any) {
-    log(`[Oracle] Failed to send Mega Pot announcement for ${tierName}: ${e.message}`);
-  }
-}
 
 export async function settleAllTiers(): Promise<{
   settled: boolean;
@@ -233,6 +210,16 @@ export async function settleAllTiers(): Promise<{
 
       log(`[Oracle] ${tierName}: $${totalPot.toFixed(4)} distributed to ${winners.length} winners ($${sharePerWinner}/each). Rollover reset to $0.`);
       totalDistributed += sharePerWinner * winners.length;
+
+      const topWinnerData: Array<{ username: string; payout: number }> = [];
+      for (const w of winners.slice(0, 3)) {
+        const winUser = await storage.getUser(w.userId);
+        topWinnerData.push({
+          username: winUser?.username || "Anonymous",
+          payout: sharePerWinner,
+        });
+      }
+      await announcePredictionResults(tierName, winners.length, totalPot, topWinnerData);
 
       tierResults.push({
         tierName, activeUsers, dailyAllocation, rollover,

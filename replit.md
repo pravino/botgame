@@ -62,9 +62,20 @@ The application is built with a modern web stack, featuring a React + TypeScript
     - Spin tickets expire with subscription, unused spins stay as vault liquidity.
     - Admin vault seeding endpoint (`POST /api/admin/seed-vault`) for marketing float injection.
 
+- **Telegram Bot Integration**: Centralized bot service (`server/services/telegramBot.ts`) replacing scattered API calls.
+    - Three-channel system: News (public announcements), Lobby (public community), Apex (private paid members).
+    - Chat IDs stored in `global_config` (`telegram_news_channel_id`, `telegram_lobby_group_id`, `telegram_apex_group_id`).
+    - Bot initialization runs after seeding in routes.ts startup sequence with auto-detection of chats.
+    - Service provides: `sendToNewsChannel`, `sendToLobby`, `sendToApex`, `sendDirectMessage`, `kickFromApex`, `generateApexInviteLink`, `announcePredictionResults`, `announceMegaPot`, `announceWheelWinner`, `announceLeaderboard`, `announceNewSubscriber`.
+    - Admin endpoints: `/api/admin/telegram/status`, `/api/admin/telegram/detect-chats`, `/api/admin/telegram/set-chat`, `/api/admin/telegram/send`, `/api/admin/telegram/announce-leaderboard`.
+    - Oracle service uses bot for prediction results and mega pot announcements.
+    - Wheel service uses bot for jackpot/big-win announcements (wins >= $10).
+    - Settlement cron uses bot for expiry DMs and Apex group kicks on expired subscriptions.
+
 ## External Dependencies
 - **Email Service**: Resend (for OTP delivery)
 - **Real-time Data**: CoinGecko API (for live BTC prices), supplemented by Binance and CoinMarketCap for multi-oracle reliability.
 - **Database**: PostgreSQL (hosted on Neon for production)
 - **Payment Gateway**: TON Pay SDK (for tier subscriptions, with sandbox and mainnet modes)
 - **QR Code Generation**: `qrcode.react` (for deposit addresses)
+- **Telegram Bot**: Vault60Bot via `TELEGRAM_BOT_TOKEN` secret — manages notifications, Apex membership, and admin broadcasts.

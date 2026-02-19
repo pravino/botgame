@@ -18,6 +18,7 @@ import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
 import { spinWheel } from "./services/wheelService";
+import { initTelegramBot, detectChatIds, getBotInfo, sendToNewsChannel, sendToLobby, sendToApex, announceLeaderboard, announceNewSubscriber, generateApexInviteLink, kickFromApex } from "./services/telegramBot";
 
 async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
   try {
@@ -1240,6 +1241,89 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/telegram/status", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const botInfo = await getBotInfo();
+      const newsRow = await storage.getGlobalConfigRow("telegram_news_channel_id");
+      const lobbyRow = await storage.getGlobalConfigRow("telegram_lobby_group_id");
+      const apexRow = await storage.getGlobalConfigRow("telegram_apex_group_id");
+      res.json({
+        connected: !!botInfo,
+        bot: botInfo ? { username: botInfo.username, name: botInfo.first_name } : null,
+        channels: {
+          news: newsRow?.description || null,
+          lobby: lobbyRow?.description || null,
+          apex: apexRow?.description || null,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/telegram/detect-chats", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { detected } = await detectChatIds();
+      res.json({ detected, message: `Found ${detected.length} chat(s). Use /api/admin/telegram/set-chat to assign them.` });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/telegram/set-chat", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { role, chatId } = req.body;
+      const validRoles: Record<string, string> = {
+        news: "telegram_news_channel_id",
+        lobby: "telegram_lobby_group_id",
+        apex: "telegram_apex_group_id",
+      };
+      if (!validRoles[role]) {
+        return res.status(400).json({ message: "role must be 'news', 'lobby', or 'apex'" });
+      }
+      if (!chatId) {
+        return res.status(400).json({ message: "chatId is required" });
+      }
+      await storage.setGlobalConfigValue(validRoles[role], 0, String(chatId));
+      log(`[Admin] Telegram ${role} chat ID set to ${chatId}`);
+      res.json({ message: `${role} chat ID set to ${chatId}` });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/telegram/send", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { target, message } = req.body;
+      if (!target || !message) {
+        return res.status(400).json({ message: "target (news/lobby/apex) and message are required" });
+      }
+      let sent = false;
+      if (target === "news") sent = await sendToNewsChannel(message);
+      else if (target === "lobby") sent = await sendToLobby(message);
+      else if (target === "apex") sent = await sendToApex(message);
+      else return res.status(400).json({ message: "target must be 'news', 'lobby', or 'apex'" });
+
+      res.json({ sent, message: sent ? "Message sent" : "Failed to send — check bot config" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/telegram/announce-leaderboard", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const topCoins = await storage.getTopUsersByCoins(5);
+      const topPredictions = await storage.getTopUsersByPredictions(5);
+
+      await announceLeaderboard("Coins", topCoins.map(u => ({ username: u.username, value: u.totalCoins })));
+      await announceLeaderboard("Predictions", topPredictions.map(u => ({ username: u.username, value: u.correctPredictions })), "count");
+
+      res.json({ message: "Leaderboard announcements sent" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/leaderboard/:type", async (req: Request, res: Response) => {
     try {
       const { type } = req.params;
@@ -1890,6 +1974,7 @@ export async function registerRoutes(
       await seedTasks();
       await seedGlobalConfig();
       await seedReferralMilestones();
+      await initTelegramBot();
 
       const existingUsers = await storage.getTopUsersByCoins(1);
       if (existingUsers.length > 0) return;
