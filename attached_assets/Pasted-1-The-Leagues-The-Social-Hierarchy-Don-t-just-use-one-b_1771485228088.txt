@@ -1,0 +1,29 @@
+1. The Leagues (The "Social Hierarchy")
+Don't just use one big leaderboard. Group users into Leagues (Bronze, Silver, Gold, Platinum, Diamond) based on their Lifetime Coins.
+The Hook: Each league has a "Daily Payout Multiplier."
+The Logic: Even if two people tap 1,000 times, the guy in the "Platinum League" gets a 1.5x bonus on his share of the USDT pot compared to a "Bronze League" player.
+The Goal: This creates "Grind Addiction." Users will tap like crazy just to rank up to the next league so their 5 USDT membership becomes more profitable.
+2. The Tasks (The "Social Proof" Engine)
+In 2026, your "Task Wall" is your free marketing department.
+Type A: One-Time Social Tasks:
+"Join Telegram Announcement Channel" (+5,000 coins)
+"Follow on X" (+10,000 coins)
+"Subscribe to YouTube" (+15,000 coins)
+Type B: Daily Engagement Tasks:
+"Share your daily winning screenshot on X" (+20,000 coins)
+"Invite 3 friends today" (+50,000 coins)
+The "Pro" Twist: Some tasks should be "Pro Only."
+"Task: Verify 5 USDT Bronze Status (+100,000 coins instant bonus)." This makes the 5 USDT feel like it's paying for itself immediately in game power.
+3. The "Daily Combo" (The Retention Tool)
+Copy the Hamster Kombat "Daily Combo" or "Daily Cipher."
+How it works: Every day, there is a secret combination of 3 "Multiplier Cards" or a specific "Tap Pattern."
+The Reward: A massive coin boost (e.g., 1,000,000 coins).
+Why you need it: It forces 1,000+ people to talk to each other in your Telegram group to figure out the code. Active Chat = High Trust = More Sales.
+4. Why this protects your $15,000 Profit
+Leagues prevent "Whales" from bullying "Newbies." You can have a separate "Daily Pot" for the Diamond League to keep the 50 USDT Gold members happy.
+Tasks reduce your advertising costs to zero. Your 1,000 users are "shilling" your link across the internet just to get more energy or coins.
+Retention: A user who is 90% of the way to the "Platinum League" will never let their 5 USDT subscription expire. They will renew just to keep their league status.
+Implementation Priority (Layer 1.5)
+Tasks: Build this first. It’s the easiest way to grow from 0 to 1,000 users.
+Daily Combo: Build this second to keep the Telegram chat buzzing.
+Leagues: Build this once you hit 500 members to keep the competition fresh.
