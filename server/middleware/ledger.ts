@@ -33,7 +33,8 @@ export type LedgerEntryType =
   | "withdrawal_promoted"
   | "withdrawal_batch"
   | "subscription_expiry_warning"
-  | "subscription_expired_kick";
+  | "subscription_expired_kick"
+  | "multiplier_upgrade";
 
 export type LedgerDirection = "credit" | "debit";
 export type LedgerCurrency = "COINS" | "USDT" | "TICKETS";

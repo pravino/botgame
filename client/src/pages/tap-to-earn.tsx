@@ -127,11 +127,39 @@ export default function TapToEarn() {
     tapPotSize: number;
     tierName: string;
     tapMultiplier: number;
+    tapMultiplierLevel: number;
+    tierBaseMultiplier: number;
+    upgradeCost: number;
   }
 
   const { data: earnings } = useQuery<EstimatedEarnings>({
     queryKey: ["/api/tap/estimated-earnings"],
     refetchInterval: 30000,
+  });
+
+  const upgradeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/games/upgrade-multiplier");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tap/estimated-earnings"] });
+      toast({
+        title: "Multiplier Upgraded!",
+        description: `Level ${data.newMultiplierLevel} unlocked! You now earn ${data.effectiveMultiplier}x coins per tap.`,
+      });
+    },
+    onError: (error: any) => {
+      const msg = error.message || "Failed to upgrade";
+      const jsonPart = msg.includes(": ") ? msg.substring(msg.indexOf(": ") + 2) : msg;
+      try {
+        const parsed = JSON.parse(jsonPart);
+        toast({ title: "Upgrade Failed", description: parsed.message, variant: "destructive" });
+      } catch {
+        toast({ title: "Upgrade Failed", description: msg, variant: "destructive" });
+      }
+    },
   });
 
   const tc: TierConfig = user?.tierConfig ?? { energyRefillRateMs: 2000, refillCooldownMs: null, tapMultiplier: 1 };
@@ -251,10 +279,10 @@ export default function TapToEarn() {
       );
 
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
-      if (pendingTapsRef.current >= 40) {
+      if (pendingTapsRef.current >= 50) {
         flushTaps();
       } else {
-        flushTimerRef.current = setTimeout(flushTaps, 500);
+        flushTimerRef.current = setTimeout(flushTaps, 2000);
       }
     },
     [user, liveEnergy, flushTaps]
@@ -354,6 +382,47 @@ export default function TapToEarn() {
                 Upgrade to Bronze or higher to earn USDT from your daily taps
               </p>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {earnings && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <span className="font-medium text-sm">Tap Power</span>
+              </div>
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" data-testid="text-effective-multiplier">
+                Level {earnings.tapMultiplierLevel} ({earnings.tapMultiplier}x)
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="space-y-0.5">
+                <p className="text-xs text-muted-foreground">
+                  Next level: {formatNumber(earnings.upgradeCost)} coins
+                </p>
+                {earnings.tierBaseMultiplier > 1 && (
+                  <p className="text-xs text-muted-foreground">
+                    Tier bonus: {earnings.tierBaseMultiplier}x
+                  </p>
+                )}
+              </div>
+              <Button
+                size="sm"
+                onClick={() => upgradeMutation.mutate()}
+                disabled={upgradeMutation.isPending || (user?.totalCoins ?? 0) < earnings.upgradeCost}
+                data-testid="button-upgrade-multiplier"
+              >
+                {upgradeMutation.isPending ? "Upgrading..." : "Upgrade"}
+              </Button>
+            </div>
+            {(user?.totalCoins ?? 0) < earnings.upgradeCost && (
+              <p className="text-xs text-muted-foreground text-center">
+                Need {formatNumber(earnings.upgradeCost - (user?.totalCoins ?? 0))} more coins
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

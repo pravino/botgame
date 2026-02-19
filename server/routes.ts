@@ -2,7 +2,9 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { storage } from "./storage";
+import { storage, db } from "./storage";
+import { users } from "@shared/schema";
+import { eq, and, gte, sql } from "drizzle-orm";
 import { sendOtpEmail } from "./email";
 import { log } from "./index";
 import { processSubscriptionPayment } from "./middleware/transactionSplit";
@@ -277,13 +279,16 @@ export async function registerRoutes(
       user = await refillUserResources(user);
       const tc = await getTierConfig(user.tier);
 
+      const effectiveMultiplier = (user.tapMultiplier ?? 1) * (tc.tapMultiplier ?? 1);
       res.json({
         ...user,
         tierConfig: {
           energyRefillRateMs: tc.energyRefillRateMs,
           refillCooldownMs: tc.refillCooldownMs,
-          tapMultiplier: tc.tapMultiplier,
+          tapMultiplier: effectiveMultiplier,
         },
+        tapMultiplierLevel: user.tapMultiplier ?? 1,
+        tierBaseMultiplier: tc.tapMultiplier ?? 1,
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get user" });
@@ -325,7 +330,7 @@ export async function registerRoutes(
       }
 
       const tierConfig = await getTierConfig(user.tier);
-      const multiplier = tierConfig.tapMultiplier;
+      const multiplier = (user.tapMultiplier ?? 1) * (tierConfig.tapMultiplier ?? 1);
       const coinsEarned = actualTaps * multiplier;
 
       const session = await storage.createTapSession({
@@ -366,6 +371,10 @@ export async function registerRoutes(
       const now = new Date();
       const dateKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
 
+      const tierConfig = await getTierConfig(user.tier);
+      const effectiveMultiplier = (user.tapMultiplier ?? 1) * (tierConfig.tapMultiplier ?? 1);
+      const upgradeCost = (user.tapMultiplier ?? 1) * 25000;
+
       if (user.tier === "FREE") {
         return res.json({
           myCoinsToday: 0,
@@ -374,11 +383,13 @@ export async function registerRoutes(
           estimatedUsdt: 0,
           tapPotSize: 0,
           tierName: "FREE",
-          tapMultiplier: 1,
+          tapMultiplier: effectiveMultiplier,
+          tapMultiplierLevel: user.tapMultiplier ?? 1,
+          tierBaseMultiplier: tierConfig.tapMultiplier ?? 1,
+          upgradeCost,
         });
       }
 
-      const tierConfig = await getTierConfig(user.tier);
       const allTiers = await storage.getAllTiers();
       const tierData = allTiers.find(t => t.name === user.tier);
       const dailyUnit = tierData ? parseFloat(tierData.dailyUnit) : 0;
@@ -402,10 +413,77 @@ export async function registerRoutes(
         estimatedUsdt,
         tapPotSize: parseFloat(tapPotSize.toFixed(4)),
         tierName: user.tier,
-        tapMultiplier: tierConfig.tapMultiplier,
+        tapMultiplier: effectiveMultiplier,
+        tapMultiplierLevel: user.tapMultiplier ?? 1,
+        tierBaseMultiplier: tierConfig.tapMultiplier ?? 1,
+        upgradeCost,
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get estimated earnings" });
+    }
+  });
+
+  app.post("/api/games/upgrade-multiplier", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const currentLevel = user.tapMultiplier ?? 1;
+      const upgradeCost = currentLevel * 25000;
+
+      if (user.totalCoins < upgradeCost) {
+        return res.status(400).json({
+          message: `Not enough coins! You need ${upgradeCost.toLocaleString()} Group Coins to upgrade.`,
+          required: upgradeCost,
+          current: user.totalCoins,
+        });
+      }
+
+      const newMultiplier = currentLevel + 1;
+
+      const [updated] = await db
+        .update(users)
+        .set({
+          tapMultiplier: newMultiplier,
+          totalCoins: sql`total_coins - ${upgradeCost}`,
+        })
+        .where(
+          and(
+            eq(users.id, user.id),
+            eq(users.tapMultiplier, currentLevel),
+            gte(users.totalCoins, upgradeCost)
+          )
+        )
+        .returning();
+
+      if (!updated) {
+        return res.status(409).json({ message: "Upgrade failed. Please try again." });
+      }
+
+      await recordLedgerEntry({
+        userId: user.id,
+        entryType: "multiplier_upgrade",
+        direction: "debit",
+        amount: upgradeCost,
+        currency: "COINS",
+        balanceBefore: user.totalCoins,
+        balanceAfter: updated.totalCoins,
+        game: "tapPot",
+        note: `Multiplier upgrade: Level ${currentLevel} -> Level ${newMultiplier} (spent ${upgradeCost.toLocaleString()} coins)`,
+      });
+
+      const tierConfig = await getTierConfig(user.tier);
+      const effectiveMultiplier = newMultiplier * (tierConfig.tapMultiplier ?? 1);
+
+      res.json({
+        newMultiplierLevel: newMultiplier,
+        effectiveMultiplier,
+        coinsSpent: upgradeCost,
+        remainingCoins: updated.totalCoins,
+        nextUpgradeCost: newMultiplier * 25000,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to upgrade multiplier" });
     }
   });
 

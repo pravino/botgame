@@ -45,6 +45,7 @@ export const users = pgTable("users", {
   coinsSinceLastChallenge: integer("coins_since_last_challenge").notNull().default(0),
   lastFreeRefill: timestamp("last_free_refill"),
   dailyRefillsUsed: integer("daily_refills_used").notNull().default(0),
+  tapMultiplier: integer("tap_multiplier").notNull().default(1),
 });
 
 export const otpCodes = pgTable("otp_codes", {

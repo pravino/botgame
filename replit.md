@@ -179,6 +179,8 @@ shared/
 - Dark mode preferred as default theme
 
 ## Recent Changes
+- 2026-02-19: Multiplier Upgrade System ("Coin Sink"): Users spend Group Coins (cost = currentLevel * 25,000) to increase personal tap multiplier. Effective multiplier = userLevel * tierBase. New POST /api/games/upgrade-multiplier endpoint with ledger tracking. Per-user tapMultiplier column in users table. Upgrade card on Tap-to-Earn page with level display and cost info.
+- 2026-02-19: Tap batch interval changed from 500ms/40 taps to 2000ms/50 taps for 4x server load reduction.
 - 2026-02-19: Proof of Humanity challenge UI: Spatial Tap Challenge overlay (ChallengeOverlay component) with moving golden coin that must be tapped 3 times within 6 seconds. Triggers every 5,000 coins earned. Uses ref-based resolution to prevent timer race conditions. Bronze+ founders get +50 energy bonus on pass. Failed challenge pauses tapping for 1 hour. Integrated into tap-to-earn page via error detection from tap API 429 responses.
 - 2026-02-18: Rolling cooldown Full Tank system: Replaced daily-counter refill logic with tier-specific rolling cooldowns (BRONZE 24h, SILVER 12h, GOLD ~4.8h, FREE blocked). Added refillCooldownMs to tiers table. Backend /api/energy/refill uses lastFreeRefill + cooldown window. Frontend shows live countdown timer ("Next refill: Xh Ym") and "Full Tank" button when ready. Tier config served via /api/user tierConfig from DB with 60s memory cache.
 - 2026-02-18: Hybrid Recharge energy system: Passive time-based regeneration (FREE/BRONZE 1/2sec, SILVER/GOLD 1/sec). Energy calculated on-demand when user opens app (no server cron). Frontend real-time energy ticker.
