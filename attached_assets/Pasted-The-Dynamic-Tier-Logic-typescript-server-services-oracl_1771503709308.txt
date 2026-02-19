@@ -1,0 +1,50 @@
+The Dynamic Tier Logic
+typescript
+// server/services/oracleService.ts
+
+export const settleAllTiers = async (db) => {
+  const result = await getBTCResult(); // 'HIGHER' or 'LOWER'
+  
+  // 1. Fetch Tiers and Global Config from DB
+  const tiers = await db.getAllTiers(); 
+  const config = await db.getGlobalConfig(); // { prediction_share: 0.30 }
+
+  for (const tier of tiers) {
+    // 2. DYNAMIC MATH: No hardcoded numbers
+    // Allocation = (Tier's Daily 60% Drip) * (Global Prediction %)
+    const activeUsers = await db.getActiveCountByTier(tier.id);
+    const dailyAllocation = activeUsers * (tier.daily_unit * config.prediction_share);
+
+    // 3. SEGREGATED ROLLOVER
+    const rollover = await db.getTierRollover(tier.id);
+    const totalPot = dailyAllocation + rollover;
+
+    const winners = await db.getWinnersByTier(tier.id, result);
+
+    if (winners.length > 0) {
+      const sharePerWinner = totalPot / winners.length;
+      await db.distributeRewards(winners, sharePerWinner);
+      await db.setTierRollover(tier.id, 0); 
+    } else {
+      // 4. THE FAIL-SAFE: If no winners, the money stays in THIS tier's pot
+      await db.updateTierRollover(tier.id, totalPot);
+    }
+  }
+};
+Use code with caution.
+
+2. Why this is the "Millionaire" way
+The Price Change Fail-Safe: If you decide in Month 3 that Bronze should be 7 USDT instead of 5, you just update the daily_unit in the database. The code automatically adjusts the payouts without you touching a single file.
+The Profit Protector: Because daily_unit is already the 60% share, your 40% Admin Profit is physically separated before this code even runs.
+Infinite Tiers: You can add a "Diamond" or "Emerald" tier tomorrow. The for (const tier of tiers) loop will handle it instantly.
+3. Database Table Structure (Layer 1)
+To make the code above work, your tiers table must look like this:
+id	name	price	daily_unit (60%/30d)
+1	Bronze	5.00	0.10
+2	Silver	15.00	0.30
+3	Gold	50.00	1.00
+4. Summary of the "Skill" Payout
+Logic: Users pay for the opportunity to win.
+Control: You control the prediction_share (30%) globally.
+Outcome: The "House" (You) always keeps 40%, and the "Oracle" (Code) distributes the rest.
+The "Oracle" Layer is now 100% dynamic and professional.
