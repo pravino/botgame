@@ -802,6 +802,7 @@ export async function registerRoutes(
       const referred = await storage.getReferredUsers(user.id);
       const milestones = await storage.getAllMilestones();
       const wheelStatus = await getWheelAccessStatus(user.id);
+      const config = await storage.getGlobalConfig();
 
       const reachedMilestones = milestones.filter(m => paidCount >= m.friendsRequired);
       const nextMilestone = milestones.find(m => paidCount < m.friendsRequired);
@@ -813,6 +814,7 @@ export async function registerRoutes(
         totalReferralEarnings: updatedUser?.totalReferralEarnings || 0,
         wheelUnlocked: updatedUser?.wheelUnlocked || false,
         wheelStatus,
+        perFriendReward: config.referral_reward_amount ?? 1,
         milestones: milestones.map(m => ({
           ...m,
           reached: paidCount >= m.friendsRequired,

@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Copy, Check, Gift, Lock, Unlock, DollarSign, Trophy } from "lucide-react";
+import { Users, Copy, Check, Gift, Lock, Unlock, DollarSign, Trophy, Star, Zap, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatUSD } from "@/lib/game-utils";
 
@@ -31,6 +31,7 @@ type ReferralStatus = {
   totalReferrals: number;
   totalReferralEarnings: number;
   wheelUnlocked: boolean;
+  perFriendReward: number;
   wheelStatus: {
     locked: boolean;
     referralCount: number;
@@ -47,6 +48,13 @@ type ReferralStatus = {
     unlocksWheel: boolean;
   } | null;
   squad: SquadMember[];
+};
+
+const TIER_COLORS: Record<string, string> = {
+  FREE: "text-muted-foreground",
+  BRONZE: "text-amber-600 dark:text-amber-500",
+  SILVER: "text-slate-400",
+  GOLD: "text-yellow-500",
 };
 
 export default function Referrals() {
@@ -73,11 +81,14 @@ export default function Referrals() {
     return (
       <div className="p-4 md:p-6 space-y-4 max-w-lg mx-auto">
         <Skeleton className="h-8 w-48 mx-auto" />
+        <Skeleton className="h-40 w-full" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-32 w-full" />
       </div>
     );
   }
+
+  const perFriendReward = data?.perFriendReward ?? 1;
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-lg mx-auto">
@@ -86,13 +97,59 @@ export default function Referrals() {
           Invite Friends
         </h1>
         <p className="text-muted-foreground text-sm">
-          Refer friends, earn USDT, and unlock the Lucky Wheel
+          Earn real USDT every time a friend subscribes
         </p>
       </div>
 
+      <Card className="border-primary/30">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <DollarSign className="h-5 w-5 text-primary" />
+            <span className="font-semibold" data-testid="text-rewards-title">What You Earn</span>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-3 rounded-md bg-primary/5 border border-primary/10">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                <Zap className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium" data-testid="text-per-friend-reward">{formatUSD(perFriendReward)} per subscription</p>
+                <p className="text-xs text-muted-foreground">
+                  Every time a friend subscribes or renews, you earn {formatUSD(perFriendReward)} USDT instantly
+                </p>
+              </div>
+            </div>
+            {data?.milestones && data.milestones.length > 0 && (
+              <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50 border border-border">
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                  <Trophy className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium" data-testid="text-milestone-max-bonus">Milestone bonuses up to {formatUSD(data.milestones.reduce((max, m) => Math.max(max, m.bonusUsdt), 0))}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Hit referral milestones for bonus USDT drops and Lucky Wheel access
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50 border border-border">
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                <Star className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Recurring rewards</p>
+                <p className="text-xs text-muted-foreground">
+                  Earn again every time your friend renews their subscription — not just the first time
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent className="p-5 space-y-3">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 flex-wrap mb-2">
             <Users className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium">Your Referral Code</span>
           </div>
@@ -109,6 +166,9 @@ export default function Referrals() {
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground text-center">
+            Share this code with friends — they enter it when signing up
+          </p>
         </CardContent>
       </Card>
 
@@ -116,13 +176,13 @@ export default function Referrals() {
         <Card>
           <CardContent className="p-3 text-center">
             <p className="text-2xl font-bold text-primary" data-testid="text-total-referrals">{data?.totalReferrals ?? 0}</p>
-            <p className="text-xs text-muted-foreground">Total</p>
+            <p className="text-xs text-muted-foreground">Friends</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 text-center">
             <p className="text-2xl font-bold text-primary" data-testid="text-paid-referrals">{data?.paidReferralCount ?? 0}</p>
-            <p className="text-xs text-muted-foreground">Paid</p>
+            <p className="text-xs text-muted-foreground">Subscribed</p>
           </CardContent>
         </Card>
         <Card>
@@ -136,7 +196,7 @@ export default function Referrals() {
       {data?.wheelStatus && !data.wheelUnlocked && data.wheelStatus.locked && (
         <Card className="border-primary/50">
           <CardContent className="p-5 space-y-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Lock className="h-5 w-5 text-primary" />
               <span className="font-medium">Wheel Unlock Progress</span>
             </div>
@@ -168,10 +228,10 @@ export default function Referrals() {
       {data?.milestones && data.milestones.length > 0 && (
         <Card>
           <CardContent className="p-5 space-y-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Trophy className="h-4 w-4 text-primary" />
               <span className="font-medium text-sm">Milestones</span>
-              <Badge variant="secondary" className="ml-auto">{data.reachedCount}/{data.milestones.length}</Badge>
+              <Badge variant="secondary" className="ml-auto" data-testid="text-milestones-count">{data.reachedCount}/{data.milestones.length}</Badge>
             </div>
             <div className="space-y-3">
               {data.milestones.map((m) => (
@@ -187,14 +247,16 @@ export default function Referrals() {
                     <p className="text-sm font-medium truncate">{m.label}</p>
                     <p className="text-xs text-muted-foreground">
                       {m.friendsRequired} paid friend{m.friendsRequired > 1 ? "s" : ""}
-                      {m.bonusUsdt > 0 && ` · +$${m.bonusUsdt} bonus`}
+                      {m.bonusUsdt > 0 && ` · +${formatUSD(m.bonusUsdt)} bonus`}
                       {m.unlocksWheel && " · Unlocks Wheel"}
                     </p>
                   </div>
-                  {m.reached && (
+                  {m.reached ? (
                     <Badge variant="default" className="shrink-0">
                       <Check className="h-3 w-3" />
                     </Badge>
+                  ) : (
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                   )}
                 </div>
               ))}
@@ -206,7 +268,7 @@ export default function Referrals() {
       {data?.nextMilestone && (
         <Card>
           <CardContent className="p-4 space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Gift className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium">Next Milestone</span>
             </div>
@@ -214,26 +276,26 @@ export default function Referrals() {
               <span className="font-semibold text-foreground">{data.nextMilestone.label}</span>
               {" — "}
               {data.nextMilestone.remaining} more paid friend{data.nextMilestone.remaining > 1 ? "s" : ""} needed
-              {data.nextMilestone.bonusUsdt > 0 && `. Bonus: +$${data.nextMilestone.bonusUsdt} USDT`}
+              {data.nextMilestone.bonusUsdt > 0 && `. Bonus: +${formatUSD(data.nextMilestone.bonusUsdt)} USDT`}
               {data.nextMilestone.unlocksWheel && ". Unlocks Lucky Wheel!"}
             </p>
           </CardContent>
         </Card>
       )}
 
-      {data?.squad && data.squad.length > 0 && (
-        <Card>
-          <CardContent className="p-5 space-y-3">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              <span className="font-medium text-sm">Your Squad</span>
-              <Badge variant="secondary" className="ml-auto">{data.squad.length}</Badge>
-            </div>
+      <Card>
+        <CardContent className="p-5 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Users className="h-4 w-4 text-primary" />
+            <span className="font-medium text-sm">Your Friends</span>
+            <Badge variant="secondary" className="ml-auto" data-testid="text-friends-count">{data?.squad?.length ?? 0}</Badge>
+          </div>
+          {data?.squad && data.squad.length > 0 ? (
             <div className="space-y-2">
               {data.squad.map((member, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-3 p-2 rounded-md"
+                  className="flex items-center gap-3 p-2.5 rounded-md border border-border"
                   data-testid={`squad-member-${i}`}
                 >
                   <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
@@ -241,7 +303,7 @@ export default function Referrals() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{member.username}</p>
-                    <p className="text-xs text-muted-foreground">{member.tier}</p>
+                    <p className={`text-xs font-medium ${TIER_COLORS[member.tier] || "text-muted-foreground"}`}>{member.tier}</p>
                   </div>
                   {member.isPaid ? (
                     <Badge variant="default" className="shrink-0">
@@ -254,20 +316,16 @@ export default function Referrals() {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {(!data?.squad || data.squad.length === 0) && (
-        <Card>
-          <CardContent className="p-8 text-center space-y-2">
-            <Users className="h-10 w-10 text-muted-foreground mx-auto" />
-            <p className="text-sm text-muted-foreground">
-              Share your code with friends to start earning USDT rewards
-            </p>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="py-6 text-center space-y-2" data-testid="text-empty-friends">
+              <Users className="h-8 w-8 text-muted-foreground mx-auto" />
+              <p className="text-sm text-muted-foreground">
+                No friends yet — share your code to start earning
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
