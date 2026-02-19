@@ -1,0 +1,59 @@
+1. The "Human-Only" Challenge: The Moving Target
+Don't use a boring "1+1=?" math problem. Bots can solve that in 0.1 seconds. Instead, use a Spatial Tap Challenge.
+The Logic: A small "Golden Coin" appears and moves randomly across the screen for 5 seconds.
+The Task: The user must tap the Golden Coin 3 times before it disappears.
+Why it works:
+Anti-Bot: Most simple auto-clickers tap a fixed coordinate 
+. They will miss the moving coin.
+Gamification: It feels like a "Bonus Round" rather than a "Security Check."
+2. The Frontend Implementation (React + Framer Motion)
+You need to build a ChallengeOverlay.tsx component that triggers when the server returns a CHALLENGE_REQUIRED status.
+typescript
+// client/src/components/ChallengeOverlay.tsx
+import { motion } from "framer-motion";
+
+export const ChallengeOverlay = ({ onResolve }) => {
+  const [hits, setHits] = useState(0);
+
+  const handleCoinTap = () => {
+    if (hits + 1 >= 3) {
+      onResolve(); // Calls POST /api/challenge/resolve
+    } else {
+      setHits(hits + 1);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+      <div className="text-center">
+        <h2 className="text-xl font-bold text-amber-400 mb-4">Catch the Golden Coin!</h2>
+        <p className="text-sm text-gray-400">Prove you're human to continue earning.</p>
+        
+        <motion.div
+          animate={{ 
+            x: [0, 100, -100, 50, -50, 0],
+            y: [0, -50, 50, -100, 100, 0] 
+          }}
+          transition={{ duration: 4, repeat: Infinity }}
+          onClick={handleCoinTap}
+          className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-amber-600 rounded-full cursor-pointer shadow-lg border-2 border-white mt-10 mx-auto flex items-center justify-center font-bold text-white"
+        >
+          {hits}/3
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+Use code with caution.
+
+3. The "Guardian" Integration (The Middleware)
+When your POST /api/games/tap detects suspicious activity, it should return a 403 Challenge Required response.
+Backend: Flags the user session as CHALLENGE_PENDING.
+Frontend: Catches the 403 error, pauses the game, and shows the ChallengeOverlay.
+Resolution: Once the user hits the coin 3 times, the frontend calls /api/challenge/resolve. The backend clears the flag, and the user can tap again.
+4. Why this protects your 15k Profit
+Zero Frustration: Humans find it easy (takes 3 seconds). Bots find it impossible.
+Retention: By making the "Captcha" look like a game, you keep the user in a "Play State."
+Security: This prevents "Headless Browser" bots from draining your 50% Tap Pot while you sleep.
+5. Summary of the "Founder Bonus" Tie-in
+If a Bronze Founder passes the challenge, give them a tiny reward (e.g., +50 Energy) as a "Thank You." This reinforces that being a paid member is better than being a Free member.
