@@ -284,6 +284,51 @@ async function baselineSync(pool: pg.Pool) {
       "expires_at" timestamp NOT NULL,
       CONSTRAINT "payment_invoices_invoice_id_unique" UNIQUE("invoice_id")
     )`,
+
+    `CREATE TABLE IF NOT EXISTS "tasks" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "slug" text NOT NULL,
+      "title" text NOT NULL,
+      "description" text NOT NULL,
+      "category" text NOT NULL,
+      "task_type" text NOT NULL,
+      "reward_coins" integer NOT NULL,
+      "required_tier" text,
+      "link" text,
+      "icon" text,
+      "sort_order" integer DEFAULT 0 NOT NULL,
+      "active" boolean DEFAULT true NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      CONSTRAINT "tasks_slug_unique" UNIQUE("slug")
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS "user_tasks" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "user_id" varchar NOT NULL,
+      "task_id" varchar NOT NULL,
+      "completed_at" timestamp DEFAULT now() NOT NULL,
+      "date" text
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS "daily_combos" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "date" text NOT NULL,
+      "code" text NOT NULL,
+      "reward_coins" integer DEFAULT 1000000 NOT NULL,
+      "hint" text,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      CONSTRAINT "daily_combos_date_unique" UNIQUE("date")
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS "daily_combo_attempts" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "user_id" varchar NOT NULL,
+      "combo_id" varchar NOT NULL,
+      "solved" boolean DEFAULT false NOT NULL,
+      "attempts" integer DEFAULT 0 NOT NULL,
+      "solved_at" timestamp,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    )`,
   ];
 
   const addColumnStatements = [
@@ -308,6 +353,7 @@ async function baselineSync(pool: pg.Pool) {
     `ALTER TABLE "tiers" ADD COLUMN IF NOT EXISTS "energy_refill_rate_ms" integer DEFAULT 2000 NOT NULL`,
     `ALTER TABLE "tiers" ADD COLUMN IF NOT EXISTS "free_refills_per_day" integer DEFAULT 0 NOT NULL`,
     `ALTER TABLE "tiers" ADD COLUMN IF NOT EXISTS "refill_cooldown_ms" integer`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "league" text DEFAULT 'BRONZE' NOT NULL`,
   ];
 
   for (const sql of statements) {

@@ -46,6 +46,7 @@ export const users = pgTable("users", {
   lastFreeRefill: timestamp("last_free_refill"),
   dailyRefillsUsed: integer("daily_refills_used").notNull().default(0),
   tapMultiplier: integer("tap_multiplier").notNull().default(1),
+  league: text("league").notNull().default("BRONZE"),
 });
 
 export const otpCodes = pgTable("otp_codes", {
@@ -233,6 +234,49 @@ export const paymentInvoices = pgTable("payment_invoices", {
   expiresAt: timestamp("expires_at").notNull(),
 });
 
+export const tasks = pgTable("tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull(),
+  taskType: text("task_type").notNull(),
+  rewardCoins: integer("reward_coins").notNull(),
+  requiredTier: text("required_tier"),
+  link: text("link"),
+  icon: text("icon"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const userTasks = pgTable("user_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  taskId: varchar("task_id").notNull().references(() => tasks.id),
+  completedAt: timestamp("completed_at").notNull().default(sql`now()`),
+  date: text("date"),
+});
+
+export const dailyCombos = pgTable("daily_combos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  date: text("date").notNull().unique(),
+  code: text("code").notNull(),
+  rewardCoins: integer("reward_coins").notNull().default(1000000),
+  hint: text("hint"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const dailyComboAttempts = pgTable("daily_combo_attempts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  comboId: varchar("combo_id").notNull().references(() => dailyCombos.id),
+  solved: boolean("solved").notNull().default(false),
+  attempts: integer("attempts").notNull().default(0),
+  solvedAt: timestamp("solved_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export const insertPaymentInvoiceSchema = createInsertSchema(paymentInvoices).omit({
   id: true,
   createdAt: true,
@@ -281,3 +325,7 @@ export type Withdrawal = typeof withdrawals.$inferSelect;
 export type DailyTap = typeof dailyTaps.$inferSelect;
 export type WithdrawalBatch = typeof withdrawalBatches.$inferSelect;
 export type SubscriptionAlert = typeof subscriptionAlerts.$inferSelect;
+export type Task = typeof tasks.$inferSelect;
+export type UserTask = typeof userTasks.$inferSelect;
+export type DailyCombo = typeof dailyCombos.$inferSelect;
+export type DailyComboAttempt = typeof dailyComboAttempts.$inferSelect;

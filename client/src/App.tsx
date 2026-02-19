@@ -17,6 +17,9 @@ import Leaderboard from "@/pages/leaderboard";
 import WalletPage from "@/pages/wallet";
 import Welcome from "@/pages/welcome";
 import SubscriptionPage from "@/pages/subscription";
+import Tasks from "@/pages/tasks";
+import DailyCombo from "@/pages/daily-combo";
+import Leagues from "@/pages/leagues";
 import type { User } from "@shared/schema";
 
 function Router() {
@@ -26,6 +29,9 @@ function Router() {
       <Route path="/tap" component={TapToEarn} />
       <Route path="/predict" component={PricePrediction} />
       <Route path="/wheel" component={LuckyWheel} />
+      <Route path="/tasks" component={Tasks} />
+      <Route path="/combo" component={DailyCombo} />
+      <Route path="/leagues" component={Leagues} />
       <Route path="/wallet" component={WalletPage} />
       <Route path="/subscription" component={SubscriptionPage} />
       <Route path="/leaderboard" component={Leaderboard} />

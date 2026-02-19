@@ -110,6 +110,31 @@ export async function registerRoutes(
     GOLD: null,
   };
 
+  const LEAGUE_THRESHOLDS = [
+    { name: "BRONZE", minCoins: 0, payoutMultiplier: 1.0 },
+    { name: "SILVER", minCoins: 50000, payoutMultiplier: 1.1 },
+    { name: "GOLD", minCoins: 250000, payoutMultiplier: 1.2 },
+    { name: "PLATINUM", minCoins: 1000000, payoutMultiplier: 1.3 },
+    { name: "DIAMOND", minCoins: 5000000, payoutMultiplier: 1.5 },
+  ];
+
+  function computeLeague(totalCoins: number): string {
+    let league = "BRONZE";
+    for (const l of LEAGUE_THRESHOLDS) {
+      if (totalCoins >= l.minCoins) league = l.name;
+    }
+    return league;
+  }
+
+  function getLeagueMultiplier(league: string): number {
+    return LEAGUE_THRESHOLDS.find(l => l.name === league)?.payoutMultiplier || 1.0;
+  }
+
+  function isTierSufficient(userTier: string, requiredTier: string): boolean {
+    const tierOrder = ["FREE", "BRONZE", "SILVER", "GOLD"];
+    return tierOrder.indexOf(userTier) >= tierOrder.indexOf(requiredTier);
+  }
+
   interface CachedTierConfig {
     energyRefillRateMs: number;
     freeRefillsPerDay: number;
@@ -296,6 +321,13 @@ export async function registerRoutes(
       const userLevel = user.tapMultiplier ?? 1;
       const effectiveMultiplier = userLevel * (tc.tapMultiplier ?? 1);
       const maxUpgradeLevel = TIER_MAX_UPGRADE[user.tier] ?? 1;
+      const currentLeague = computeLeague(user.totalCoins);
+      if (currentLeague !== user.league) {
+        await storage.updateUser(user.id, { league: currentLeague });
+        user = { ...user, league: currentLeague };
+      }
+      const leagueIdx = LEAGUE_THRESHOLDS.findIndex(l => l.name === currentLeague);
+      const nextLeagueInfo = leagueIdx < LEAGUE_THRESHOLDS.length - 1 ? LEAGUE_THRESHOLDS[leagueIdx + 1] : null;
       res.json({
         ...user,
         tierConfig: {
@@ -308,6 +340,11 @@ export async function registerRoutes(
         maxUpgradeLevel,
         isMaxedUpgrade: userLevel >= maxUpgradeLevel,
         nextTier: TIER_NEXT[user.tier] ?? null,
+        leagueInfo: {
+          league: currentLeague,
+          multiplier: getLeagueMultiplier(currentLeague),
+          nextLeague: nextLeagueInfo ? { name: nextLeagueInfo.name, minCoins: nextLeagueInfo.minCoins, multiplier: nextLeagueInfo.payoutMultiplier } : null,
+        },
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to get user" });
@@ -359,6 +396,13 @@ export async function registerRoutes(
       });
 
       const updated = await storage.atomicTap(user.id, coinsEarned, actualTaps, new Date());
+
+      if (updated) {
+        const newLeague = computeLeague(updated.totalCoins);
+        if (newLeague !== updated.league) {
+          await storage.updateUser(user.id, { league: newLeague });
+        }
+      }
 
       await storage.upsertDailyTap(user.id, actualTaps, coinsEarned, user.tier);
       await updateCoinsSinceChallenge(user.id, coinsEarned);
@@ -1477,6 +1521,221 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/tasks", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const allTasks = await storage.getAllActiveTasks();
+      const userCompletions = await storage.getUserTaskCompletions(req.session.userId!);
+      const todayDate = new Date().toISOString().split("T")[0];
+      const user = await storage.getUser(req.session.userId!);
+
+      const tasksWithStatus = allTasks.map(task => {
+        let completed = false;
+        if (task.taskType === "one_time") {
+          completed = userCompletions.some(uc => uc.taskId === task.id);
+        } else if (task.taskType === "daily") {
+          completed = userCompletions.some(uc => uc.taskId === task.id && uc.date === todayDate);
+        }
+        const tierLocked = task.requiredTier ? !isTierSufficient(user?.tier || "FREE", task.requiredTier) : false;
+        return { ...task, completed, tierLocked };
+      });
+
+      res.json(tasksWithStatus);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  app.post("/api/tasks/:taskId/claim", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const task = await storage.getTaskById(taskId);
+      if (!task || !task.active) return res.status(404).json({ message: "Task not found" });
+
+      if (task.requiredTier && !isTierSufficient(user.tier, task.requiredTier)) {
+        return res.status(403).json({ message: `Requires ${task.requiredTier} tier or higher` });
+      }
+
+      const todayDate = new Date().toISOString().split("T")[0];
+      const dateCheck = task.taskType === "daily" ? todayDate : undefined;
+      const alreadyDone = await storage.hasUserCompletedTask(userId, taskId, dateCheck);
+      if (alreadyDone) {
+        return res.status(400).json({ message: "Task already completed" });
+      }
+
+      await storage.completeTask(userId, taskId, dateCheck);
+
+      const newCoins = user.totalCoins + task.rewardCoins;
+      const newLeague = computeLeague(newCoins);
+      await storage.updateUser(userId, { totalCoins: newCoins, league: newLeague });
+
+      await recordLedgerEntry({
+        userId,
+        entryType: "task_reward",
+        direction: "credit",
+        amount: task.rewardCoins,
+        currency: "COINS",
+        balanceBefore: user.totalCoins,
+        balanceAfter: newCoins,
+        game: "tasks",
+        note: `Task completed: ${task.title} (+${task.rewardCoins} coins)`,
+      });
+
+      res.json({ success: true, coinsAwarded: task.rewardCoins, newTotal: newCoins, league: newLeague });
+    } catch (error: any) {
+      log(`Task claim error: ${error.message}`);
+      res.status(500).json({ message: "Failed to claim task reward" });
+    }
+  });
+
+  app.get("/api/daily-combo", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const todayDate = new Date().toISOString().split("T")[0];
+      let combo = await storage.getDailyComboForDate(todayDate);
+
+      if (!combo) {
+        const words = ["BITCOIN", "HODL", "MOON", "STAKE", "DEFI", "NFT", "WHALE", "LAMBO", "PUMP", "BULL",
+          "CHAIN", "BLOCK", "HASH", "NODE", "MINE", "TOKEN", "YIELD", "SWAP", "LAYER", "GAS"];
+        const shuffled = words.sort(() => Math.random() - 0.5);
+        const code = shuffled.slice(0, 3).join("-");
+        const hints = [
+          `First word starts with "${code.split("-")[0][0]}"`,
+          `Three crypto words separated by dashes`,
+          `${code.length} characters total`,
+        ];
+        combo = await storage.createDailyCombo({
+          date: todayDate,
+          code,
+          rewardCoins: 1000000,
+          hint: hints[Math.floor(Math.random() * hints.length)],
+        });
+      }
+
+      const userId = req.session.userId!;
+      const attempt = await storage.getUserComboAttempt(userId, combo.id);
+
+      const now = new Date();
+      const endOfDay = new Date(now);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+      const secondsRemaining = Math.max(0, Math.floor((endOfDay.getTime() - now.getTime()) / 1000));
+
+      res.json({
+        date: combo.date,
+        hint: combo.hint,
+        rewardCoins: combo.rewardCoins,
+        codeLength: combo.code.split("-").length,
+        solved: attempt?.solved || false,
+        attempts: attempt?.attempts || 0,
+        secondsRemaining,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch daily combo" });
+    }
+  });
+
+  app.post("/api/daily-combo/solve", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { code } = req.body;
+      if (!code || typeof code !== "string") {
+        return res.status(400).json({ message: "Code is required" });
+      }
+
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const todayDate = new Date().toISOString().split("T")[0];
+      const combo = await storage.getDailyComboForDate(todayDate);
+      if (!combo) return res.status(404).json({ message: "No combo available today" });
+
+      const existingAttempt = await storage.getUserComboAttempt(userId, combo.id);
+      if (existingAttempt?.solved) {
+        return res.status(400).json({ message: "Already solved today's combo" });
+      }
+
+      const isCorrect = code.toUpperCase().trim() === combo.code.toUpperCase();
+      await storage.createOrUpdateComboAttempt(userId, combo.id, isCorrect);
+
+      if (isCorrect) {
+        const newCoins = user.totalCoins + combo.rewardCoins;
+        const newLeague = computeLeague(newCoins);
+        await storage.updateUser(userId, { totalCoins: newCoins, league: newLeague });
+
+        await recordLedgerEntry({
+          userId,
+          entryType: "daily_combo",
+          direction: "credit",
+          amount: combo.rewardCoins,
+          currency: "COINS",
+          balanceBefore: user.totalCoins,
+          balanceAfter: newCoins,
+          game: "combo",
+          note: `Daily combo solved! (+${combo.rewardCoins} coins)`,
+        });
+
+        return res.json({ correct: true, coinsAwarded: combo.rewardCoins, newTotal: newCoins, league: newLeague });
+      }
+
+      res.json({ correct: false, message: "Incorrect code. Try again!" });
+    } catch (error: any) {
+      log(`Daily combo error: ${error.message}`);
+      res.status(500).json({ message: "Failed to solve combo" });
+    }
+  });
+
+  app.get("/api/leagues", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const currentLeague = computeLeague(user.totalCoins);
+      if (currentLeague !== user.league) {
+        await storage.updateUser(user.id, { league: currentLeague });
+      }
+
+      const currentIdx = LEAGUE_THRESHOLDS.findIndex(l => l.name === currentLeague);
+      const nextLeague = currentIdx < LEAGUE_THRESHOLDS.length - 1 ? LEAGUE_THRESHOLDS[currentIdx + 1] : null;
+      const progress = nextLeague
+        ? Math.min(100, ((user.totalCoins - LEAGUE_THRESHOLDS[currentIdx].minCoins) / (nextLeague.minCoins - LEAGUE_THRESHOLDS[currentIdx].minCoins)) * 100)
+        : 100;
+
+      res.json({
+        leagues: LEAGUE_THRESHOLDS,
+        currentLeague,
+        currentMultiplier: getLeagueMultiplier(currentLeague),
+        totalCoins: user.totalCoins,
+        nextLeague: nextLeague ? { name: nextLeague.name, minCoins: nextLeague.minCoins, multiplier: nextLeague.payoutMultiplier } : null,
+        progress: Math.round(progress * 10) / 10,
+        coinsToNext: nextLeague ? Math.max(0, nextLeague.minCoins - user.totalCoins) : 0,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch league info" });
+    }
+  });
+
+  async function seedTasks() {
+    const taskDefinitions = [
+      { slug: "join-telegram", title: "Join Telegram Channel", description: "Join our official Telegram announcement channel", category: "social", taskType: "one_time", rewardCoins: 5000, requiredTier: null, link: "https://t.me/cryptogames", icon: "MessageCircle", sortOrder: 1 },
+      { slug: "follow-x", title: "Follow on X", description: "Follow our official X (Twitter) account", category: "social", taskType: "one_time", rewardCoins: 10000, requiredTier: null, link: "https://x.com/cryptogames", icon: "Twitter", sortOrder: 2 },
+      { slug: "subscribe-youtube", title: "Subscribe on YouTube", description: "Subscribe to our YouTube channel for tutorials and updates", category: "social", taskType: "one_time", rewardCoins: 15000, requiredTier: null, link: "https://youtube.com/@cryptogames", icon: "Youtube", sortOrder: 3 },
+      { slug: "verify-bronze", title: "Verify Bronze Status", description: "Subscribe to Bronze tier to unlock this exclusive bonus", category: "pro", taskType: "one_time", rewardCoins: 100000, requiredTier: "BRONZE", link: null, icon: "Shield", sortOrder: 4 },
+      { slug: "verify-silver", title: "Verify Silver Status", description: "Subscribe to Silver tier for a massive coin bonus", category: "pro", taskType: "one_time", rewardCoins: 250000, requiredTier: "SILVER", link: null, icon: "Crown", sortOrder: 5 },
+      { slug: "verify-gold", title: "Verify Gold Status", description: "Subscribe to Gold tier for the ultimate coin bonus", category: "pro", taskType: "one_time", rewardCoins: 500000, requiredTier: "GOLD", link: null, icon: "Star", sortOrder: 6 },
+      { slug: "daily-share", title: "Share Daily Winnings", description: "Share your daily winning screenshot on X", category: "daily", taskType: "daily", rewardCoins: 20000, requiredTier: null, link: null, icon: "Share2", sortOrder: 7 },
+      { slug: "daily-invite", title: "Invite 3 Friends", description: "Invite 3 friends to join today", category: "daily", taskType: "daily", rewardCoins: 50000, requiredTier: null, link: null, icon: "Users", sortOrder: 8 },
+      { slug: "daily-tap-1000", title: "Tap 1,000 Times", description: "Earn at least 1,000 coins from tapping today", category: "daily", taskType: "daily", rewardCoins: 5000, requiredTier: null, link: null, icon: "Coins", sortOrder: 9 },
+      { slug: "daily-prediction", title: "Make a Prediction", description: "Submit a BTC price prediction today", category: "daily", taskType: "daily", rewardCoins: 3000, requiredTier: null, link: null, icon: "TrendingUp", sortOrder: 10 },
+    ];
+
+    for (const t of taskDefinitions) {
+      await storage.upsertTask(t as any);
+    }
+    log("Task definitions seeded/updated");
+  }
+
   async function seedTiers() {
     try {
       const tierData = [
@@ -1522,6 +1781,7 @@ export async function registerRoutes(
   async function seedData() {
     try {
       await seedTiers();
+      await seedTasks();
 
       const existingUsers = await storage.getTopUsersByCoins(1);
       if (existingUsers.length > 0) return;

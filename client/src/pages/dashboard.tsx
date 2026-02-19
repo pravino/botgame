@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Coins, TrendingUp, CircleDot, Trophy, ArrowRight, Zap } from "lucide-react";
+import { Coins, TrendingUp, CircleDot, Trophy, ArrowRight, Zap, Medal, ClipboardList, Puzzle } from "lucide-react";
 import { formatNumber, formatUSD } from "@/lib/game-utils";
 import type { User } from "@shared/schema";
 
@@ -169,6 +169,56 @@ export default function Dashboard() {
             gradient="bg-gradient-to-br from-purple-500 to-pink-600"
             badge="Luck"
           />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">Earn More</h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Link href="/tasks" data-testid="link-tasks">
+            <Card className="hover-elevate active-elevate-2 cursor-pointer overflow-visible">
+              <CardContent className="p-4 flex items-center gap-3 flex-wrap">
+                <div className="p-2 rounded-md bg-chart-1/10 text-chart-1 shrink-0">
+                  <ClipboardList className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Tasks</p>
+                  <p className="text-xs text-muted-foreground">Social & daily tasks</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/combo" data-testid="link-daily-combo">
+            <Card className="hover-elevate active-elevate-2 cursor-pointer overflow-visible">
+              <CardContent className="p-4 flex items-center gap-3 flex-wrap">
+                <div className="p-2 rounded-md bg-chart-2/10 text-chart-2 shrink-0">
+                  <Puzzle className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Daily Combo</p>
+                  <p className="text-xs text-muted-foreground">Crack today's code</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/leagues" data-testid="link-leagues">
+            <Card className="hover-elevate active-elevate-2 cursor-pointer overflow-visible">
+              <CardContent className="p-4 flex items-center gap-3 flex-wrap">
+                <div className="p-2 rounded-md bg-chart-3/10 text-chart-3 shrink-0">
+                  <Medal className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Leagues</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(user as any)?.league || "BRONZE"} League
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
 

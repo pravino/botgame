@@ -16,6 +16,10 @@ import {
   type WithdrawalBatch,
   type SubscriptionAlert,
   type PaymentInvoice,
+  type Task,
+  type UserTask,
+  type DailyCombo,
+  type DailyComboAttempt,
   users,
   tapSessions,
   predictions,
@@ -32,6 +36,10 @@ import {
   withdrawalBatches,
   subscriptionAlerts,
   paymentInvoices,
+  tasks,
+  userTasks,
+  dailyCombos,
+  dailyComboAttempts,
 } from "@shared/schema";
 import { eq, desc, sql, and, gt, lte, lt, or, inArray, sum } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -707,6 +715,84 @@ export class DatabaseStorage {
       .from(paymentInvoices)
       .where(eq(paymentInvoices.userId, userId))
       .orderBy(desc(paymentInvoices.createdAt));
+  }
+
+  async getAllActiveTasks(): Promise<Task[]> {
+    return db.select().from(tasks).where(eq(tasks.active, true)).orderBy(tasks.sortOrder);
+  }
+
+  async getTaskBySlug(slug: string): Promise<Task | undefined> {
+    const [task] = await db.select().from(tasks).where(eq(tasks.slug, slug));
+    return task;
+  }
+
+  async getTaskById(id: string): Promise<Task | undefined> {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    return task;
+  }
+
+  async upsertTask(data: Omit<Task, "id" | "createdAt">): Promise<Task> {
+    const existing = await this.getTaskBySlug(data.slug);
+    if (existing) {
+      const [updated] = await db.update(tasks).set(data).where(eq(tasks.id, existing.id)).returning();
+      return updated;
+    }
+    const [task] = await db.insert(tasks).values(data).returning();
+    return task;
+  }
+
+  async getUserTaskCompletions(userId: string): Promise<UserTask[]> {
+    return db.select().from(userTasks).where(eq(userTasks.userId, userId)).orderBy(desc(userTasks.completedAt));
+  }
+
+  async hasUserCompletedTask(userId: string, taskId: string, date?: string): Promise<boolean> {
+    const conditions = [eq(userTasks.userId, userId), eq(userTasks.taskId, taskId)];
+    if (date) conditions.push(eq(userTasks.date, date));
+    const [existing] = await db.select().from(userTasks).where(and(...conditions));
+    return !!existing;
+  }
+
+  async completeTask(userId: string, taskId: string, date?: string): Promise<UserTask> {
+    const [ut] = await db.insert(userTasks).values({ userId, taskId, date: date || null }).returning();
+    return ut;
+  }
+
+  async getDailyComboForDate(date: string): Promise<DailyCombo | undefined> {
+    const [combo] = await db.select().from(dailyCombos).where(eq(dailyCombos.date, date));
+    return combo;
+  }
+
+  async createDailyCombo(data: { date: string; code: string; rewardCoins: number; hint?: string }): Promise<DailyCombo> {
+    const [combo] = await db.insert(dailyCombos).values(data).returning();
+    return combo;
+  }
+
+  async getUserComboAttempt(userId: string, comboId: string): Promise<DailyComboAttempt | undefined> {
+    const [attempt] = await db.select().from(dailyComboAttempts).where(
+      and(eq(dailyComboAttempts.userId, userId), eq(dailyComboAttempts.comboId, comboId))
+    );
+    return attempt;
+  }
+
+  async createOrUpdateComboAttempt(userId: string, comboId: string, solved: boolean): Promise<DailyComboAttempt> {
+    const existing = await this.getUserComboAttempt(userId, comboId);
+    if (existing) {
+      const updates: any = { attempts: sql`${dailyComboAttempts.attempts} + 1` };
+      if (solved) {
+        updates.solved = true;
+        updates.solvedAt = new Date();
+      }
+      const [updated] = await db.update(dailyComboAttempts).set(updates).where(eq(dailyComboAttempts.id, existing.id)).returning();
+      return updated;
+    }
+    const [attempt] = await db.insert(dailyComboAttempts).values({
+      userId,
+      comboId,
+      solved,
+      attempts: 1,
+      solvedAt: solved ? new Date() : null,
+    }).returning();
+    return attempt;
   }
 }
 
