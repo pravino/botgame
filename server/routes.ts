@@ -1752,6 +1752,12 @@ export async function registerRoutes(
       if (!existing.treasury_split) {
         await storage.setGlobalConfigValue("treasury_split", 0.60, "Game treasury share of subscription payments (0-1)");
       }
+      if (!existing.audit_delay_hours) {
+        await storage.setGlobalConfigValue("audit_delay_hours", 24, "Hours to hold withdrawals in audit before promoting to ready");
+      }
+      if (!existing.expiry_warning_hours) {
+        await storage.setGlobalConfigValue("expiry_warning_hours", 48, "Hours before subscription expiry to send warning notification");
+      }
 
       const allTiers = await storage.getAllTiers();
       for (const tier of allTiers) {

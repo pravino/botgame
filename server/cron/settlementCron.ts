@@ -139,9 +139,12 @@ export async function batchWithdrawalSettlement(): Promise<void> {
   try {
     log(`[Batch Settlement] Starting withdrawal batch processing`);
 
+    const globalConfig = await storage.getGlobalConfig();
+    const auditDelayHours = globalConfig.audit_delay_hours ?? 24;
+
     const pendingAudit = await storage.getPendingWithdrawals();
     const now = Date.now();
-    const auditPeriodMs = 24 * 60 * 60 * 1000;
+    const auditPeriodMs = auditDelayHours * 60 * 60 * 1000;
     let promoted = 0;
 
     for (const w of pendingAudit) {
@@ -161,7 +164,7 @@ export async function batchWithdrawalSettlement(): Promise<void> {
           balanceBefore: user?.walletBalance || 0,
           balanceAfter: user?.walletBalance || 0,
           refId: w.id,
-          note: `Withdrawal passed 24hr audit. Status: pending_audit -> ready. Net: $${w.netAmount} queued for batch payout.`,
+          note: `Withdrawal passed ${auditDelayHours}hr audit. Status: pending_audit -> ready. Net: $${w.netAmount} queued for batch payout.`,
         });
 
         promoted++;
@@ -228,16 +231,20 @@ export async function subscriberRetentionCheck(): Promise<void> {
     const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const TELEGRAM_GROUP_ID = process.env.TELEGRAM_GROUP_ID;
 
-    const expiringUsers = await storage.getExpiringSubscriptions(48);
+    const globalConfig = await storage.getGlobalConfig();
+    const expiryWarningHours = globalConfig.expiry_warning_hours ?? 48;
+
+    const expiringUsers = await storage.getExpiringSubscriptions(expiryWarningHours);
     let warningsSent = 0;
 
     for (const user of expiringUsers) {
-      const existingAlert = await storage.getExistingAlert(user.id, "expiry_warning_48h");
+      const alertType = `expiry_warning_${expiryWarningHours}h`;
+      const existingAlert = await storage.getExistingAlert(user.id, alertType);
       if (existingAlert) continue;
 
       await storage.createSubscriptionAlert({
         userId: user.id,
-        alertType: "expiry_warning_48h",
+        alertType,
       });
 
       await recordLedgerEntry({
@@ -248,7 +255,7 @@ export async function subscriberRetentionCheck(): Promise<void> {
         currency: "COINS",
         balanceBefore: user.totalCoins,
         balanceAfter: user.totalCoins,
-        note: `Subscription expiry warning: ${user.tier} expires in <48 hours. Renewal reminder sent.`,
+        note: `Subscription expiry warning: ${user.tier} expires in <${expiryWarningHours} hours. Renewal reminder sent.`,
       });
 
       if (TELEGRAM_BOT_TOKEN && TELEGRAM_GROUP_ID && user.telegramId) {
@@ -258,16 +265,16 @@ export async function subscriberRetentionCheck(): Promise<void> {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: user.telegramId,
-              text: `REMINDER: Your ${user.tier} subscription expires in less than 48 hours.\n\nRenew now to keep your ${user.totalCoins.toLocaleString()} coins and continue earning.\n\nDon't lose your spot!`,
+              text: `REMINDER: Your ${user.tier} subscription expires in less than ${expiryWarningHours} hours.\n\nRenew now to keep your ${user.totalCoins.toLocaleString()} coins and continue earning.\n\nDon't lose your spot!`,
               parse_mode: "HTML",
             }),
           });
-          log(`[Retention] Sent 48hr warning to user ${user.id} (${user.username})`);
+          log(`[Retention] Sent ${expiryWarningHours}hr warning to user ${user.id} (${user.username})`);
         } catch (e: any) {
           log(`[Retention] Failed to send Telegram message to ${user.id}: ${e.message}`);
         }
       } else {
-        log(`[Retention] 48hr warning flagged for user ${user.id} (${user.username}) — Telegram not configured`);
+        log(`[Retention] ${expiryWarningHours}hr warning flagged for user ${user.id} (${user.username}) — Telegram not configured`);
       }
 
       warningsSent++;
