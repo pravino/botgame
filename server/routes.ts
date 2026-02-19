@@ -5,7 +5,7 @@ import connectPgSimple from "connect-pg-simple";
 import { storage, db } from "./storage";
 import { users, referralMilestones } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
-import { sendOtpEmail } from "./email";
+import crypto from "crypto";
 import { log } from "./index";
 import { processSubscriptionPayment } from "./middleware/transactionSplit";
 import { getActivePools, getAllTierPools, expireStaleAllocations, processDailyDrip } from "./middleware/poolLogic";
@@ -31,8 +31,65 @@ async function getBtcPrice(): Promise<{ price: number; change24h: number }> {
   }
 }
 
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+const ALLOWED_TESTERS = (process.env.ALLOWED_TESTERS || "").split(",").map(t => t.trim()).filter(Boolean);
+
+function validateTelegramWebAppData(initData: string, botToken: string): { valid: boolean; user?: any } {
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get("hash");
+    if (!hash) return { valid: false };
+
+    params.delete("hash");
+    const entries = Array.from(params.entries());
+    entries.sort((a, b) => a[0].localeCompare(b[0]));
+    const dataCheckString = entries.map(([k, v]) => `${k}=${v}`).join("\n");
+
+    const secretKey = crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
+    const computedHash = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+
+    if (computedHash !== hash) return { valid: false };
+
+    const authDate = parseInt(params.get("auth_date") || "0", 10);
+    const now = Math.floor(Date.now() / 1000);
+    if (now - authDate > 86400) return { valid: false };
+
+    const userStr = params.get("user");
+    if (!userStr) return { valid: false };
+    return { valid: true, user: JSON.parse(userStr) };
+  } catch {
+    return { valid: false };
+  }
+}
+
+const WIDGET_FIELDS = new Set(["id", "first_name", "last_name", "username", "photo_url", "auth_date"]);
+
+function validateTelegramLoginWidget(data: Record<string, string>, botToken: string): boolean {
+  try {
+    const { hash } = data;
+    if (!hash) return false;
+
+    const filtered: Record<string, string> = {};
+    for (const key of Object.keys(data)) {
+      if (WIDGET_FIELDS.has(key)) filtered[key] = data[key];
+    }
+
+    const entries = Object.entries(filtered);
+    entries.sort((a, b) => a[0].localeCompare(b[0]));
+    const dataCheckString = entries.map(([k, v]) => `${k}=${v}`).join("\n");
+
+    const secretKey = crypto.createHash("sha256").update(botToken).digest();
+    const computedHash = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+
+    if (computedHash !== hash) return false;
+
+    const authDate = parseInt(filtered.auth_date || "0", 10);
+    const now = Math.floor(Date.now() / 1000);
+    if (now - authDate > 86400) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 declare module "express-session" {
@@ -204,67 +261,80 @@ export async function registerRoutes(
   }
 
   const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+  const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "").split(",").map(t => t.trim()).filter(Boolean);
 
   async function requireAdmin(req: Request, res: Response, next: Function) {
     if (!req.session.userId) {
       return res.status(401).json({ message: "Not authenticated" });
     }
     const user = await storage.getUser(req.session.userId);
-    if (!user || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+    if (!user) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    const isAdmin = ADMIN_EMAILS.includes(user.email.toLowerCase()) ||
+      (user.telegramId && ADMIN_TELEGRAM_IDS.includes(user.telegramId));
+    if (!isAdmin) {
       return res.status(403).json({ message: "Admin access required" });
     }
     next();
   }
 
-  app.post("/api/send-otp", async (req: Request, res: Response) => {
+  app.post("/api/auth/telegram", async (req: Request, res: Response) => {
     try {
-      const { email } = req.body;
-      if (!email || typeof email !== "string") {
-        return res.status(400).json({ message: "Email is required" });
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (!botToken) {
+        return res.status(500).json({ message: "Telegram bot not configured" });
       }
 
-      const trimmedEmail = email.trim().toLowerCase();
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmedEmail)) {
-        return res.status(400).json({ message: "Invalid email address" });
+      const { initData, widgetData, referralCode } = req.body;
+      let telegramUser: { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string } | null = null;
+
+      if (initData) {
+        const result = validateTelegramWebAppData(initData, botToken);
+        if (!result.valid || !result.user) {
+          return res.status(401).json({ message: "Invalid Telegram authentication" });
+        }
+        telegramUser = result.user;
+      } else if (widgetData) {
+        const valid = validateTelegramLoginWidget(widgetData, botToken);
+        if (!valid) {
+          return res.status(401).json({ message: "Invalid Telegram authentication" });
+        }
+        telegramUser = {
+          id: parseInt(widgetData.id, 10),
+          first_name: widgetData.first_name,
+          last_name: widgetData.last_name,
+          username: widgetData.username,
+          photo_url: widgetData.photo_url,
+        };
+      } else {
+        return res.status(400).json({ message: "Missing authentication data" });
       }
 
-      const code = "123456";
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-      await storage.createOtpCode(trimmedEmail, code, expiresAt);
-
-      res.json({ message: "OTP sent successfully" });
-    } catch (error: any) {
-      log(`Send OTP error: ${error.message}`);
-      res.status(500).json({ message: "Failed to send OTP" });
-    }
-  });
-
-  app.post("/api/verify-otp", async (req: Request, res: Response) => {
-    try {
-      const { email, code, username, referralCode } = req.body;
-      if (!email || !code) {
-        return res.status(400).json({ message: "Email and code are required" });
+      if (!telegramUser || !telegramUser.id) {
+        return res.status(400).json({ message: "Invalid user data" });
       }
 
-      const trimmedEmail = email.trim().toLowerCase();
-      const trimmedCode = code.trim();
+      const tgId = telegramUser.id.toString();
 
-      const otp = await storage.getValidOtp(trimmedEmail, trimmedCode);
-      if (!otp) {
-        return res.status(400).json({ message: "Invalid or expired code. Please try again." });
+      if (ALLOWED_TESTERS.length > 0 && !ALLOWED_TESTERS.includes(tgId)) {
+        return res.status(403).json({ message: "Access restricted during testing phase. Your Telegram ID is not whitelisted." });
       }
 
-      await storage.markOtpUsed(otp.id);
-
-      let user = await storage.getUserByEmail(trimmedEmail);
-      let isNewUser = false;
+      let user = await storage.getUserByTelegramId(tgId);
 
       if (!user) {
-        isNewUser = true;
-        const displayName = username?.trim().slice(0, 20) || trimmedEmail.split("@")[0];
-        user = await storage.createUser({ username: displayName, email: trimmedEmail });
+        const displayName = telegramUser.username || telegramUser.first_name || `User${tgId.slice(-4)}`;
+        const placeholderEmail = `tg_${tgId}@vault60.app`;
+
+        user = await storage.createUser({
+          username: displayName,
+          email: placeholderEmail,
+          telegramId: tgId,
+          telegramUsername: telegramUser.username || null,
+          telegramFirstName: telegramUser.first_name || null,
+          telegramPhotoUrl: telegramUser.photo_url || null,
+        } as any);
         await storage.generateReferralCode(user.id);
 
         if (referralCode && typeof referralCode === "string") {
@@ -274,6 +344,14 @@ export async function registerRoutes(
             log(`[Referral] New user ${user.id} referred by ${referrer.id} (code: ${referralCode})`);
           }
         }
+
+        log(`[Auth] New Telegram user: ${displayName} (${tgId})`);
+      } else {
+        await storage.updateUser(user.id, {
+          telegramUsername: telegramUser.username || user.telegramUsername,
+          telegramFirstName: telegramUser.first_name || user.telegramFirstName,
+          telegramPhotoUrl: telegramUser.photo_url || user.telegramPhotoUrl,
+        });
       }
 
       user = await refillUserResources(user);
@@ -281,9 +359,18 @@ export async function registerRoutes(
       req.session.userId = user!.id;
       res.json(user);
     } catch (error: any) {
-      log(`Verify OTP error: ${error.message}`);
-      res.status(500).json({ message: "Failed to verify OTP" });
+      log(`Telegram auth error: ${error.message}`);
+      res.status(500).json({ message: "Authentication failed" });
     }
+  });
+
+  app.get("/api/auth/telegram/bot-info", (_req: Request, res: Response) => {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      return res.status(500).json({ message: "Bot not configured" });
+    }
+    const botUsername = "Vault60Bot";
+    res.json({ botUsername });
   });
 
   app.get("/api/user", requireAuth, async (req: Request, res: Response) => {

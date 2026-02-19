@@ -68,6 +68,11 @@ export class DatabaseStorage {
     return user;
   }
 
+  async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.telegramId, telegramId));
+    return user;
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
@@ -181,29 +186,7 @@ export class DatabaseStorage {
       .orderBy(desc(wheelSpins.createdAt));
   }
 
-  async createOtpCode(email: string, code: string, expiresAt: Date): Promise<OtpCode> {
-    const [otp] = await db.insert(otpCodes).values({ email, code, expiresAt }).returning();
-    return otp;
-  }
-
-  async getValidOtp(email: string, code: string): Promise<OtpCode | undefined> {
-    const [otp] = await db
-      .select()
-      .from(otpCodes)
-      .where(
-        and(
-          eq(otpCodes.email, email),
-          eq(otpCodes.code, code),
-          eq(otpCodes.used, false),
-          gt(otpCodes.expiresAt, new Date())
-        )
-      );
-    return otp;
-  }
-
-  async markOtpUsed(id: string): Promise<void> {
-    await db.update(otpCodes).set({ used: true }).where(eq(otpCodes.id, id));
-  }
+  // OTP methods removed — auth now uses Telegram
 
   async createDeposit(data: { userId: string; amount: number; network: string; txHash?: string }): Promise<Deposit> {
     const [deposit] = await db.insert(deposits).values(data).returning();

@@ -1,12 +1,13 @@
 # Crypto Games Platform
 
 ## Overview
-A gamified crypto-themed web application offering three mini-games, a wallet/deposit system, email authentication, and competitive leaderboards. The platform aims to engage users with virtual rewards through interactive games like coin tapping, Bitcoin price prediction, and a lucky wheel. It supports USDT deposits on TON and TRC-20 networks and focuses on a secure, scalable, and engaging user experience in the crypto gaming space. The project envisions significant market potential by combining popular gaming mechanics with cryptocurrency, fostering a vibrant community around play-to-earn principles.
+A gamified crypto-themed web application offering three mini-games, a wallet/deposit system, Telegram authentication, and competitive leaderboards. The platform aims to engage users with virtual rewards through interactive games like coin tapping, Bitcoin price prediction, and a lucky wheel. It supports USDT deposits on TON and TRC-20 networks and focuses on a secure, scalable, and engaging user experience in the crypto gaming space. The project envisions significant market potential by combining popular gaming mechanics with cryptocurrency, fostering a vibrant community around play-to-earn principles.
 
 ## User Preferences
-- OTP hardcoded to "123456" during testing phase
 - Deposit addresses are placeholders until real payment gateway is integrated
 - Dark mode preferred as default theme
+- ALLOWED_TESTERS env var restricts login to whitelisted Telegram IDs during testing
+- ADMIN_TELEGRAM_IDS env var for admin access by Telegram ID (alongside ADMIN_EMAILS)
 
 ## System Architecture
 The application is built with a modern web stack, featuring a React + TypeScript frontend utilizing TailwindCSS, shadcn/ui, and Framer Motion for a responsive and animated user interface. The backend is an Express.js server employing session-based authentication. Data persistence is handled by PostgreSQL with Drizzle ORM, with Neon for production hosting.
@@ -20,7 +21,7 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - A consistent card-based layout is used across all pages for a unified look and feel.
 
 **Technical Implementations:**
-- **Authentication**: Email-based OTP authentication (6-digit code, 10-minute expiry), with new users automatically provisioned.
+- **Authentication**: Telegram-based authentication supporting both Mini App (WebApp initData with HMAC verification) and browser Login Widget. New users are auto-provisioned with Telegram profile data. ALLOWED_TESTERS env var gates access during testing.
 - **Gamification**:
     - **Tap-to-Earn**: Coin tapping with an energy system (refills every 24 hours, visual animations). Features a multiplier upgrade system where users spend in-game currency to increase their tap multiplier.
     - **Price Prediction**: Users predict BTC price movement, with results resolving after 12 hours based on real-time data. Submissions are locked at 12:00 UTC daily to prevent last-minute sniping.
