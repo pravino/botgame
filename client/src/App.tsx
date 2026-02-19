@@ -20,6 +20,7 @@ import SubscriptionPage from "@/pages/subscription";
 import Tasks from "@/pages/tasks";
 import DailyCombo from "@/pages/daily-combo";
 import Leagues from "@/pages/leagues";
+import Referrals from "@/pages/referrals";
 import type { User } from "@shared/schema";
 
 function Router() {
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/wallet" component={WalletPage} />
       <Route path="/subscription" component={SubscriptionPage} />
       <Route path="/leaderboard" component={Leaderboard} />
+      <Route path="/referrals" component={Referrals} />
       <Route component={NotFound} />
     </Switch>
   );

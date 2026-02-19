@@ -190,6 +190,11 @@ export async function processSubscriptionPayment(
   const spinTicketsForTier = await getSpinAllocation(normalizedTier);
 
   const subscriptionExpiry = new Date(now.getTime() + DRIP_DAYS * 24 * 60 * 60 * 1000);
+  const wheelUnlockConfig: Record<string, boolean> = {};
+  if (normalizedTier === "GOLD") {
+    wheelUnlockConfig.wheelUnlocked = true;
+  }
+
   await storage.updateUser(userId, {
     tier: normalizedTier,
     subscriptionExpiry,
@@ -197,6 +202,7 @@ export async function processSubscriptionPayment(
     isFounder: isFounder || undefined,
     spinTickets: spinTicketsForTier,
     spinTicketsExpiry: expiryDate,
+    ...wheelUnlockConfig,
   });
 
   log(`User ${userId}: ${normalizedTier} tier activated (Founder: ${isFounder}), ${spinTicketsForTier} spin tickets granted, expires ${subscriptionExpiry.toISOString()}`);

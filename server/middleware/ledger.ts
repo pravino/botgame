@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { db, storage } from "../storage";
 import { userLedger } from "@shared/schema";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, and } from "drizzle-orm";
 
 export type LedgerEntryType =
   | "tap_earn"
@@ -24,6 +24,8 @@ export type LedgerEntryType =
   | "energy_refill"
   | "bonus"
   | "referral_bonus"
+  | "referral_reward"
+  | "referral_milestone_bonus"
   | "tier_upgrade"
   | "tier_downgrade"
   | "refund"
@@ -126,6 +128,15 @@ export async function recordLedgerEntry(input: LedgerInput, txClient?: any): Pro
     .update(userLedger)
     .set({ entryHash })
     .where(eq(userLedger.id, inserted.id));
+}
+
+export async function ledgerEntryExists(userId: string, refId: string): Promise<boolean> {
+  const result = await db
+    .select({ id: userLedger.id })
+    .from(userLedger)
+    .where(and(eq(userLedger.userId, userId), eq(userLedger.refId, refId)))
+    .limit(1);
+  return result.length > 0;
 }
 
 export async function getUserLedger(userId: string, limit = 50) {

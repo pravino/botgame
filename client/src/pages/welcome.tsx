@@ -11,6 +11,7 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
   const [step, setStep] = useState<"email" | "otp">("email");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const { toast } = useToast();
@@ -37,7 +38,7 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
   });
 
   const verifyOtpMutation = useMutation({
-    mutationFn: async (data: { email: string; code: string; username: string }) => {
+    mutationFn: async (data: { email: string; code: string; username: string; referralCode?: string }) => {
       const res = await apiRequest("POST", "/api/verify-otp", data);
       return res.json();
     },
@@ -103,7 +104,7 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
     if (code.length === 6 && !submitOtpRef.current) {
       submitOtpRef.current = true;
       verifyOtpMutation.mutate(
-        { email: email.trim().toLowerCase(), code, username: username.trim() },
+        { email: email.trim().toLowerCase(), code, username: username.trim(), referralCode: referralCode.trim().toUpperCase() || undefined },
         { onSettled: () => { submitOtpRef.current = false; } }
       );
     }
@@ -175,6 +176,16 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
                     placeholder="Optional nickname"
                     maxLength={20}
                     data-testid="input-username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Referral code <span className="text-muted-foreground font-normal">(optional)</span></label>
+                  <Input
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    placeholder="e.g. REF12ABC"
+                    maxLength={20}
+                    data-testid="input-referral-code"
                   />
                 </div>
                 <Button

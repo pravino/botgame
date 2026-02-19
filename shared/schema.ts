@@ -35,6 +35,10 @@ export const users = pgTable("users", {
   subscriptionExpiry: timestamp("subscription_expiry"),
   subscriptionStartedAt: timestamp("subscription_started_at"),
   isFounder: boolean("is_founder").notNull().default(false),
+  referralCode: text("referral_code").unique(),
+  referredBy: varchar("referred_by"),
+  wheelUnlocked: boolean("wheel_unlocked").notNull().default(false),
+  totalReferralEarnings: real("total_referral_earnings").notNull().default(0),
   tonWalletAddress: text("ton_wallet_address"),
   telegramId: text("telegram_id").unique(),
   telegramUsername: text("telegram_username"),
@@ -278,6 +282,18 @@ export const dailyComboAttempts = pgTable("daily_combo_attempts", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const referralMilestones = pgTable("referral_milestones", {
+  id: serial("id").primaryKey(),
+  friendsRequired: integer("friends_required").notNull(),
+  label: text("label").notNull(),
+  usdtPerFriend: real("usdt_per_friend").notNull().default(1),
+  bonusUsdt: real("bonus_usdt").notNull().default(0),
+  unlocksWheel: boolean("unlocks_wheel").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export const globalConfig = pgTable("global_config", {
   id: serial("id").primaryKey(),
   key: text("key").notNull().unique(),
@@ -348,3 +364,4 @@ export type DailyCombo = typeof dailyCombos.$inferSelect;
 export type DailyComboAttempt = typeof dailyComboAttempts.$inferSelect;
 export type GlobalConfig = typeof globalConfig.$inferSelect;
 export type TierRollover = typeof tierRollovers.$inferSelect;
+export type ReferralMilestone = typeof referralMilestones.$inferSelect;

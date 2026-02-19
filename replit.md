@@ -30,6 +30,16 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - **Subscription System**: Tiered subscription plans (Free, Bronze, Silver, Gold) with different benefits and a sandbox payment flow via TON Pay. Features a "No-Overlap Rule" for multiplier upgrades ensuring higher tiers always offer better progression.
 - **Energy System**: A hybrid energy system combining passive regeneration with a "Full Tank" rolling cooldown refill mechanism, tiered for subscribers.
 - **Proof of Humanity**: A "Spatial Tap Challenge" triggers periodically to mitigate bot activity, requiring quick user interaction.
+- **Referral System**: Referral-gated wheel unlock with milestone rewards, fully DB-driven.
+    - Auto-generated referral codes (REF{userId}{random}) on user creation.
+    - Referral code input on signup (welcome page).
+    - Wheel unlock gates per tier: Bronze=5 paid friends, Silver=2, Gold=0 (instant, stored in `global_config`).
+    - Milestone rewards defined in `referral_milestones` table: 1 friend=$1, 3 friends=$5, 5 friends=$10+unlock, 50 friends=$100.
+    - Per-friend USDT reward ($1) credited on each paid subscription.
+    - Milestone checker triggers on subscription payment, awards bonuses + wallet credits via ledger.
+    - Frontend: `/referrals` page with code sharing, progress bar, milestone tracker, squad list.
+    - Wheel page shows referral lock overlay with progress when locked for paid subscribers.
+    - Referral leaderboard endpoint at `/api/leaderboard/referrals`.
 - **Database Migrations**: Drizzle ORM handles automated database schema synchronization on server startup.
 
 **System Design Choices:**

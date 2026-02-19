@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { storage, db } from "./storage";
-import { users } from "@shared/schema";
+import { users, referralMilestones } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
 import { sendOtpEmail } from "./email";
 import { log } from "./index";
@@ -13,6 +13,7 @@ import { recordLedgerEntry, getUserLedger, verifyLedgerIntegrity } from "./middl
 import { runGuardianChecks, updateCoinsSinceChallenge, resolveChallenge, checkWalletUnique, detectBotPattern } from "./middleware/guardian";
 import { midnightPulse, batchWithdrawalSettlement, subscriberRetentionCheck } from "./cron/settlementCron";
 import { getValidatedBTCPrice, isPriceFrozen } from "./services/priceService";
+import { getWheelAccessStatus, checkAndAwardMilestones } from "./services/referralTracker";
 import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
@@ -241,7 +242,7 @@ export async function registerRoutes(
 
   app.post("/api/verify-otp", async (req: Request, res: Response) => {
     try {
-      const { email, code, username } = req.body;
+      const { email, code, username, referralCode } = req.body;
       if (!email || !code) {
         return res.status(400).json({ message: "Email and code are required" });
       }
@@ -257,10 +258,21 @@ export async function registerRoutes(
       await storage.markOtpUsed(otp.id);
 
       let user = await storage.getUserByEmail(trimmedEmail);
+      let isNewUser = false;
 
       if (!user) {
+        isNewUser = true;
         const displayName = username?.trim().slice(0, 20) || trimmedEmail.split("@")[0];
         user = await storage.createUser({ username: displayName, email: trimmedEmail });
+        await storage.generateReferralCode(user.id);
+
+        if (referralCode && typeof referralCode === "string") {
+          const referrer = await storage.getUserByReferralCode(referralCode.trim().toUpperCase());
+          if (referrer && referrer.id !== user.id) {
+            await storage.updateUser(user.id, { referredBy: referrer.id });
+            log(`[Referral] New user ${user.id} referred by ${referrer.id} (code: ${referralCode})`);
+          }
+        }
       }
 
       user = await refillUserResources(user);
@@ -725,6 +737,15 @@ export async function registerRoutes(
 
   app.post("/api/spin", requireAuth, async (req: Request, res: Response) => {
     try {
+      const preUser = await storage.getUser(req.session.userId!);
+      const isPaidPreCheck = preUser && preUser.tier !== "FREE" && preUser.subscriptionExpiry && new Date(preUser.subscriptionExpiry) > new Date();
+      if (isPaidPreCheck) {
+        const access = await getWheelAccessStatus(req.session.userId!);
+        if (access.locked) {
+          return res.status(403).json({ message: access.message, locked: true, referralCount: access.referralCount, requiredCount: access.requiredCount });
+        }
+      }
+
       const result = await spinWheel(req.session.userId!);
 
       const user = await storage.getUser(req.session.userId!);
@@ -755,6 +776,74 @@ export async function registerRoutes(
       res.json(history);
     } catch (error) {
       res.status(500).json({ message: "Failed to get wheel history" });
+    }
+  });
+
+  app.get("/api/wheel-status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const status = await getWheelAccessStatus(req.session.userId!);
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get wheel status" });
+    }
+  });
+
+  app.get("/api/referral-status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      if (!user.referralCode) {
+        await storage.generateReferralCode(user.id);
+      }
+      const updatedUser = await storage.getUser(user.id);
+
+      const paidCount = await storage.getPaidReferralCount(user.id);
+      const referred = await storage.getReferredUsers(user.id);
+      const milestones = await storage.getAllMilestones();
+      const wheelStatus = await getWheelAccessStatus(user.id);
+
+      const reachedMilestones = milestones.filter(m => paidCount >= m.friendsRequired);
+      const nextMilestone = milestones.find(m => paidCount < m.friendsRequired);
+
+      res.json({
+        referralCode: updatedUser?.referralCode || "",
+        paidReferralCount: paidCount,
+        totalReferrals: referred.length,
+        totalReferralEarnings: updatedUser?.totalReferralEarnings || 0,
+        wheelUnlocked: updatedUser?.wheelUnlocked || false,
+        wheelStatus,
+        milestones: milestones.map(m => ({
+          ...m,
+          reached: paidCount >= m.friendsRequired,
+        })),
+        reachedCount: reachedMilestones.length,
+        nextMilestone: nextMilestone ? {
+          label: nextMilestone.label,
+          friendsRequired: nextMilestone.friendsRequired,
+          remaining: nextMilestone.friendsRequired - paidCount,
+          bonusUsdt: nextMilestone.bonusUsdt,
+          unlocksWheel: nextMilestone.unlocksWheel,
+        } : null,
+        squad: referred.slice(0, 20).map(r => ({
+          username: r.username,
+          tier: r.tier,
+          isPaid: r.subscriptionExpiry ? new Date(r.subscriptionExpiry) > new Date() : false,
+          joinedAt: r.subscriptionStartedAt,
+        })),
+      });
+    } catch (error: any) {
+      log(`Referral status error: ${error.message}`);
+      res.status(500).json({ message: "Failed to get referral status" });
+    }
+  });
+
+  app.get("/api/leaderboard/referrals", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const topReferrers = await storage.getTopReferrers(20);
+      res.json(topReferrers);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get referral leaderboard" });
     }
   });
 
@@ -1249,6 +1338,15 @@ export async function registerRoutes(
         verifiedAmount
       );
 
+      const paidUser = await storage.getUser(req.session.userId!);
+      if (paidUser?.referredBy) {
+        try {
+          await checkAndAwardMilestones(paidUser.referredBy, paidUser.id);
+        } catch (err: any) {
+          log(`Referral milestone check error after subscription: ${err.message}`);
+        }
+      }
+
       res.json(result);
     } catch (error: any) {
       log(`Subscription error: ${error.message}`);
@@ -1735,6 +1833,15 @@ export async function registerRoutes(
       if (!existing.spins_gold) {
         await storage.setGlobalConfigValue("spins_gold", 40, "Monthly spin allocation for Gold tier subscribers");
       }
+      if (!existing.wheel_unlock_bronze) {
+        await storage.setGlobalConfigValue("wheel_unlock_bronze", 5, "Paid referrals required for Bronze to unlock wheel");
+      }
+      if (!existing.wheel_unlock_silver) {
+        await storage.setGlobalConfigValue("wheel_unlock_silver", 2, "Paid referrals required for Silver to unlock wheel");
+      }
+      if (!existing.wheel_unlock_gold) {
+        await storage.setGlobalConfigValue("wheel_unlock_gold", 0, "Paid referrals required for Gold to unlock wheel (0 = instant)");
+      }
 
       const allTiers = await storage.getAllTiers();
       for (const tier of allTiers) {
@@ -1751,11 +1858,33 @@ export async function registerRoutes(
     }
   }
 
+  async function seedReferralMilestones() {
+    try {
+      const existing = await storage.getAllMilestones();
+      if (existing.length > 0) return;
+
+      const milestones = [
+        { friendsRequired: 1, label: "Bronze Scout", usdtPerFriend: 1, bonusUsdt: 0, unlocksWheel: false, sortOrder: 1 },
+        { friendsRequired: 3, label: "Bronze Captain", usdtPerFriend: 1, bonusUsdt: 2, unlocksWheel: false, sortOrder: 2 },
+        { friendsRequired: 5, label: "Bronze Legend", usdtPerFriend: 1, bonusUsdt: 0, unlocksWheel: true, sortOrder: 3 },
+        { friendsRequired: 50, label: "Whale Recruiter", usdtPerFriend: 1, bonusUsdt: 50, unlocksWheel: false, sortOrder: 4 },
+      ];
+
+      for (const m of milestones) {
+        await db.insert(referralMilestones).values(m);
+      }
+      log("Referral milestones seeded");
+    } catch (error: any) {
+      log(`Referral milestones seed error: ${error.message}`);
+    }
+  }
+
   async function seedData() {
     try {
       await seedTiers();
       await seedTasks();
       await seedGlobalConfig();
+      await seedReferralMilestones();
 
       const existingUsers = await storage.getTopUsersByCoins(1);
       if (existingUsers.length > 0) return;

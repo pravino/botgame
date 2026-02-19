@@ -22,6 +22,7 @@ import {
   type DailyComboAttempt,
   type GlobalConfig,
   type TierRollover,
+  type ReferralMilestone,
   users,
   tapSessions,
   predictions,
@@ -44,6 +45,7 @@ import {
   dailyComboAttempts,
   globalConfig,
   tierRollovers,
+  referralMilestones,
 } from "@shared/schema";
 import { eq, desc, sql, and, gt, lte, lt, or, inArray, sum } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -878,6 +880,55 @@ export class DatabaseStorage {
       );
 
     return winners.map(w => ({ userId: w.userId, predictionId: w.id }));
+  }
+
+  async generateReferralCode(userId: string): Promise<string> {
+    const code = `REF${userId.slice(0, 4).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    await db.update(users).set({ referralCode: code }).where(eq(users.id, userId));
+    return code;
+  }
+
+  async getUserByReferralCode(code: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.referralCode, code));
+    return user;
+  }
+
+  async getPaidReferralCount(userId: string): Promise<number> {
+    const referred = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.referredBy, userId),
+          gt(users.subscriptionExpiry, new Date())
+        )
+      );
+    return referred.length;
+  }
+
+  async getReferredUsers(userId: string): Promise<User[]> {
+    return db.select().from(users).where(eq(users.referredBy, userId)).orderBy(desc(users.subscriptionStartedAt));
+  }
+
+  async getAllMilestones(): Promise<ReferralMilestone[]> {
+    return db.select().from(referralMilestones).where(eq(referralMilestones.active, true)).orderBy(referralMilestones.sortOrder);
+  }
+
+  async getTopReferrers(limit = 20): Promise<Array<{ id: string; username: string; referralCount: number }>> {
+    const result = await db.execute(sql`
+      SELECT u.id, u.username, COUNT(r.id)::int AS referral_count
+      FROM users u
+      JOIN users r ON r.referred_by = u.id
+      WHERE r.subscription_expiry > NOW()
+      GROUP BY u.id, u.username
+      ORDER BY referral_count DESC
+      LIMIT ${limit}
+    `);
+    return ((result as any)?.rows || []).map((r: any) => ({
+      id: r.id,
+      username: r.username,
+      referralCount: parseInt(r.referral_count) || 0,
+    }));
   }
 
   async getRecentlyResolvedCorrectPredictions(tierName: string): Promise<Array<{ userId: string; predictionId: string }>> {

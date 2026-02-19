@@ -328,6 +328,17 @@ async function baselineSync(pool: pg.Pool) {
       "created_at" timestamp DEFAULT now() NOT NULL,
       CONSTRAINT "daily_combos_date_unique" UNIQUE("date")
     )`,
+    `CREATE TABLE IF NOT EXISTS "referral_milestones" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "friends_required" integer NOT NULL,
+      "label" text NOT NULL,
+      "usdt_per_friend" real DEFAULT 1 NOT NULL,
+      "bonus_usdt" real DEFAULT 0 NOT NULL,
+      "unlocks_wheel" boolean DEFAULT false NOT NULL,
+      "sort_order" integer DEFAULT 0 NOT NULL,
+      "active" boolean DEFAULT true NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    )`,
     `CREATE TABLE IF NOT EXISTS "daily_combo_attempts" (
       "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
       "user_id" varchar NOT NULL,
@@ -363,6 +374,10 @@ async function baselineSync(pool: pg.Pool) {
     `ALTER TABLE "tiers" ADD COLUMN IF NOT EXISTS "free_refills_per_day" integer DEFAULT 0 NOT NULL`,
     `ALTER TABLE "tiers" ADD COLUMN IF NOT EXISTS "refill_cooldown_ms" integer`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "league" text DEFAULT 'BRONZE' NOT NULL`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referral_code" text`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referred_by" varchar`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "wheel_unlocked" boolean DEFAULT false NOT NULL`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "total_referral_earnings" real DEFAULT 0 NOT NULL`,
   ];
 
   for (const sql of statements) {

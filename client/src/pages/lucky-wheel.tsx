@@ -4,12 +4,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CircleDot, Gift, History, Lock, ArrowUpCircle } from "lucide-react";
+import { CircleDot, Gift, History, Lock, ArrowUpCircle, Users, Share2 } from "lucide-react";
 import { formatUSD, WHEEL_SLICES } from "@/lib/game-utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import type { WheelSpin, User } from "@shared/schema";
+
+type WheelStatus = {
+  locked: boolean;
+  referralCount: number;
+  requiredCount: number;
+  message: string;
+};
 
 const SLICE_COUNT = WHEEL_SLICES.length;
 const SLICE_ANGLE = 360 / SLICE_COUNT;
@@ -31,9 +38,14 @@ export default function LuckyWheel() {
     queryKey: ["/api/wheel-history"],
   });
 
+  const { data: wheelStatus } = useQuery<WheelStatus>({
+    queryKey: ["/api/wheel-status"],
+  });
+
   const isFree = !user || user.tier === "FREE" || !user.subscriptionExpiry || new Date(user.subscriptionExpiry) <= new Date();
   const isPaidTier = !isFree;
   const availableSpins = isPaidTier ? (user?.spinTickets ?? 0) : (user?.spinsRemaining ?? 0);
+  const wheelLocked = wheelStatus?.locked === true;
 
   const spinMutation = useMutation({
     mutationFn: async () => {
@@ -88,7 +100,7 @@ export default function LuckyWheel() {
   });
 
   const handleSpin = () => {
-    if (spinning || availableSpins <= 0) return;
+    if (spinning || availableSpins <= 0 || wheelLocked) return;
     setLastWin(null);
     setShowLockedPopup(false);
     spinMutation.mutate();
@@ -185,10 +197,46 @@ export default function LuckyWheel() {
         </div>
       </div>
 
+      {wheelLocked && wheelStatus && (
+        <Card className="border-primary/50">
+          <CardContent className="p-5 text-center space-y-3">
+            <Lock className="h-8 w-8 text-primary mx-auto" />
+            <p className="text-lg font-bold" data-testid="text-wheel-locked">
+              Wheel Locked
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {wheelStatus.message}
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm">
+                <span className="font-semibold text-primary">{wheelStatus.referralCount}</span>
+                {" / "}
+                <span>{wheelStatus.requiredCount}</span>
+                {" paid referrals"}
+              </span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-primary h-full rounded-full transition-all"
+                style={{ width: `${Math.min(100, (wheelStatus.referralCount / wheelStatus.requiredCount) * 100)}%` }}
+              />
+            </div>
+            <Button
+              onClick={() => navigate("/referrals")}
+              data-testid="button-invite-friends"
+            >
+              <Share2 className="h-4 w-4 mr-2" />
+              Invite Friends to Unlock
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex justify-center">
         <Button
           onClick={handleSpin}
-          disabled={spinning || availableSpins <= 0}
+          disabled={spinning || availableSpins <= 0 || wheelLocked}
           className="px-8"
           data-testid="button-spin"
         >
@@ -196,6 +244,11 @@ export default function LuckyWheel() {
             <span className="flex items-center gap-2">
               <CircleDot className="h-4 w-4 animate-spin" />
               Spinning...
+            </span>
+          ) : wheelLocked ? (
+            <span className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              Locked — Invite Friends
             </span>
           ) : (
             <span className="flex items-center gap-2">
