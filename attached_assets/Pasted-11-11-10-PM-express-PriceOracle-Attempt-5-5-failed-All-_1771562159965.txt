@@ -1,0 +1,112 @@
+11:11:10 PM [express] [PriceOracle] Attempt 5/5 failed: All price sources unavailable
+11:11:10 PM [express] [PriceOracle] FREEZE ACTIVATED: Prediction payouts frozen until price is verified.
+11:11:10 PM [express] [Oracle] CRITICAL: BTC price freeze failed. Settlement aborted. Error: BTC Price Settlement Delayed: all oracle sources failed after retries. Payouts frozen until price is verified.
+11:11:10 PM [express] [Oracle] Settlement error: Oracle settlement aborted: BTC price unavailable
+11:14:40 PM [express] [PriceOracle] Retry attempt 4 after 30000ms
+11:14:34 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:14:34 PM [express] [PriceOracle] Attempt 1/5 failed: All price sources unavailable
+11:14:34 PM [express] [PriceOracle] Retry attempt 2 after 1000ms
+11:14:35 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:14:35 PM [express] [PriceOracle] Attempt 2/5 failed: All price sources unavailable
+11:14:35 PM [express] [PriceOracle] Retry attempt 3 after 5000ms
+11:14:40 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:14:40 PM [express] [PriceOracle] Attempt 3/5 failed: All price sources unavailable
+11:15:10 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:15:10 PM [express] [PriceOracle] Attempt 4/5 failed: All price sources unavailable
+11:15:10 PM [express] [PriceOracle] Retry attempt 5 after 60000ms
+11:16:10 PM [express] [Oracle] Settlement error: Oracle settlement aborted: BTC price unavailable
+11:16:10 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:16:10 PM [express] [PriceOracle] Attempt 5/5 failed: All price sources unavailable
+11:16:10 PM [express] [PriceOracle] FREEZE ACTIVATED: Prediction payouts frozen until price is verified.
+11:16:10 PM [express] [Oracle] CRITICAL: BTC price freeze failed. Settlement aborted. Error: BTC Price Settlement Delayed: all oracle sources failed after retries. Payouts frozen until price is verified.
+11:19:34 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:19:34 PM [express] [PriceOracle] Attempt 1/5 failed: All price sources unavailable
+11:19:34 PM [express] [PriceOracle] Retry attempt 2 after 1000ms
+11:19:35 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:19:35 PM [express] [PriceOracle] Attempt 2/5 failed: All price sources unavailable
+11:19:35 PM [express] [PriceOracle] Retry attempt 3 after 5000ms
+11:19:40 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:19:40 PM [express] [PriceOracle] Attempt 3/5 failed: All price sources unavailable
+11:19:40 PM [express] [PriceOracle] Retry attempt 4 after 30000ms
+11:20:10 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:20:10 PM [express] [PriceOracle] Attempt 4/5 failed: All price sources unavailable
+11:20:10 PM [express] [PriceOracle] Retry attempt 5 after 60000ms
+11:21:10 PM [express] [PriceOracle] 2 source(s) failed: Binance ticker HTTP 451; CMC API key not configured
+11:21:10 PM [express] [PriceOracle] BTC $66869 (coingecko)
+11:21:10 PM [express] [PriceOracle] FREEZE LIFTED: Price verified, payouts can resume.
+11:21:10 PM [express] [Oracle] Locked BTC price at $66869 via coingecko
+11:21:11 PM [express] [Oracle] BTC result determined: FLAT (0 higher, 0 lower correct predictions)
+11:21:11 PM [express] [Oracle] BRONZE: No winners. $3.5970 rolled over to next settlement.
+11:21:11 PM [express] [Telegram] News channel ID not configured — skipping
+11:21:12 PM [express] [Oracle] SILVER: No pot to distribute (0 active users or 0 daily unit)
+11:21:12 PM [express] [Oracle] GOLD: No pot to distribute (0 active users or 0 daily unit)
+11:21:12 PM [express] [Oracle] Settlement complete. Total distributed: $0.0000
+11:21:12 PM [express] [Oracle] Settlement run complete: FLAT, $0.0000 distributed across 3 tiers
+11:24:35 PM [express] [PriceOracle] Attempt 2/5 failed: All price sources unavailable
+11:24:35 PM [express] [PriceOracle] Retry attempt 3 after 5000ms
+11:24:34 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:24:34 PM [express] [PriceOracle] Attempt 1/5 failed: All price sources unavailable
+11:24:34 PM [express] [PriceOracle] Retry attempt 2 after 1000ms
+11:24:35 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:24:40 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:24:40 PM [express] [PriceOracle] Attempt 3/5 failed: All price sources unavailable
+11:24:40 PM [express] [PriceOracle] Retry attempt 4 after 30000ms
+11:25:10 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:25:10 PM [express] [PriceOracle] Attempt 4/5 failed: All price sources unavailable
+11:25:10 PM [express] [PriceOracle] Retry attempt 5 after 60000ms
+11:26:10 PM [express] [Oracle] Settlement error: Oracle settlement aborted: BTC price unavailable
+11:26:10 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:26:10 PM [express] [PriceOracle] Attempt 5/5 failed: All price sources unavailable
+11:26:10 PM [express] [PriceOracle] FREEZE ACTIVATED: Prediction payouts frozen until price is verified.
+11:26:10 PM [express] [Oracle] CRITICAL: BTC price freeze failed. Settlement aborted. Error: BTC Price Settlement Delayed: all oracle sources failed after retries. Payouts frozen until price is verified.
+11:29:34 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:29:34 PM [express] [PriceOracle] Attempt 1/5 failed: All price sources unavailable
+11:29:34 PM [express] [PriceOracle] Retry attempt 2 after 1000ms
+11:29:35 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:29:35 PM [express] [PriceOracle] Attempt 2/5 failed: All price sources unavailable
+11:29:35 PM [express] [PriceOracle] Retry attempt 3 after 5000ms
+11:29:40 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:29:40 PM [express] [PriceOracle] Attempt 3/5 failed: All price sources unavailable
+11:29:40 PM [express] [PriceOracle] Retry attempt 4 after 30000ms
+11:30:00 PM [express] [Telegram] Apex group ID not configured — skipping
+11:30:00 PM [express] [Telegram] Lobby group ID not configured — skipping
+11:30:00 PM [express] [Promo] Last Call (11:30PM UTC) sent successfully
+11:30:00 PM [express] [Promo] Last Call (11:30PM UTC) scheduled for Fri, 20 Feb 2026 23:30:00 GMT (1440 min from now)
+11:30:00 PM [express] [Telegram] News channel ID not configured — skipping
+11:30:10 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:30:10 PM [express] [PriceOracle] Attempt 4/5 failed: All price sources unavailable
+11:30:10 PM [express] [PriceOracle] Retry attempt 5 after 60000ms
+11:31:10 PM [express] [PriceOracle] 2 source(s) failed: Binance ticker HTTP 451; CMC API key not configured
+11:31:10 PM [express] [PriceOracle] BTC $66941 (coingecko)
+11:31:10 PM [express] [PriceOracle] FREEZE LIFTED: Price verified, payouts can resume.
+11:31:10 PM [express] [Oracle] Locked BTC price at $66941 via coingecko
+11:31:11 PM [express] [Oracle] BTC result determined: FLAT (0 higher, 0 lower correct predictions)
+11:31:11 PM [express] [Oracle] BRONZE: No winners. $3.6372 rolled over to next settlement.
+11:31:11 PM [express] [Telegram] News channel ID not configured — skipping
+11:31:11 PM [express] [Oracle] SILVER: No pot to distribute (0 active users or 0 daily unit)
+11:31:11 PM [express] [Oracle] GOLD: No pot to distribute (0 active users or 0 daily unit)
+11:31:11 PM [express] [Oracle] Settlement complete. Total distributed: $0.0000
+11:31:11 PM [express] [Oracle] Settlement run complete: FLAT, $0.0000 distributed across 3 tiers
+11:34:34 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:34:34 PM [express] [PriceOracle] Attempt 1/5 failed: All price sources unavailable
+11:34:34 PM [express] [PriceOracle] Retry attempt 2 after 1000ms
+11:34:35 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:34:35 PM [express] [PriceOracle] Attempt 2/5 failed: All price sources unavailable
+11:34:35 PM [express] [PriceOracle] Retry attempt 3 after 5000ms
+11:34:40 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:34:40 PM [express] [PriceOracle] Attempt 3/5 failed: All price sources unavailable
+11:34:40 PM [express] [PriceOracle] Retry attempt 4 after 30000ms
+11:35:10 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:35:10 PM [express] [PriceOracle] Attempt 4/5 failed: All price sources unavailable
+11:35:10 PM [express] [PriceOracle] Retry attempt 5 after 60000ms
+11:36:10 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:36:10 PM [express] [PriceOracle] Attempt 5/5 failed: All price sources unavailable
+11:36:10 PM [express] [PriceOracle] FREEZE ACTIVATED: Prediction payouts frozen until price is verified.
+11:36:10 PM [express] [Oracle] CRITICAL: BTC price freeze failed. Settlement aborted. Error: BTC Price Settlement Delayed: all oracle sources failed after retries. Payouts frozen until price is verified.
+11:36:10 PM [express] [Oracle] Settlement error: Oracle settlement aborted: BTC price unavailable
+11:39:34 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:39:34 PM [express] [PriceOracle] Attempt 1/5 failed: All price sources unavailable
+11:39:34 PM [express] [PriceOracle] Retry attempt 2 after 1000ms
+11:39:35 PM [express] [PriceOracle] 3 source(s) failed: CoinGecko HTTP 429; Binance ticker HTTP 451; CMC API key not configured
+11:39:35 PM [express] [PriceOracle] Attempt 2/5 failed: All price sources unavailable
+11:39:35 PM [express] [PriceOracle] Retry attempt 3 after 5000ms

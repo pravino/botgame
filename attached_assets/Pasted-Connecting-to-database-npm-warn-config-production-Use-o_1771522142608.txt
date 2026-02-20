@@ -1,0 +1,57 @@
+Connecting to database...
+npm warn config production Use `--omit=dev` instead.
+> rest-express@1.0.0 db:migrate
+Database connection successful
+Running baseline sync...
+  Baseline: all tables ensured
+Running Drizzle migrations...
+  Baseline: all columns ensured
+Marking baseline migrations as applied...
+All migrations completed successfully!
+npm warn config production Use `--omit=dev` instead.
+> rest-express@1.0.0 start
+> NODE_ENV=production node dist/index.cjs
+Running database migrations...
+Baseline: all tables ensured
+Baseline: all columns ensured
+Baseline sync: all tables and columns verified
+Database migrations completed successfully
+5:24:32 PM [express] [Promo] Morning Alpha (8AM UTC) scheduled for Fri, 20 Feb 2026 08:00:00 GMT (875 min from now)
+5:24:32 PM [express] [Promo] Oracle Warning (10AM UTC) scheduled for Fri, 20 Feb 2026 10:00:00 GMT (995 min from now)
+5:24:32 PM [express] [Promo] Tier Gap Push (2PM UTC) scheduled for Fri, 20 Feb 2026 14:00:00 GMT (1235 min from now)
+5:24:32 PM [express] [Promo] FOMO Countdown (8PM UTC) scheduled for Thu, 19 Feb 2026 20:00:00 GMT (155 min from now)
+5:24:32 PM [express] [Promo] Math-Warrior Hype (10PM UTC) scheduled for Thu, 19 Feb 2026 22:00:00 GMT (275 min from now)
+5:24:32 PM [express] [Promo] Last Call (11:30PM UTC) scheduled for Thu, 19 Feb 2026 23:30:00 GMT (365 min from now)
+5:24:32 PM [express] serving on port 5000
+5:24:35 PM [express] Task definitions seeded/updated
+5:24:35 PM [express] Global config and tier rollovers seeded
+5:24:36 PM [express] [Telegram] Bot connected: @Vault60Bot (Vault60)
+5:24:36 PM [express] [Telegram] Some chat IDs not configured — run /api/admin/telegram/detect-chats to auto-detect
+5:24:36 PM [express] [Telegram] Detected 3 chat(s):
+5:24:36 PM [express]   - "Vault60 Lobby" (-4997218730, type: group)
+5:24:36 PM [express]   - "Vault60 News" (-1003851068382, type: channel)
+5:24:36 PM [express]   - "Vault60 Apex" (-5259644284, type: group)
+5:24:42 PM [express] [PriceOracle] 2 source(s) failed: Binance ticker HTTP 451; CMC API key not configured
+5:24:42 PM [express] [PriceOracle] BTC $66915 (coingecko)
+5:24:42 PM [express] [PriceOracle] FREEZE LIFTED: Price verified, payouts can resume.
+5:24:42 PM [express] [Oracle] Locked BTC price at $66915 via coingecko
+5:24:43 PM [express] [Oracle] BTC result determined: FLAT (0 higher, 0 lower correct predictions)
+5:24:43 PM [express] [Oracle] BRONZE: No winners. $1.0242 rolled over to next settlement.
+5:24:43 PM [express] [Telegram] News channel ID not configured — skipping
+5:24:43 PM [express] [Oracle] SILVER: No pot to distribute (0 active users or 0 daily unit)
+5:24:44 PM [express] [Oracle] GOLD: No pot to distribute (0 active users or 0 daily unit)
+5:24:44 PM [express] [Oracle] Settlement complete. Total distributed: $0.0000
+5:24:44 PM [express] [Oracle] Settlement run complete: FLAT, $0.0000 distributed across 3 tiers
+5:24:52 PM [express] [Midnight Pulse] Starting daily settlement for 2026-02-18
+5:24:53 PM [express] [Midnight Pulse] BRONZE: No coins earned for 2026-02-18, skipping distribution
+5:24:53 PM [express] [Midnight Pulse] Cleared daily_taps for 2026-02-18
+5:24:53 PM [express] [Midnight Pulse] Energy now refills passively (1/2s) — no bulk reset needed
+5:24:53 PM [express] [PriceOracle] 2 source(s) failed: Binance ticker HTTP 451; CMC API key not configured
+5:24:53 PM [express] [PriceOracle] BTC $66915 (coingecko)
+5:24:53 PM [express] [PriceOracle] FREEZE LIFTED: Price verified, payouts can resume.
+5:24:53 PM [express] [Midnight Pulse] Locked BTC price at $66915 via coingecko
+5:24:53 PM [express] [Midnight Pulse] Settlement complete. Total distributed: $0.0000
+5:24:57 PM [express] [Batch Settlement] Starting withdrawal batch processing
+5:24:58 PM [express] [Batch Settlement] No ready withdrawals to batch
+5:25:07 PM [express] [Retention] Checking subscription expirations
+5:25:08 PM [express] [Retention] Complete: 0 warnings, 0 expirations processed
