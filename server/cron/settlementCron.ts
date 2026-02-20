@@ -7,9 +7,6 @@ import { sendDirectMessage, kickFromApex, announceSettlementResults } from "../s
 import { users } from "@shared/schema";
 import { eq, and, gt, lte, sql } from "drizzle-orm";
 
-const DEFAULT_TAP_POT_SHARE = 0.50;
-const DEFAULT_TREASURY_SPLIT = 0.60;
-
 export async function midnightPulse(): Promise<void> {
   try {
     const now = new Date();
@@ -18,15 +15,7 @@ export async function midnightPulse(): Promise<void> {
 
     log(`[Midnight Pulse] Starting daily settlement for ${dateKey}`);
 
-    const globalConfig = await storage.getGlobalConfig();
-    const TREASURY_SPLIT = globalConfig.treasury_split ?? DEFAULT_TREASURY_SPLIT;
-    const TAP_POT_SHARE = globalConfig.tap_share ?? DEFAULT_TAP_POT_SHARE;
-
     const allTiers = await storage.getAllTiers();
-    const tierDailyUnits: Record<string, number> = {};
-    for (const t of allTiers) {
-      tierDailyUnits[t.name] = parseFloat(t.dailyUnit);
-    }
 
     const tierNames = allTiers.filter(t => t.name !== "FREE").map(t => t.name);
     let totalDistributed = 0;
@@ -36,32 +25,10 @@ export async function midnightPulse(): Promise<void> {
       const subscribers = await storage.getActiveSubscribersByTier(tierName);
       if (subscribers.length === 0) continue;
 
-      const dailyUnit = tierDailyUnits[tierName] || 0;
-
-      const startOfSettlementDay = new Date(yesterdayDate);
-      startOfSettlementDay.setUTCHours(0, 0, 0, 0);
-
-      let dailyPool = 0;
-      const endOfSettlementDay = new Date(startOfSettlementDay);
-      endOfSettlementDay.setUTCHours(23, 59, 59, 999);
-
-      for (const sub of subscribers) {
-        if (sub.subscriptionStartedAt) {
-          const joinedAt = new Date(sub.subscriptionStartedAt);
-          if (joinedAt > endOfSettlementDay) {
-            continue;
-          }
-          if (joinedAt >= startOfSettlementDay && joinedAt <= endOfSettlementDay) {
-            const minutesActive = Math.max(0, (endOfSettlementDay.getTime() - joinedAt.getTime()) / (1000 * 60));
-            const proRatedUnit = (minutesActive / 1440) * dailyUnit;
-            dailyPool += parseFloat(proRatedUnit.toFixed(4));
-            continue;
-          }
-        }
-        dailyPool += dailyUnit;
-      }
-
-      const tapPotAmount = dailyPool * TREASURY_SPLIT * TAP_POT_SHARE;
+      const tapAllocations = await storage.getActivePoolAllocations(tierName, "tapPot");
+      const tapPotAmount = parseFloat(
+        tapAllocations.reduce((sum, a) => sum + parseFloat(a.dailyAmount), 0).toFixed(4)
+      );
 
       if (tapPotAmount <= 0) continue;
 

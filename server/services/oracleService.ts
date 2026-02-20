@@ -34,16 +34,14 @@ export async function settleAllTiers(): Promise<{
   }
 
   const allTiers = await storage.getAllTiers();
-  const config = await storage.getGlobalConfig();
-  const predictionShare = config.prediction_share ?? 0.30;
 
   const now = new Date();
-  const settlementWindowMs = 12 * 60 * 60 * 1000;
 
   const unresolved = await storage.getUnresolvedPredictions();
 
   let resolvedHigher = 0;
   let resolvedLower = 0;
+  let resolvedCount = 0;
 
   for (const pred of unresolved) {
     const createdAt = new Date(pred.createdAt);
@@ -55,6 +53,7 @@ export async function settleAllTiers(): Promise<{
         (pred.prediction === "lower" && btcPrice < pred.btcPriceAtPrediction);
 
       await storage.resolvePrediction(pred.id, btcPrice, correct);
+      resolvedCount++;
 
       const user = await storage.getUser(pred.userId);
       if (user) {
@@ -102,6 +101,16 @@ export async function settleAllTiers(): Promise<{
 
   log(`[Oracle] BTC result determined: ${btcResult} (${resolvedHigher} higher, ${resolvedLower} lower correct predictions)`);
 
+  if (resolvedCount === 0) {
+    log(`[Oracle] No predictions resolved — skipping tier payout processing`);
+    return {
+      settled: false,
+      btcResult,
+      tiers: [],
+      totalDistributed: 0,
+    };
+  }
+
   const tierResults: Array<{
     tierName: string;
     activeUsers: number;
@@ -118,33 +127,14 @@ export async function settleAllTiers(): Promise<{
     if (tier.name === "FREE") continue;
 
     const tierName = tier.name;
-    const dailyUnit = parseFloat(tier.dailyUnit);
 
     const subscribers = await storage.getActiveSubscribersByTier(tierName);
     const activeUsers = subscribers.length;
 
-    let dailyAllocation = 0;
-    const settlementDayStart = new Date(now);
-    settlementDayStart.setUTCHours(0, 0, 0, 0);
-    const settlementDayEnd = new Date(now);
-    settlementDayEnd.setUTCHours(23, 59, 59, 999);
-
-    for (const sub of subscribers) {
-      if (sub.subscriptionStartedAt) {
-        const joinedAt = new Date(sub.subscriptionStartedAt);
-        if (joinedAt > settlementDayEnd) {
-          continue;
-        }
-        if (joinedAt >= settlementDayStart && joinedAt <= settlementDayEnd) {
-          const minutesActive = Math.max(0, (settlementDayEnd.getTime() - joinedAt.getTime()) / (1000 * 60));
-          const proRatedUnit = (minutesActive / 1440) * dailyUnit * predictionShare;
-          dailyAllocation += parseFloat(proRatedUnit.toFixed(4));
-          continue;
-        }
-      }
-      dailyAllocation += dailyUnit * predictionShare;
-    }
-    dailyAllocation = parseFloat(dailyAllocation.toFixed(4));
+    const predictAllocations = await storage.getActivePoolAllocations(tierName, "predictPot");
+    const dailyAllocation = parseFloat(
+      predictAllocations.reduce((sum, a) => sum + parseFloat(a.dailyAmount), 0).toFixed(4)
+    );
 
     const rollover = await storage.getTierRollover(tierName);
     const totalPot = parseFloat((dailyAllocation + rollover).toFixed(4));

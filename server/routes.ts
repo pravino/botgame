@@ -1524,37 +1524,15 @@ export async function registerRoutes(
     : (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : "https://vault60.app");
 
   async function gatherTapPotData(): Promise<{ tierName: string; potSize: number }[]> {
-    const config = await storage.getGlobalConfig();
-    const treasurySplit = config.treasury_split ?? 0.60;
-    const tapShare = config.tap_share ?? 0.50;
     const allTiers = await storage.getAllTiers();
     const results: { tierName: string; potSize: number }[] = [];
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setUTCHours(0, 0, 0, 0);
-    const todayEnd = new Date(now);
-    todayEnd.setUTCHours(23, 59, 59, 999);
 
     for (const tier of allTiers) {
       if (tier.name === "FREE") continue;
-      const subs = await storage.getActiveSubscribersByTier(tier.name);
-      const dailyUnit = parseFloat(tier.dailyUnit);
-
-      let dailyPool = 0;
-      for (const sub of subs) {
-        if (sub.subscriptionStartedAt) {
-          const joinedAt = new Date(sub.subscriptionStartedAt);
-          if (joinedAt > todayEnd) continue;
-          if (joinedAt >= todayStart && joinedAt <= todayEnd) {
-            const minutesActive = Math.max(0, (todayEnd.getTime() - joinedAt.getTime()) / (1000 * 60));
-            dailyPool += parseFloat(((minutesActive / 1440) * dailyUnit).toFixed(4));
-            continue;
-          }
-        }
-        dailyPool += dailyUnit;
-      }
-
-      const pot = dailyPool * treasurySplit * tapShare;
+      const tapAllocations = await storage.getActivePoolAllocations(tier.name, "tapPot");
+      const pot = parseFloat(
+        tapAllocations.reduce((sum, a) => sum + parseFloat(a.dailyAmount), 0).toFixed(4)
+      );
       if (pot > 0) results.push({ tierName: tier.name, potSize: pot });
     }
     return results;
@@ -1564,14 +1542,7 @@ export async function registerRoutes(
     const { getLeagueMultiplier } = await import("./constants/leagues");
     const now = new Date();
     const dateKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
-    const config = await storage.getGlobalConfig();
-    const treasurySplit = config.treasury_split ?? 0.60;
-    const tapShare = config.tap_share ?? 0.50;
     const allTiers = await storage.getAllTiers();
-    const todayStart = new Date(now);
-    todayStart.setUTCHours(0, 0, 0, 0);
-    const todayEnd = new Date(now);
-    todayEnd.setUTCHours(23, 59, 59, 999);
 
     let totalPaidSubs = 0;
     const activeUserIds = new Set<string>();
@@ -1583,21 +1554,10 @@ export async function registerRoutes(
       totalPaidSubs += subs.length;
       if (subs.length === 0) continue;
 
-      const dailyUnit = parseFloat(tier.dailyUnit);
-      let dailyPool = 0;
-      for (const sub of subs) {
-        if (sub.subscriptionStartedAt) {
-          const joinedAt = new Date(sub.subscriptionStartedAt);
-          if (joinedAt > todayEnd) continue;
-          if (joinedAt >= todayStart && joinedAt <= todayEnd) {
-            const minutesActive = Math.max(0, (todayEnd.getTime() - joinedAt.getTime()) / (1000 * 60));
-            dailyPool += parseFloat(((minutesActive / 1440) * dailyUnit).toFixed(4));
-            continue;
-          }
-        }
-        dailyPool += dailyUnit;
-      }
-      const tapPot = dailyPool * treasurySplit * tapShare;
+      const tapAllocations = await storage.getActivePoolAllocations(tier.name, "tapPot");
+      const tapPot = parseFloat(
+        tapAllocations.reduce((sum, a) => sum + parseFloat(a.dailyAmount), 0).toFixed(4)
+      );
 
       const dailyTaps = await storage.getDailyTapsForDate(dateKey);
       const tierTaps = dailyTaps.filter(dt => dt.tierAtTime === tier.name && subs.some(s => s.id === dt.userId));
@@ -1629,35 +1589,18 @@ export async function registerRoutes(
   }
 
   async function gatherPredictionPotData(): Promise<{ pots: { tierName: string; potSize: number }[]; higherPct: number; lowerPct: number; totalVotes: number }> {
-    const config = await storage.getGlobalConfig();
-    const treasurySplit = config.treasury_split ?? 0.60;
-    const predictionShare = config.prediction_share ?? 0.30;
     const allTiers = await storage.getAllTiers();
     const pots: { tierName: string; potSize: number }[] = [];
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setUTCHours(0, 0, 0, 0);
-    const todayEnd = new Date(now);
-    todayEnd.setUTCHours(23, 59, 59, 999);
 
     for (const tier of allTiers) {
       if (tier.name === "FREE") continue;
-      const subs = await storage.getActiveSubscribersByTier(tier.name);
-      const dailyUnit = parseFloat(tier.dailyUnit);
-      let dailyPool = 0;
-      for (const sub of subs) {
-        if (sub.subscriptionStartedAt) {
-          const joinedAt = new Date(sub.subscriptionStartedAt);
-          if (joinedAt > todayEnd) continue;
-          if (joinedAt >= todayStart && joinedAt <= todayEnd) {
-            const minutesActive = Math.max(0, (todayEnd.getTime() - joinedAt.getTime()) / (1000 * 60));
-            dailyPool += parseFloat(((minutesActive / 1440) * dailyUnit).toFixed(4));
-            continue;
-          }
-        }
-        dailyPool += dailyUnit;
-      }
-      const pot = dailyPool * treasurySplit * predictionShare;
+      const predictAllocations = await storage.getActivePoolAllocations(tier.name, "predictPot");
+      const pot = parseFloat(
+        predictAllocations.reduce((sum, a) => sum + parseFloat(a.dailyAmount), 0).toFixed(4)
+      );
       if (pot > 0) pots.push({ tierName: tier.name, potSize: pot });
     }
 
