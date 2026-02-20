@@ -413,15 +413,50 @@ export async function initTelegramBot(): Promise<void> {
     return;
   }
 
-  const config = await storage.getGlobalConfig();
-  const hasAllIds = config.telegram_news_channel_id && config.telegram_lobby_group_id && config.telegram_apex_group_id;
+  const newsRow = await storage.getGlobalConfigRow("telegram_news_channel_id");
+  const lobbyRow = await storage.getGlobalConfigRow("telegram_lobby_group_id");
+  const apexRow = await storage.getGlobalConfigRow("telegram_apex_group_id");
 
-  if (!hasAllIds) {
-    log("[Telegram] Some chat IDs not configured — run /api/admin/telegram/detect-chats to auto-detect");
+  const hasNews = newsRow?.description && newsRow.description !== "0";
+  const hasLobby = lobbyRow?.description && lobbyRow.description !== "0";
+  const hasApex = apexRow?.description && apexRow.description !== "0";
+
+  if (!hasNews || !hasLobby || !hasApex) {
+    log("[Telegram] Some chat IDs not configured — attempting auto-detect");
     const { detected } = await detectChatIds();
     if (detected.length > 0) {
       log(`[Telegram] Detected ${detected.length} chat(s):`);
       detected.forEach(c => log(`  - "${c.title}" (${c.chatId}, type: ${c.type})`));
+
+      let savedNews = hasNews;
+      let savedLobby = hasLobby;
+      let savedApex = hasApex;
+
+      for (const chat of detected) {
+        const titleLower = chat.title.toLowerCase();
+        let configKey: string | null = null;
+
+        if ((chat.type === "channel" || titleLower.includes("news")) && !savedNews) {
+          configKey = "telegram_news_channel_id";
+          savedNews = true;
+        } else if (titleLower.includes("lobby") && !savedLobby) {
+          configKey = "telegram_lobby_group_id";
+          savedLobby = true;
+        } else if (titleLower.includes("apex") && !savedApex) {
+          configKey = "telegram_apex_group_id";
+          savedApex = true;
+        }
+
+        if (configKey) {
+          await storage.setGlobalConfigValue(configKey, 0, chat.chatId);
+          log(`[Telegram] Auto-saved ${configKey} = ${chat.chatId} ("${chat.title}")`);
+        }
+      }
+
+      if (!savedNews || !savedLobby || !savedApex) {
+        const missing = [!savedNews && "news", !savedLobby && "lobby", !savedApex && "apex"].filter(Boolean);
+        log(`[Telegram] Could not auto-detect: ${missing.join(", ")}. Use /api/admin/telegram/set-chat to assign manually.`);
+      }
     }
   } else {
     log("[Telegram] All chat IDs configured — bot ready");

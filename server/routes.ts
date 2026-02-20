@@ -1447,9 +1447,32 @@ export async function registerRoutes(
     }
   });
 
+  let lastOracleSettlementAt = 0;
+  const ORACLE_COOLDOWN_MS = 10 * 60 * 1000;
+
   async function runOracleSettlement() {
     try {
+      const now = Date.now();
+      if (now - lastOracleSettlementAt < ORACLE_COOLDOWN_MS) {
+        return;
+      }
+
+      const unresolved = await storage.getUnresolvedPredictions();
+      const ripe = unresolved.filter(p => {
+        const age = (now - new Date(p.createdAt).getTime()) / (1000 * 60 * 60);
+        return age >= 12;
+      });
+
+      if (ripe.length === 0 && unresolved.length === 0) {
+        return;
+      }
+
+      if (ripe.length === 0) {
+        return;
+      }
+
       const result = await settleAllTiers();
+      lastOracleSettlementAt = Date.now();
       log(`[Oracle] Settlement run complete: ${result.btcResult}, $${result.totalDistributed.toFixed(4)} distributed across ${result.tiers.length} tiers`);
     } catch (error: any) {
       log(`[Oracle] Settlement error: ${error.message}`);

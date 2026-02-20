@@ -1,7 +1,7 @@
 import { storage, db } from "../storage";
 import { log } from "../index";
 import { recordLedgerEntry } from "../middleware/ledger";
-import { getValidatedBTCPriceWithRetry, clearPriceCache, setPriceFrozen } from "../services/priceService";
+import { getValidatedBTCPriceWithRetry, setPriceFrozen } from "../services/priceService";
 import { getLeagueMultiplier } from "../constants/leagues";
 import { sendDirectMessage, kickFromApex, announceSettlementResults } from "../services/telegramBot";
 import { users } from "@shared/schema";
@@ -124,7 +124,6 @@ export async function midnightPulse(): Promise<void> {
 
     log(`[Midnight Pulse] Energy now refills passively (1/2s) — no bulk reset needed`);
 
-    clearPriceCache();
     try {
       const validated = await getValidatedBTCPriceWithRetry(5, 300_000);
       setPriceFrozen(false);

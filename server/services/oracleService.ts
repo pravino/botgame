@@ -1,7 +1,7 @@
 import { storage, db } from "../storage";
 import { log } from "../index";
 import { recordLedgerEntry } from "../middleware/ledger";
-import { getValidatedBTCPriceWithRetry, clearPriceCache, setPriceFrozen } from "./priceService";
+import { getValidatedBTCPriceWithRetry, setPriceFrozen } from "./priceService";
 import { announceMegaPot, announcePredictionResults } from "./telegramBot";
 import { users } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
@@ -21,8 +21,6 @@ export async function settleAllTiers(): Promise<{
   }>;
   totalDistributed: number;
 }> {
-  clearPriceCache();
-
   let btcPrice: number;
   try {
     const validated = await getValidatedBTCPriceWithRetry(5, 300_000);
