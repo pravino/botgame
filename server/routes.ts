@@ -1692,7 +1692,7 @@ export async function registerRoutes(
           if (paidUser.telegramId && apexInviteLink) {
             await sendDirectMessage(
               paidUser.telegramId,
-              `Welcome to <b>Vault60 Apex</b>!\n\nYour ${normalizedTier} subscription is active. Join the private group:\n${apexInviteLink}\n\nThis link is single-use — don't share it.`
+              `Welcome to <b>Volt60 Apex</b>!\n\nYour ${normalizedTier} subscription is active. Join the private group:\n${apexInviteLink}\n\nThis link is single-use — don't share it.`
             );
           }
         } catch (err: any) {
@@ -1886,7 +1886,7 @@ export async function registerRoutes(
           if (sandboxUser.telegramId && apexInviteLink) {
             await sendDirectMessage(
               sandboxUser.telegramId,
-              `Welcome to <b>Vault60 Apex</b>!\n\nYour ${sandboxUser.tier} subscription is active. Join the private group:\n${apexInviteLink}\n\nThis link is single-use — don't share it.`
+              `Welcome to <b>Volt60 Apex</b>!\n\nYour ${sandboxUser.tier} subscription is active. Join the private group:\n${apexInviteLink}\n\nThis link is single-use — don't share it.`
             );
           }
         } catch (err: any) {
@@ -2138,8 +2138,8 @@ export async function registerRoutes(
 
   async function seedTasks() {
     const taskDefinitions = [
-      { slug: "join-telegram", title: "Join Vault60 News", description: "Join our announcement channel for daily BTC predictions, leaderboard legends, and lucky wheel winners", category: "social", taskType: "one_time", rewardCoins: 5000, requiredTier: null, link: "https://t.me/Vault60News", icon: "Megaphone", sortOrder: 1 },
-      { slug: "join-lobby", title: "Join Vault60 Lobby", description: "Join our public community group to chat, ask questions, and share referral milestones", category: "social", taskType: "one_time", rewardCoins: 7500, requiredTier: null, link: "https://t.me/Vault60Lobby", icon: "MessageCircle", sortOrder: 2 },
+      { slug: "join-telegram", title: "Join Volt60 News", description: "Join our announcement channel for daily BTC predictions, leaderboard legends, and lucky wheel winners", category: "social", taskType: "one_time", rewardCoins: 5000, requiredTier: null, link: "https://t.me/Vault60News", icon: "Megaphone", sortOrder: 1 },
+      { slug: "join-lobby", title: "Join Volt60 Lobby", description: "Join our public community group to chat, ask questions, and share referral milestones", category: "social", taskType: "one_time", rewardCoins: 7500, requiredTier: null, link: "https://t.me/Vault60Lobby", icon: "MessageCircle", sortOrder: 2 },
       { slug: "follow-x", title: "Follow on X", description: "Follow our official X (Twitter) account", category: "social", taskType: "one_time", rewardCoins: 10000, requiredTier: null, link: "https://x.com/cryptogames", icon: "Twitter", sortOrder: 3 },
       { slug: "subscribe-youtube", title: "Subscribe on YouTube", description: "Subscribe to our YouTube channel for tutorials and updates", category: "social", taskType: "one_time", rewardCoins: 15000, requiredTier: null, link: "https://youtube.com/@cryptogames", icon: "Youtube", sortOrder: 4 },
       { slug: "verify-bronze", title: "Verify Bronze Status", description: "Subscribe to Bronze tier to unlock this exclusive bonus", category: "pro", taskType: "one_time", rewardCoins: 100000, requiredTier: "BRONZE", link: null, icon: "Shield", sortOrder: 5 },

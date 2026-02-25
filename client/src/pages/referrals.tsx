@@ -58,12 +58,12 @@ export default function Referrals() {
 
   const handleShare = () => {
     if (!referralLink) return;
-    const shareText = `Join me on Vault60! Tap to earn crypto rewards.\n${referralLink}`;
-    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Join me on Vault60! Tap to earn crypto rewards.")}`;
+    const shareText = `Join me on Volt60 Grid Tycoon! Crank to earn crypto rewards.\n${referralLink}`;
+    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Join me on Volt60 Grid Tycoon! Crank to earn crypto rewards.")}`;
     if (window.Telegram?.WebApp) {
       window.open(tgShareUrl, "_blank");
     } else if (navigator.share) {
-      navigator.share({ title: "Join Vault60", text: shareText }).catch(() => {});
+      navigator.share({ title: "Join Volt60 Grid Tycoon", text: shareText }).catch(() => {});
     } else {
       window.open(tgShareUrl, "_blank");
     }

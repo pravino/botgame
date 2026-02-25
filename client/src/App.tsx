@@ -131,7 +131,7 @@ function GuestLanding({ onLogin }: { onLogin: () => void }) {
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowLogin(false)}>
           <div className="bg-card border rounded-lg p-6 space-y-4 max-w-sm w-full shadow-lg" onClick={(e) => e.stopPropagation()}>
             <div className="text-center space-y-1">
-              <h2 className="text-lg font-semibold">Sign in to Vault60</h2>
+              <h2 className="text-lg font-semibold">Sign in to Volt60</h2>
               <p className="text-sm text-muted-foreground">Save your progress and earn real rewards</p>
             </div>
             <div id="guest-telegram-login" className="flex justify-center min-h-[44px]" data-testid="telegram-login-widget" />
@@ -199,7 +199,7 @@ function AuthenticatedApp() {
   }
 
   if (isMiniApp && !loggedIn && !miniAppAuthFailed) {
-    return <LoadingScreen message="Connecting to Vault60..." />;
+    return <LoadingScreen message="Connecting to Volt60..." />;
   }
 
   if (isMiniApp && miniAppAuthFailed) {

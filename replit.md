@@ -1,4 +1,4 @@
-# Vault60 — Tap-to-Earn Power Generation Platform
+# Volt60 Grid Tycoon — Tap-to-Earn Power Generation Platform
 
 ## Overview
 A gamified crypto-themed web application built around a "power generation" theme. Users generate **Watts (W)** by tapping/cranking a virtual generator. The platform supports Telegram authentication, tiered subscriptions, USDT wallets, and competitive leaderboards. Revenue from subscriptions is split 40% admin / 60% treasury, with the treasury funding a daily tap pot distributed proportionally to subscribers based on watts generated.

@@ -110,7 +110,7 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
             <Zap className="h-10 w-10 text-emerald-900/70" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Vault60
+            Volt60 Grid Tycoon
           </h1>
           <p className="text-muted-foreground text-sm">
             Generate power. Earn rewards every day.

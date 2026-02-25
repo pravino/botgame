@@ -121,7 +121,7 @@ export async function generateApexInviteLink(): Promise<string | null> {
   const result = await callApi("createChatInviteLink", {
     chat_id: chatId,
     member_limit: 1,
-    name: `Vault60 Apex Access - ${new Date().toISOString().slice(0, 10)}`,
+    name: `Volt60 Apex Access - ${new Date().toISOString().slice(0, 10)}`,
   });
 
   return result?.result?.invite_link || null;
@@ -295,7 +295,7 @@ export async function announceFomoCountdown(potData: { tierName: string; potSize
     `Check your Energy: Don't let your full tank sit idle.\n` +
     `Pro Tip: Use your Daily Full Tank refill NOW to climb the leaderboard before the 00:00 UTC settlement.\n\n` +
     `Every tap you miss is USDT left for someone else. GET TAPPING!\n\n` +
-    `<a href="${miniAppUrl}">Open Vault60</a>`;
+    `<a href="${miniAppUrl}">Open Volt60</a>`;
 
   await Promise.all([
     sendToNewsChannel(msg),
@@ -311,7 +311,7 @@ export async function announceMathWarrior(inactivePct: number, topEarnerEstimate
     `Current Top earners are on track for <b>$${topEarnerEstimate.toFixed(4)} USDT</b> today. ` +
     `Are you going to let them take it all?\n\n` +
     `Empty your tanks now!\n\n` +
-    `<a href="${miniAppUrl}">Launch Vault60</a>`;
+    `<a href="${miniAppUrl}">Launch Volt60</a>`;
 
   await Promise.all([
     sendToNewsChannel(msg),
@@ -324,7 +324,7 @@ export async function announceLastCall(miniAppUrl: string): Promise<void> {
     `In 30 minutes, the Midnight Settlement runs.\n\n` +
     `All taps today will be converted to REAL USDT in your balance.\n` +
     `Any unused energy will be WASTED.\n\n` +
-    `This is your last chance to squeeze every cent out of the Vault60 60% Prize Pool.\n\n` +
+    `This is your last chance to squeeze every cent out of the Volt60 60% Prize Pool.\n\n` +
     `TAP. TAP. TAP.\n\n` +
     `<a href="${miniAppUrl}">Final Sprint to Midnight</a>`;
 
