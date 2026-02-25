@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Trophy, Coins, TrendingUp, CircleDot, Crown, Shield, Star, Users } from "lucide-react";
+import { Trophy, Zap, TrendingUp, CircleDot, Crown, Shield, Star, Users } from "lucide-react";
 import { formatNumber, formatUSD } from "@/lib/game-utils";
 import type { User } from "@shared/schema";
 
@@ -117,7 +117,7 @@ function GameLeaderboard({ game, selectedTier }: { game: string; selectedTier: s
   });
 
   const config: Record<string, { valueKey: "totalCoins" | "correctPredictions" | "totalWheelWinnings"; formatFn: (v: number) => string; icon: React.ElementType }> = {
-    coins: { valueKey: "totalCoins", formatFn: formatNumber, icon: Coins },
+    coins: { valueKey: "totalCoins", formatFn: (v: number) => `${formatNumber(v)} W`, icon: Zap },
     predictions: { valueKey: "correctPredictions", formatFn: (v) => `${v} correct`, icon: TrendingUp },
     wheel: { valueKey: "totalWheelWinnings", formatFn: formatUSD, icon: CircleDot },
   };
@@ -174,8 +174,8 @@ export default function Leaderboard() {
       <Tabs defaultValue="coins" className="w-full">
         <TabsList className="w-full grid grid-cols-3" data-testid="tabs-leaderboard">
           <TabsTrigger value="coins" data-testid="tab-coins">
-            <Coins className="h-3.5 w-3.5 mr-1" />
-            Coins
+            <Zap className="h-3.5 w-3.5 mr-1" />
+            Watts
           </TabsTrigger>
           <TabsTrigger value="predictions" data-testid="tab-predictions">
             <TrendingUp className="h-3.5 w-3.5 mr-1" />

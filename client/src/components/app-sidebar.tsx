@@ -11,7 +11,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LayoutDashboard, Coins, Trophy, Wallet, Crown, ClipboardList, Puzzle, Medal, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Zap, Trophy, Wallet, Crown, ClipboardList, Puzzle, Medal, Users, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@shared/schema";
 import { formatNumber } from "@/lib/game-utils";
@@ -20,7 +20,7 @@ import { queryClient } from "@/lib/queryClient";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Tap to Earn", url: "/tap", icon: Coins },
+  { title: "Power Plant", url: "/tap", icon: Zap },
   { title: "Tasks", url: "/tasks", icon: ClipboardList },
   { title: "Daily Combo", url: "/combo", icon: Puzzle },
   { title: "Leagues", url: "/leagues", icon: Medal },
@@ -39,7 +39,7 @@ export function AppSidebar({ user }: { user?: User }) {
         <SidebarGroup>
           <SidebarGroupLabel>
             <div className="flex items-center gap-2">
-              <Coins className="h-4 w-4 text-primary" />
+              <Zap className="h-4 w-4 text-primary" />
               <span>Crypto Games</span>
             </div>
           </SidebarGroupLabel>
@@ -72,7 +72,7 @@ export function AppSidebar({ user }: { user?: User }) {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user.username}</p>
-              <p className="text-xs text-muted-foreground">{formatNumber(user.totalCoins)} coins</p>
+              <p className="text-xs text-muted-foreground">{formatNumber(user.totalCoins)} W</p>
             </div>
             <Button
               variant="ghost"

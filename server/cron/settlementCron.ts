@@ -39,7 +39,7 @@ export async function midnightPulse(): Promise<void> {
 
       const totalCoins = tierTapEntries.reduce((sum, dt) => sum + dt.coinsEarned, 0);
       if (totalCoins === 0) {
-        log(`[Midnight Pulse] ${tierName}: No coins earned for ${dateKey}, skipping distribution`);
+        log(`[Midnight Pulse] ${tierName}: No watts earned for ${dateKey}, skipping distribution`);
         continue;
       }
 
@@ -75,7 +75,7 @@ export async function midnightPulse(): Promise<void> {
           balanceBefore: walletBefore,
           balanceAfter: walletAfter,
           game: "tapPot",
-          note: `Daily tap payout: $${payout} USDT (${entry.coinsEarned} coins x${getLeagueMultiplier(user.league).toFixed(1)} ${user.league} league = ${(share * 100).toFixed(1)}% of $${tapPotAmount.toFixed(2)} ${tierName} pot) for ${dateKey}`,
+          note: `Daily tap payout: $${payout} USDT (${entry.coinsEarned} watts x${getLeagueMultiplier(user.league).toFixed(1)} ${user.league} league = ${(share * 100).toFixed(1)}% of $${tapPotAmount.toFixed(2)} ${tierName} pot) for ${dateKey}`,
         });
 
         tierDistributed += payout;
@@ -239,7 +239,7 @@ export async function subscriberRetentionCheck(): Promise<void> {
       if (user.telegramId) {
         const sent = await sendDirectMessage(
           user.telegramId,
-          `<b>REMINDER:</b> Your ${user.tier} subscription expires in less than ${expiryWarningHours} hours.\n\nRenew now to keep your ${user.totalCoins.toLocaleString()} coins and continue earning.\n\nDon't lose your spot!`
+          `<b>REMINDER:</b> Your ${user.tier} subscription expires in less than ${expiryWarningHours} hours.\n\nRenew now to keep your ${user.totalCoins.toLocaleString()} watts and continue earning.\n\nDon't lose your spot!`
         );
         if (sent) {
           log(`[Retention] Sent ${expiryWarningHours}hr warning to user ${user.id} (${user.username})`);

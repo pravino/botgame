@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Coins, Zap, ChevronRight } from "lucide-react";
+import { Trophy, Zap, ChevronRight } from "lucide-react";
 import { formatNumber } from "@/lib/game-utils";
 
 interface LeagueThreshold {
@@ -46,7 +46,7 @@ function LeagueTierCard({ league, isCurrent, totalCoins }: { league: LeagueThres
             {!isUnlocked && <Badge variant="outline" className="text-xs">Locked</Badge>}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {league.minCoins === 0 ? "Starting league" : `${formatNumber(league.minCoins)}+ coins`}
+            {league.minCoins === 0 ? "Starting league" : `${formatNumber(league.minCoins)}+ watts`}
           </p>
         </div>
         <div className="text-right shrink-0">
@@ -118,9 +118,9 @@ export default function Leagues() {
           </div>
 
           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground flex-wrap">
-            <span data-testid="text-total-coins">{formatNumber(leagueInfo.totalCoins)} coins</span>
+            <span data-testid="text-total-coins">{formatNumber(leagueInfo.totalCoins)} W</span>
             {leagueInfo.nextLeague && (
-              <span>{formatNumber(leagueInfo.coinsToNext)} to {leagueInfo.nextLeague.name}</span>
+              <span>{formatNumber(leagueInfo.coinsToNext)} W to {leagueInfo.nextLeague.name}</span>
             )}
           </div>
 
@@ -160,8 +160,8 @@ export default function Leagues() {
           <h3 className="text-sm font-medium mb-2">How Leagues Work</h3>
           <ul className="space-y-1.5 text-xs text-muted-foreground">
             <li className="flex items-start gap-2">
-              <Coins className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
-              <span>Your league is determined by your lifetime coins earned</span>
+              <Zap className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
+              <span>Your league is determined by your lifetime watts generated</span>
             </li>
             <li className="flex items-start gap-2">
               <Zap className="h-3 w-3 mt-0.5 shrink-0 text-primary" />

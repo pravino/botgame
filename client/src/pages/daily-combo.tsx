@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Puzzle, Check, Coins, Clock, HelpCircle, Sparkles } from "lucide-react";
+import { Puzzle, Check, Zap, Clock, HelpCircle, Sparkles } from "lucide-react";
 import { formatNumber } from "@/lib/game-utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -65,7 +65,7 @@ export default function DailyCombo() {
         setLastResult("correct");
         toast({
           title: "Combo Cracked!",
-          description: `+${formatNumber(data.coinsAwarded)} coins earned!`,
+          description: `+${formatNumber(data.coinsAwarded)} W earned!`,
         });
         queryClient.invalidateQueries({ queryKey: ["/api/daily-combo"] });
         queryClient.invalidateQueries({ queryKey: ["/api/user"] });
@@ -126,7 +126,7 @@ export default function DailyCombo() {
           <Puzzle className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-combo-title">Daily Combo</h1>
         </div>
-        <p className="text-muted-foreground text-sm">Crack today's secret code for a massive coin boost</p>
+        <p className="text-muted-foreground text-sm">Crack today's secret code for a massive watts boost</p>
       </div>
 
       <Card>
@@ -137,8 +137,8 @@ export default function DailyCombo() {
               <span className="text-sm font-medium">Reward</span>
             </div>
             <Badge variant="secondary" data-testid="text-combo-reward">
-              <Coins className="h-3 w-3 mr-1" />
-              {formatNumber(combo?.rewardCoins || 0)} coins
+              <Zap className="h-3 w-3 mr-1" />
+              {formatNumber(combo?.rewardCoins || 0)} W
             </Badge>
           </div>
 

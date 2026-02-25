@@ -476,7 +476,7 @@ export async function registerRoutes(
         balanceAfter: updated?.totalCoins ?? user.totalCoins + coinsEarned,
         game: "tapPot",
         refId: session?.id,
-        note: `${coinsEarned} game coins from ${actualTaps} taps (${multiplier}x ${user.tier} multiplier)`,
+        note: `${coinsEarned} watts from ${actualTaps} cranks (${multiplier}x ${user.tier} multiplier)`,
       });
 
       res.json(updated);
@@ -583,7 +583,7 @@ export async function registerRoutes(
 
       if (user.totalCoins < upgradeCost) {
         return res.status(400).json({
-          message: `Not enough coins! You need ${upgradeCost.toLocaleString()} Group Coins to upgrade.`,
+          message: `Not enough watts! You need ${upgradeCost.toLocaleString()} W to upgrade.`,
           required: upgradeCost,
           current: user.totalCoins,
         });
@@ -619,7 +619,7 @@ export async function registerRoutes(
         balanceBefore: user.totalCoins,
         balanceAfter: updated.totalCoins,
         game: "tapPot",
-        note: `Multiplier upgrade: Level ${currentLevel} -> Level ${newMultiplier} (spent ${upgradeCost.toLocaleString()} coins)`,
+        note: `Multiplier upgrade: Level ${currentLevel} -> Level ${newMultiplier} (spent ${upgradeCost.toLocaleString()} W)`,
       });
 
       const tierConfig = await getTierConfig(user.tier);
@@ -1377,7 +1377,7 @@ export async function registerRoutes(
       const topCoins = await storage.getTopUsersByCoins(5);
       const topPredictions = await storage.getTopUsersByPredictions(5);
 
-      await announceLeaderboard("Coins", topCoins.map(u => ({ username: u.username, value: u.totalCoins })));
+      await announceLeaderboard("Watts", topCoins.map(u => ({ username: u.username, value: u.totalCoins })));
       await announceLeaderboard("Predictions", topPredictions.map(u => ({ username: u.username, value: u.correctPredictions })), "count");
 
       res.json({ message: "Leaderboard announcements sent" });
@@ -1817,7 +1817,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Valid tier name is required (BRONZE, SILVER, GOLD)" });
       }
 
-      const invoice = await createInvoice(req.session.userId!, String(tierName).toUpperCase());
+      const normalizedTier = String(tierName).toUpperCase();
+      if (normalizedTier === "SILVER" || normalizedTier === "GOLD") {
+        return res.status(400).json({ message: "This tier is not available yet" });
+      }
+
+      const invoice = await createInvoice(req.session.userId!, normalizedTier);
       res.json(invoice);
     } catch (error: any) {
       log(`Payment invoice error: ${error.message}`);
@@ -1996,7 +2001,7 @@ export async function registerRoutes(
         balanceBefore: user.totalCoins,
         balanceAfter: newCoins,
         game: "tasks",
-        note: `Task completed: ${task.title} (+${task.rewardCoins} coins)`,
+        note: `Task completed: ${task.title} (+${task.rewardCoins} W)`,
       });
 
       res.json({ success: true, coinsAwarded: task.rewardCoins, newTotal: newCoins, league: newLeague });
@@ -2088,7 +2093,7 @@ export async function registerRoutes(
           balanceBefore: user.totalCoins,
           balanceAfter: newCoins,
           game: "combo",
-          note: `Daily combo solved! (+${combo.rewardCoins} coins)`,
+          note: `Daily combo solved! (+${combo.rewardCoins} W)`,
         });
 
         return res.json({ correct: true, coinsAwarded: combo.rewardCoins, newTotal: newCoins, league: newLeague });
@@ -2138,11 +2143,11 @@ export async function registerRoutes(
       { slug: "follow-x", title: "Follow on X", description: "Follow our official X (Twitter) account", category: "social", taskType: "one_time", rewardCoins: 10000, requiredTier: null, link: "https://x.com/cryptogames", icon: "Twitter", sortOrder: 3 },
       { slug: "subscribe-youtube", title: "Subscribe on YouTube", description: "Subscribe to our YouTube channel for tutorials and updates", category: "social", taskType: "one_time", rewardCoins: 15000, requiredTier: null, link: "https://youtube.com/@cryptogames", icon: "Youtube", sortOrder: 4 },
       { slug: "verify-bronze", title: "Verify Bronze Status", description: "Subscribe to Bronze tier to unlock this exclusive bonus", category: "pro", taskType: "one_time", rewardCoins: 100000, requiredTier: "BRONZE", link: null, icon: "Shield", sortOrder: 5 },
-      { slug: "verify-silver", title: "Verify Silver Status", description: "Subscribe to Silver tier for a massive coin bonus", category: "pro", taskType: "one_time", rewardCoins: 250000, requiredTier: "SILVER", link: null, icon: "Crown", sortOrder: 6 },
-      { slug: "verify-gold", title: "Verify Gold Status", description: "Subscribe to Gold tier for the ultimate coin bonus", category: "pro", taskType: "one_time", rewardCoins: 500000, requiredTier: "GOLD", link: null, icon: "Star", sortOrder: 7 },
+      { slug: "verify-silver", title: "Verify Silver Status", description: "Subscribe to Silver tier for a massive watts bonus", category: "pro", taskType: "one_time", rewardCoins: 250000, requiredTier: "SILVER", link: null, icon: "Crown", sortOrder: 6 },
+      { slug: "verify-gold", title: "Verify Gold Status", description: "Subscribe to Gold tier for the ultimate watts bonus", category: "pro", taskType: "one_time", rewardCoins: 500000, requiredTier: "GOLD", link: null, icon: "Star", sortOrder: 7 },
       { slug: "daily-share", title: "Share Daily Winnings", description: "Share your daily winning screenshot on X", category: "daily", taskType: "daily", rewardCoins: 20000, requiredTier: null, link: null, icon: "Share2", sortOrder: 8 },
       { slug: "daily-invite", title: "Invite 3 Friends", description: "Invite 3 friends to join today", category: "daily", taskType: "daily", rewardCoins: 50000, requiredTier: null, link: null, icon: "Users", sortOrder: 9 },
-      { slug: "daily-tap-1000", title: "Tap 1,000 Times", description: "Earn at least 1,000 coins from tapping today", category: "daily", taskType: "daily", rewardCoins: 5000, requiredTier: null, link: null, icon: "Coins", sortOrder: 10 },
+      { slug: "daily-tap-1000", title: "Crank 1,000 Times", description: "Generate at least 1,000 watts from cranking today", category: "daily", taskType: "daily", rewardCoins: 5000, requiredTier: null, link: null, icon: "Zap", sortOrder: 10 },
       { slug: "daily-prediction", title: "Make a Prediction", description: "Submit a BTC price prediction today", category: "daily", taskType: "daily", rewardCoins: 3000, requiredTier: null, link: null, icon: "TrendingUp", sortOrder: 11 },
     ];
 

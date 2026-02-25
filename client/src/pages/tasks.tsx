@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ClipboardList, Lock, Check, Coins, ExternalLink,
+  ClipboardList, Lock, Check, Zap, ExternalLink,
   MessageCircle, Share2, Users, TrendingUp, Shield, Crown, Star, Youtube,
   Timer, Megaphone
 } from "lucide-react";
@@ -40,7 +40,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Star,
   Share2,
   Users,
-  Coins,
+  Coins: Zap,
   TrendingUp,
 };
 
@@ -215,8 +215,8 @@ function TaskCard({
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
           <div className="flex items-center gap-1 mt-1">
-            <Coins className="h-3 w-3 text-primary" />
-            <span className="text-xs font-medium text-primary">+{formatNumber(task.rewardCoins)}</span>
+            <Zap className="h-3 w-3 text-primary" />
+            <span className="text-xs font-medium text-primary">+{formatNumber(task.rewardCoins)} W</span>
           </div>
         </div>
         <div className="shrink-0">
@@ -242,7 +242,7 @@ export default function Tasks() {
     onSuccess: (data) => {
       toast({
         title: "Task Completed!",
-        description: `+${formatNumber(data.coinsAwarded)} coins earned`,
+        description: `+${formatNumber(data.coinsAwarded)} W earned`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
@@ -299,7 +299,7 @@ export default function Tasks() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-tasks-title">Tasks</h1>
         </div>
         <p className="text-muted-foreground text-sm">
-          Complete tasks to earn coins. {completedCount}/{totalCount} done today.
+          Complete tasks to earn watts. {completedCount}/{totalCount} done today.
         </p>
       </div>
 

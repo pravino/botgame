@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Coins, Trophy, ArrowRight, Zap, Medal, ClipboardList, Puzzle } from "lucide-react";
+import { Zap, Trophy, ArrowRight, Medal, ClipboardList, Puzzle } from "lucide-react";
 import { formatNumber } from "@/lib/game-utils";
 import type { User } from "@shared/schema";
 
@@ -113,10 +113,10 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 gap-3">
         <StatCard
-          icon={Coins}
-          label="Total Coins"
+          icon={Zap}
+          label="Total Watts"
           value={formatNumber(user?.totalCoins || 0)}
-          sub="From tapping"
+          sub="Generated"
           color="bg-primary/10 text-primary"
         />
         <StatCard
@@ -132,11 +132,11 @@ export default function Dashboard() {
         <h2 className="text-lg font-semibold">Games</h2>
         <div className="grid gap-4 md:grid-cols-3">
           <GameCard
-            title="Tap to Earn"
-            description="Tap the coin to mine Group Coins. Your energy refills every 24 hours."
-            icon={Coins}
+            title="Power Plant"
+            description="Crank your generator to produce watts. Your energy refills every 24 hours."
+            icon={Zap}
             href="/tap"
-            gradient="bg-gradient-to-br from-amber-500 to-orange-600"
+            gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
             badge="Daily"
           />
         </div>

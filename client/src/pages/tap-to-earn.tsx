@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Coins, Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp } from "lucide-react";
+import { Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp } from "lucide-react";
 import {
   formatNumber,
   getEnergyPercentage,
@@ -25,10 +25,24 @@ interface UserWithTierConfig extends User {
   tierConfig?: TierConfig;
 }
 
-interface FloatingCoin {
+interface FloatingWatt {
   id: number;
   x: number;
   y: number;
+}
+
+const SOLAR_THRESHOLD = 1_000_000;
+
+function getGeneratorName(user: UserWithTierConfig | undefined): string {
+  if (!user) return "Crank Generator";
+  const tier = user.tier || "FREE";
+  if (tier === "FREE") {
+    return (user.totalCoins || 0) >= SOLAR_THRESHOLD ? "Solar Panels" : "Crank Generator";
+  }
+  if (tier === "BRONZE") return "Diesel Generator";
+  if (tier === "SILVER") return "LNG Turbine";
+  if (tier === "GOLD") return "Fusion Reactor";
+  return "Crank Generator";
 }
 
 function CooldownRing({
@@ -104,14 +118,14 @@ function CooldownRing({
 }
 
 export default function TapToEarn() {
-  const [floatingCoins, setFloatingCoins] = useState<FloatingCoin[]>([]);
+  const [floatingWatts, setFloatingWatts] = useState<FloatingWatt[]>([]);
   const [tapScale, setTapScale] = useState(1);
   const [liveEnergy, setLiveEnergy] = useState<number | null>(null);
   const [cooldownLabel, setCooldownLabel] = useState("");
   const [canRefill, setCanRefill] = useState(false);
   const [cooldownProgress, setCooldownProgress] = useState(0);
   const [showChallenge, setShowChallenge] = useState(false);
-  const coinIdRef = useRef(0);
+  const wattIdRef = useRef(0);
   const pendingTapsRef = useRef(0);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
@@ -151,7 +165,7 @@ export default function TapToEarn() {
       queryClient.invalidateQueries({ queryKey: ["/api/tap/estimated-earnings"] });
       toast({
         title: "Multiplier Upgraded!",
-        description: `Level ${data.newMultiplierLevel} unlocked! You now earn ${data.effectiveMultiplier}x coins per tap.`,
+        description: `Level ${data.newMultiplierLevel} unlocked! You now earn ${data.effectiveMultiplier}x W per crank.`,
       });
     },
     onError: (error: any) => {
@@ -224,7 +238,7 @@ export default function TapToEarn() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({ title: "Full Tank!", description: "Energy fully restored. Go tap!" });
+      toast({ title: "Full Tank!", description: "Energy fully restored. Keep cranking!" });
     },
     onError: (error: any) => {
       const msg = error.message || "Refill not available right now";
@@ -258,10 +272,10 @@ export default function TapToEarn() {
       const x = clientX - rect.left;
       const y = clientY - rect.top;
 
-      const id = ++coinIdRef.current;
-      setFloatingCoins((prev) => [...prev, { id, x, y }]);
+      const id = ++wattIdRef.current;
+      setFloatingWatts((prev) => [...prev, { id, x, y }]);
       setTimeout(() => {
-        setFloatingCoins((prev) => prev.filter((c) => c.id !== id));
+        setFloatingWatts((prev) => prev.filter((c) => c.id !== id));
       }, 800);
 
       setTapScale(0.92);
@@ -309,6 +323,11 @@ export default function TapToEarn() {
   const hasRefillFeature = tc.refillCooldownMs !== null && tc.refillCooldownMs > 0;
   const refillRateLabel = tc.energyRefillRateMs <= 1000 ? "1/sec" : "1/2sec";
 
+  const generatorName = getGeneratorName(user);
+  const totalWatts = user?.totalCoins || 0;
+  const isFreeUser = (user?.tier || "FREE") === "FREE";
+  const solarProgress = isFreeUser ? Math.min(100, (totalWatts / SOLAR_THRESHOLD) * 100) : 0;
+
   const handleChallengeResolved = useCallback((passed: boolean) => {
     setShowChallenge(false);
     queryClient.invalidateQueries({ queryKey: ["/api/user"] });
@@ -321,27 +340,59 @@ export default function TapToEarn() {
       )}
       <div className="text-center space-y-1">
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-tap-title">
-          Tap to Earn
+          Power Plant
         </h1>
-        <p className="text-muted-foreground text-sm">Tap the coin to mine Group Coins</p>
+        <p className="text-muted-foreground text-sm">Crank to generate power</p>
       </div>
 
       <Card>
         <CardContent className="p-6 text-center space-y-2">
           <div className="flex items-center justify-center gap-2">
-            <Coins className="h-5 w-5 text-primary" />
+            <Zap className="h-5 w-5 text-primary" />
             <span className="text-3xl font-bold" data-testid="text-total-coins">
-              {formatNumber(user?.totalCoins || 0)}
+              {formatNumber(totalWatts)}
             </span>
+            <span className="text-lg font-semibold text-muted-foreground">W</span>
           </div>
           <div className="flex items-center justify-center gap-2 flex-wrap">
-            <p className="text-sm text-muted-foreground">Group Coins</p>
+            <p className="text-sm text-muted-foreground">Watts (W)</p>
             {(tc.tapMultiplier ?? 1) > 1 && (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" data-testid="text-tap-multiplier">
-                {tc.tapMultiplier}x per tap
+                {tc.tapMultiplier}x W per crank
               </span>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              <span className="font-medium text-sm" data-testid="text-generator-name">{generatorName}</span>
+            </div>
+            {isFreeUser && totalWatts < SOLAR_THRESHOLD && (
+              <Badge variant="secondary" data-testid="badge-generator-tier">Free Tier</Badge>
+            )}
+            {isFreeUser && totalWatts >= SOLAR_THRESHOLD && (
+              <Badge variant="default" data-testid="badge-generator-tier">Solar Unlocked</Badge>
+            )}
+            {!isFreeUser && (
+              <Badge variant="default" data-testid="badge-generator-tier">{user?.tier}</Badge>
+            )}
+          </div>
+          {isFreeUser && totalWatts < SOLAR_THRESHOLD && (
+            <div className="mt-3 space-y-1">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-xs text-muted-foreground">Progress to Solar Panels (1 MW)</p>
+                <span className="text-xs font-mono text-muted-foreground" data-testid="text-solar-progress">
+                  {formatNumber(totalWatts)} / {formatNumber(SOLAR_THRESHOLD)} W
+                </span>
+              </div>
+              <Progress value={solarProgress} className="h-2" data-testid="progress-solar-upgrade" />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -365,7 +416,7 @@ export default function TapToEarn() {
                 <div className="flex items-center gap-1 justify-end">
                   <TrendingUp className="h-3 w-3 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground" data-testid="text-coins-today">
-                    {formatNumber(earnings.myCoinsToday)} coins today
+                    {formatNumber(earnings.myCoinsToday)} W generated today
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -383,7 +434,7 @@ export default function TapToEarn() {
             <div className="flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Upgrade to Bronze or higher to earn USDT from your daily taps
+                Upgrade to Diesel Generator or higher to earn USDT from your daily power generation
               </p>
             </div>
           </CardContent>
@@ -396,7 +447,7 @@ export default function TapToEarn() {
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
-                <span className="font-medium text-sm">Tap Power</span>
+                <span className="font-medium text-sm">Crank Power</span>
               </div>
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" data-testid="text-effective-multiplier">
                 Level {earnings.tapMultiplierLevel}/{earnings.maxUpgradeLevel} ({earnings.tapMultiplier}x)
@@ -422,7 +473,7 @@ export default function TapToEarn() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground text-center">
-                  Subscribe to Bronze or higher to start upgrading your multiplier!
+                  Subscribe to Diesel Generator or higher to start upgrading your multiplier!
                 </p>
               </div>
             ) : earnings.isMaxed ? (
@@ -451,7 +502,7 @@ export default function TapToEarn() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <p className="text-xs text-muted-foreground">
-                    Next level: {formatNumber(earnings.upgradeCost!)} coins
+                    Next level: {formatNumber(earnings.upgradeCost!)} W
                   </p>
                   <Button
                     size="sm"
@@ -464,7 +515,7 @@ export default function TapToEarn() {
                 </div>
                 {(user?.totalCoins ?? 0) < (earnings.upgradeCost ?? 0) && (
                   <p className="text-xs text-muted-foreground text-center">
-                    Need {formatNumber((earnings.upgradeCost ?? 0) - (user?.totalCoins ?? 0))} more coins
+                    Need {formatNumber((earnings.upgradeCost ?? 0) - (user?.totalCoins ?? 0))} more W
                   </p>
                 )}
               </div>
@@ -484,33 +535,33 @@ export default function TapToEarn() {
             animate={{ scale: tapScale }}
             transition={{ type: "spring", stiffness: 500, damping: 20 }}
             className={`w-44 h-44 rounded-full flex items-center justify-center
-              bg-gradient-to-br from-amber-400 via-yellow-500 to-orange-500
+              bg-gradient-to-br from-blue-400 via-cyan-500 to-teal-500
               ${currentEnergy > 0 ? "" : "opacity-50"}
             `}
             style={{
               boxShadow: currentEnergy > 0
-                ? "0 0 30px rgba(245, 158, 11, 0.3), inset 0 -4px 12px rgba(0,0,0,0.15)"
+                ? "0 0 30px rgba(6, 182, 212, 0.3), inset 0 -4px 12px rgba(0,0,0,0.15)"
                 : "inset 0 -4px 12px rgba(0,0,0,0.15)",
             }}
           >
-            <div className="w-36 h-36 rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-600 flex items-center justify-center"
+            <div className="w-36 h-36 rounded-full bg-gradient-to-br from-cyan-300 via-blue-400 to-teal-600 flex items-center justify-center"
               style={{ boxShadow: "inset 0 2px 8px rgba(255,255,255,0.4), inset 0 -2px 8px rgba(0,0,0,0.2)" }}
             >
-              <Coins className="w-16 h-16 text-amber-900/70" />
+              <Zap className="w-16 h-16 text-white/80" />
             </div>
           </motion.div>
 
           <AnimatePresence>
-            {floatingCoins.map((coin) => (
+            {floatingWatts.map((watt) => (
               <motion.div
-                key={coin.id}
-                initial={{ x: coin.x - 20, y: coin.y - 20, opacity: 1, scale: 1 }}
-                animate={{ y: coin.y - 80, opacity: 0, scale: 0.5 }}
+                key={watt.id}
+                initial={{ x: watt.x - 20, y: watt.y - 20, opacity: 1, scale: 1 }}
+                animate={{ y: watt.y - 80, opacity: 0, scale: 0.5 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.7, ease: "easeOut" }}
                 className="absolute top-0 left-0 pointer-events-none text-primary font-bold text-lg"
               >
-                +{tc.tapMultiplier ?? 1}
+                +{tc.tapMultiplier ?? 1} W
               </motion.div>
             ))}
           </AnimatePresence>
@@ -592,7 +643,7 @@ export default function TapToEarn() {
             )}
             {!hasRefillFeature && (
               <p className="text-xs text-muted-foreground">
-                Upgrade to Bronze or higher to unlock Full Tank refills!
+                Upgrade to Diesel Generator or higher to unlock Full Tank refills!
               </p>
             )}
           </CardContent>

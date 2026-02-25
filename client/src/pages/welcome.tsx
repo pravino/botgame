@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Coins, ShieldAlert } from "lucide-react";
+import { Zap, ShieldAlert } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -131,10 +131,10 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <div className="text-center space-y-4">
-          <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 via-yellow-500 to-orange-500 flex items-center justify-center animate-pulse"
-            style={{ boxShadow: "0 0 40px rgba(245, 158, 11, 0.3)" }}
+          <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 flex items-center justify-center animate-pulse"
+            style={{ boxShadow: "0 0 40px rgba(16, 185, 129, 0.3)" }}
           >
-            <Coins className="h-10 w-10 text-amber-900/70" />
+            <Zap className="h-10 w-10 text-emerald-900/70" />
           </div>
           {authError ? (
             <div className="space-y-3">
@@ -154,7 +154,7 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
             <>
               <p className="text-sm text-muted-foreground">Connecting to Vault60...</p>
               {telegramAuthMutation.isPending && (
-                <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
               )}
             </>
           )}
@@ -167,24 +167,24 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-3">
-          <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 via-yellow-500 to-orange-500 flex items-center justify-center animate-coin-float"
-            style={{ boxShadow: "0 0 40px rgba(245, 158, 11, 0.3)" }}
+          <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 flex items-center justify-center animate-coin-float"
+            style={{ boxShadow: "0 0 40px rgba(16, 185, 129, 0.3)" }}
           >
-            <Coins className="h-10 w-10 text-amber-900/70" />
+            <Zap className="h-10 w-10 text-emerald-900/70" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">
             Vault60
           </h1>
           <p className="text-muted-foreground text-sm">
-            Tap to earn. Rewards every day.
+            Generate power. Earn rewards every day.
           </p>
         </div>
 
         <div className="flex justify-center">
           <Card>
             <CardContent className="p-3 text-center space-y-1 px-8">
-              <Coins className="h-5 w-5 mx-auto text-amber-500" />
-              <p className="text-xs text-muted-foreground">Tap & Earn</p>
+              <Zap className="h-5 w-5 mx-auto text-emerald-500" />
+              <p className="text-xs text-muted-foreground">Generate Power</p>
             </CardContent>
           </Card>
         </div>

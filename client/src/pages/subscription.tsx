@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Crown, Zap, Star, Shield, Check, Clock, Loader2, ExternalLink, Sparkles } from "lucide-react";
+import { Zap, Check, Clock, Loader2, ExternalLink, Sparkles, Fuel, Flame, Atom, Lock } from "lucide-react";
 import { formatUSD } from "@/lib/game-utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -17,8 +17,6 @@ interface SubscriptionInfo {
   isFounder: boolean;
   isProRated: boolean;
   proRateNote: string;
-  spinTickets: number;
-  spinTicketsExpiry: string | null;
 }
 
 interface PaymentConfig {
@@ -44,38 +42,41 @@ const TIER_META: Record<string, {
   multiplier: number;
   dailyUnit: number;
   extraFeatures: string[];
+  comingSoon?: boolean;
 }> = {
   FREE: {
-    label: "Free",
-    icon: Shield,
+    label: "Crank Generator",
+    icon: Zap,
     gradient: "from-slate-400 to-slate-500",
     multiplier: 1,
     dailyUnit: 0,
-    extraFeatures: ["Basic game access", "Standard energy refill"],
+    extraFeatures: ["Basic power generation", "Standard energy refill"],
   },
   BRONZE: {
-    label: "Bronze",
-    icon: Zap,
+    label: "Diesel Generator",
+    icon: Fuel,
     gradient: "from-amber-600 to-amber-700",
     multiplier: 1,
     dailyUnit: 0.10,
-    extraFeatures: ["4 spin tickets on signup", "Founder badge (early)"],
+    extraFeatures: ["$0.10 daily power share", "Founder badge (early)"],
   },
   SILVER: {
-    label: "Silver",
-    icon: Star,
+    label: "LNG Turbine",
+    icon: Flame,
     gradient: "from-slate-300 to-slate-400",
     multiplier: 3,
     dailyUnit: 0.30,
-    extraFeatures: ["4 spin tickets on signup", "Priority predictions", "Founder badge (early)"],
+    extraFeatures: ["3x watts per crank", "$0.30 daily power share", "Founder badge (early)"],
+    comingSoon: true,
   },
   GOLD: {
-    label: "Gold",
-    icon: Crown,
+    label: "Fusion Reactor",
+    icon: Atom,
     gradient: "from-yellow-400 to-amber-500",
     multiplier: 10,
     dailyUnit: 1.00,
-    extraFeatures: ["4 spin tickets on signup", "Priority predictions", "Exclusive rewards", "Founder badge (early)"],
+    extraFeatures: ["10x watts per crank", "$1.00 daily power share", "Exclusive rewards", "Founder badge (early)"],
+    comingSoon: true,
   },
 };
 
@@ -85,9 +86,9 @@ function buildTierDetails(tiers: Record<string, number>) {
     const meta = TIER_META[name];
     const price = tiers[name] ?? (name === "FREE" ? 0 : 0);
     const features: string[] = [];
-    features.push(`${meta.multiplier}x tap multiplier`);
-    if (meta.dailyUnit > 0) {
-      features.push(`${formatUSD(meta.dailyUnit)} daily pot share`);
+    features.push(`${meta.multiplier}x watts per crank`);
+    if (meta.dailyUnit > 0 && !meta.extraFeatures.some(f => f.includes("daily power share"))) {
+      features.push(`${formatUSD(meta.dailyUnit)} daily power share`);
     }
     features.push(...meta.extraFeatures);
     return { name, price, ...meta, features };
@@ -136,7 +137,13 @@ function TierCard({
               <TierIcon className="h-6 w-6" />
               <h3 className="text-lg font-bold">{tier.label}</h3>
             </div>
-            {tier.price > 0 && isSandbox && (
+            {tier.comingSoon && (
+              <Badge variant="secondary" className="bg-white/20 text-white border-0 text-xs">
+                <Lock className="h-3 w-3 mr-1" />
+                Coming Soon
+              </Badge>
+            )}
+            {tier.price > 0 && isSandbox && !tier.comingSoon && (
               <Badge variant="secondary" className="bg-white/20 text-white border-0 text-xs">
                 Sandbox
               </Badge>
@@ -165,12 +172,17 @@ function TierCard({
           {tier.name !== "FREE" && (
             <Button
               className="w-full"
-              variant={isCurrent ? "outline" : "default"}
-              disabled={isCurrent || isLoading || (isPending && pendingTier !== tier.name)}
+              variant={isCurrent ? "outline" : tier.comingSoon ? "secondary" : "default"}
+              disabled={isCurrent || isLoading || tier.comingSoon || (isPending && pendingTier !== tier.name)}
               onClick={() => onSubscribe(tier.name)}
               data-testid={`button-subscribe-${tier.name.toLowerCase()}`}
             >
-              {isLoading ? (
+              {tier.comingSoon ? (
+                <>
+                  <Lock className="h-4 w-4 mr-2" />
+                  Coming Soon
+                </>
+              ) : isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Processing...
@@ -282,10 +294,10 @@ export default function SubscriptionPage() {
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
       <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-subscription-title">
-          Subscription
+          Power Plans
         </h1>
         <p className="text-muted-foreground text-sm">
-          Upgrade your plan to earn more rewards and unlock premium features
+          Upgrade your generator to produce more watts and unlock premium power features
         </p>
       </div>
 
@@ -296,17 +308,17 @@ export default function SubscriptionPage() {
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-md bg-primary/10 text-primary">
                   {currentTier === "GOLD" ? (
-                    <Crown className="h-5 w-5" />
+                    <Atom className="h-5 w-5" />
                   ) : currentTier === "SILVER" ? (
-                    <Star className="h-5 w-5" />
+                    <Flame className="h-5 w-5" />
                   ) : (
-                    <Zap className="h-5 w-5" />
+                    <Fuel className="h-5 w-5" />
                   )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold" data-testid="text-current-tier">
-                      {currentTier.charAt(0) + currentTier.slice(1).toLowerCase()} Plan
+                      {TIER_META[currentTier]?.label || currentTier} Plan
                     </p>
                     {subscription?.isFounder && (
                       <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-0 text-xs">
@@ -320,13 +332,7 @@ export default function SubscriptionPage() {
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                {subscription?.spinTickets !== undefined && subscription.spinTickets > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    {subscription.spinTickets} spin tickets
-                  </p>
-                )}
-              </div>
+              <div className="text-right" />
             </div>
             {subscription?.isProRated && subscription?.proRateNote && (
               <div className="mt-3 bg-amber-500/10 border border-amber-500/20 rounded-md p-3">
@@ -381,7 +387,7 @@ export default function SubscriptionPage() {
                       )}
                       <div>
                         <p className="text-sm font-medium">
-                          {inv.tierName.charAt(0) + inv.tierName.slice(1).toLowerCase()} — {formatUSD(parseFloat(inv.amount))}
+                          {TIER_META[inv.tierName]?.label || inv.tierName} — {formatUSD(parseFloat(inv.amount))}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(inv.createdAt).toLocaleDateString()} · {inv.invoiceId.slice(0, 16)}...
