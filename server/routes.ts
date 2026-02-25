@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { storage, db } from "./storage";
-import { users, referralMilestones, predictions } from "@shared/schema";
+import { users, predictions } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { log } from "./index";
@@ -13,7 +13,7 @@ import { recordLedgerEntry, getUserLedger, verifyLedgerIntegrity } from "./middl
 import { runGuardianChecks, updateCoinsSinceChallenge, resolveChallenge, checkWalletUnique, detectBotPattern } from "./middleware/guardian";
 import { midnightPulse, batchWithdrawalSettlement, subscriberRetentionCheck } from "./cron/settlementCron";
 import { getValidatedBTCPrice, isPriceFrozen } from "./services/priceService";
-import { getWheelAccessStatus, checkAndAwardMilestones } from "./services/referralTracker";
+import { checkAndAwardMilestones } from "./services/referralTracker";
 import { settleAllTiers } from "./services/oracleService";
 import { createInvoice, verifySignature, processWebhookPayment, sandboxConfirmInvoice, getPaymentConfig, requireSecretConfigured } from "./services/paymentService";
 
@@ -823,15 +823,6 @@ export async function registerRoutes(
 
   app.post("/api/spin", requireAuth, async (req: Request, res: Response) => {
     try {
-      const preUser = await storage.getUser(req.session.userId!);
-      const isPaidPreCheck = preUser && preUser.tier !== "FREE" && preUser.subscriptionExpiry && new Date(preUser.subscriptionExpiry) > new Date();
-      if (isPaidPreCheck) {
-        const access = await getWheelAccessStatus(req.session.userId!);
-        if (access.locked) {
-          return res.status(403).json({ message: access.message, locked: true, referralCount: access.referralCount, requiredCount: access.requiredCount });
-        }
-      }
-
       const result = await spinWheel(req.session.userId!);
 
       const user = await storage.getUser(req.session.userId!);
@@ -865,13 +856,8 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/wheel-status", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const status = await getWheelAccessStatus(req.session.userId!);
-      res.json(status);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to get wheel status" });
-    }
+  app.get("/api/wheel-status", requireAuth, async (_req: Request, res: Response) => {
+    res.json({ locked: false, referralCount: 0, requiredCount: 0, message: "Wheel feature is disabled" });
   });
 
   app.get("/api/referral-status", requireAuth, async (req: Request, res: Response) => {
@@ -886,33 +872,14 @@ export async function registerRoutes(
 
       const paidCount = await storage.getPaidReferralCount(user.id);
       const referred = await storage.getReferredUsers(user.id);
-      const milestones = await storage.getAllMilestones();
-      const wheelStatus = await getWheelAccessStatus(user.id);
       const config = await storage.getGlobalConfig();
-
-      const reachedMilestones = milestones.filter(m => paidCount >= m.friendsRequired);
-      const nextMilestone = milestones.find(m => paidCount < m.friendsRequired);
 
       res.json({
         referralCode: updatedUser?.referralCode || "",
         paidReferralCount: paidCount,
         totalReferrals: referred.length,
         totalReferralEarnings: updatedUser?.totalReferralEarnings || 0,
-        wheelUnlocked: updatedUser?.wheelUnlocked || false,
-        wheelStatus,
         perFriendReward: config.referral_reward_amount ?? 1,
-        milestones: milestones.map(m => ({
-          ...m,
-          reached: paidCount >= m.friendsRequired,
-        })),
-        reachedCount: reachedMilestones.length,
-        nextMilestone: nextMilestone ? {
-          label: nextMilestone.label,
-          friendsRequired: nextMilestone.friendsRequired,
-          remaining: nextMilestone.friendsRequired - paidCount,
-          bonusUsdt: nextMilestone.bonusUsdt,
-          unlocksWheel: nextMilestone.unlocksWheel,
-        } : null,
         squad: referred.slice(0, 20).map(r => ({
           username: r.username,
           tier: r.tier,
@@ -2293,20 +2260,7 @@ export async function registerRoutes(
 
   async function seedReferralMilestones() {
     try {
-      const existing = await storage.getAllMilestones();
-      if (existing.length > 0) return;
-
-      const milestones = [
-        { friendsRequired: 1, label: "Bronze Scout", usdtPerFriend: 1, bonusUsdt: 0, unlocksWheel: false, sortOrder: 1 },
-        { friendsRequired: 3, label: "Bronze Captain", usdtPerFriend: 1, bonusUsdt: 2, unlocksWheel: false, sortOrder: 2 },
-        { friendsRequired: 5, label: "Bronze Legend", usdtPerFriend: 1, bonusUsdt: 0, unlocksWheel: true, sortOrder: 3 },
-        { friendsRequired: 50, label: "Whale Recruiter", usdtPerFriend: 1, bonusUsdt: 50, unlocksWheel: false, sortOrder: 4 },
-      ];
-
-      for (const m of milestones) {
-        await db.insert(referralMilestones).values(m);
-      }
-      log("Referral milestones seeded");
+      log("Referral milestones: skipped (milestone bonuses disabled)");
     } catch (error: any) {
       log(`Referral milestones seed error: ${error.message}`);
     }

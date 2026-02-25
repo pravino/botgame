@@ -4,22 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Copy, Check, Gift, Lock, Unlock, DollarSign, Trophy, Star, Zap, ArrowRight, Share2 } from "lucide-react";
+import { Users, Copy, Check, DollarSign, Star, Zap, Share2 } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import { formatUSD } from "@/lib/game-utils";
 
 const BOT_USERNAME = "Vault60Bot";
-
-type MilestoneData = {
-  id: number;
-  friendsRequired: number;
-  label: string;
-  usdtPerFriend: number;
-  bonusUsdt: number;
-  unlocksWheel: boolean;
-  reached: boolean;
-};
 
 type SquadMember = {
   username: string;
@@ -33,23 +23,7 @@ type ReferralStatus = {
   paidReferralCount: number;
   totalReferrals: number;
   totalReferralEarnings: number;
-  wheelUnlocked: boolean;
   perFriendReward: number;
-  wheelStatus: {
-    locked: boolean;
-    referralCount: number;
-    requiredCount: number;
-    message: string;
-  };
-  milestones: MilestoneData[];
-  reachedCount: number;
-  nextMilestone: {
-    label: string;
-    friendsRequired: number;
-    remaining: number;
-    bonusUsdt: number;
-    unlocksWheel: boolean;
-  } | null;
   squad: SquadMember[];
 };
 
@@ -84,8 +58,8 @@ export default function Referrals() {
 
   const handleShare = () => {
     if (!referralLink) return;
-    const shareText = `Join me on Vault60! Tap, predict & spin to earn crypto rewards.\n${referralLink}`;
-    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Join me on Vault60! Tap, predict & spin to earn crypto rewards.")}`;
+    const shareText = `Join me on Vault60! Tap to earn crypto rewards.\n${referralLink}`;
+    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Join me on Vault60! Tap to earn crypto rewards.")}`;
     if (window.Telegram?.WebApp) {
       window.open(tgShareUrl, "_blank");
     } else if (navigator.share) {
@@ -137,19 +111,6 @@ export default function Referrals() {
                 </p>
               </div>
             </div>
-            {data?.milestones && data.milestones.length > 0 && (
-              <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50 border border-border">
-                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                  <Trophy className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium" data-testid="text-milestone-max-bonus">Milestone bonuses up to {formatUSD(data.milestones.reduce((max, m) => Math.max(max, m.bonusUsdt), 0))}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Hit referral milestones for bonus USDT drops and Lucky Wheel access
-                  </p>
-                </div>
-              </div>
-            )}
             <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50 border border-border">
               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
                 <Star className="h-4 w-4 text-primary" />
@@ -218,96 +179,6 @@ export default function Referrals() {
           </CardContent>
         </Card>
       </div>
-
-      {data?.wheelStatus && !data.wheelUnlocked && data.wheelStatus.locked && (
-        <Card className="border-primary/50">
-          <CardContent className="p-5 space-y-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Lock className="h-5 w-5 text-primary" />
-              <span className="font-medium">Wheel Unlock Progress</span>
-            </div>
-            <p className="text-sm text-muted-foreground">{data.wheelStatus.message}</p>
-            <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
-              <div
-                className="bg-primary h-full rounded-full transition-all"
-                style={{ width: `${Math.min(100, (data.wheelStatus.referralCount / data.wheelStatus.requiredCount) * 100)}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-2 flex-wrap text-sm">
-              <span className="text-muted-foreground">{data.wheelStatus.referralCount} / {data.wheelStatus.requiredCount} paid friends</span>
-              <Badge variant="secondary">{data.wheelStatus.requiredCount - data.wheelStatus.referralCount} more needed</Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {data?.wheelUnlocked && (
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3 flex-wrap">
-            <Unlock className="h-5 w-5 text-green-500" />
-            <span className="text-sm font-medium">Lucky Wheel Unlocked</span>
-            <Badge variant="default" className="ml-auto">Active</Badge>
-          </CardContent>
-        </Card>
-      )}
-
-      {data?.milestones && data.milestones.length > 0 && (
-        <Card>
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Trophy className="h-4 w-4 text-primary" />
-              <span className="font-medium text-sm">Milestones</span>
-              <Badge variant="secondary" className="ml-auto" data-testid="text-milestones-count">{data.reachedCount}/{data.milestones.length}</Badge>
-            </div>
-            <div className="space-y-3">
-              {data.milestones.map((m) => (
-                <div
-                  key={m.id}
-                  className={`flex items-center gap-3 p-3 rounded-md border ${m.reached ? "border-primary/30 bg-primary/5" : "border-border"}`}
-                  data-testid={`milestone-${m.id}`}
-                >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${m.reached ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                    {m.reached ? <Check className="h-4 w-4" /> : <span className="text-xs font-bold">{m.friendsRequired}</span>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{m.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {m.friendsRequired} paid friend{m.friendsRequired > 1 ? "s" : ""}
-                      {m.bonusUsdt > 0 && ` · +${formatUSD(m.bonusUsdt)} bonus`}
-                      {m.unlocksWheel && " · Unlocks Wheel"}
-                    </p>
-                  </div>
-                  {m.reached ? (
-                    <Badge variant="default" className="shrink-0">
-                      <Check className="h-3 w-3" />
-                    </Badge>
-                  ) : (
-                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {data?.nextMilestone && (
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Gift className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Next Milestone</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{data.nextMilestone.label}</span>
-              {" — "}
-              {data.nextMilestone.remaining} more paid friend{data.nextMilestone.remaining > 1 ? "s" : ""} needed
-              {data.nextMilestone.bonusUsdt > 0 && `. Bonus: +${formatUSD(data.nextMilestone.bonusUsdt)} USDT`}
-              {data.nextMilestone.unlocksWheel && ". Unlocks Lucky Wheel!"}
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardContent className="p-5 space-y-3">
