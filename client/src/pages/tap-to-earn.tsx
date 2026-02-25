@@ -215,7 +215,7 @@ function CrankWheel({
   );
 }
 
-export default function TapToEarn() {
+export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   const [floatingWatts, setFloatingWatts] = useState<FloatingWatt[]>([]);
   const [tapScale, setTapScale] = useState(1);
   const [liveEnergy, setLiveEnergy] = useState<number | null>(null);
@@ -223,6 +223,7 @@ export default function TapToEarn() {
   const [canRefill, setCanRefill] = useState(false);
   const [cooldownProgress, setCooldownProgress] = useState(0);
   const [showChallenge, setShowChallenge] = useState(false);
+  const [guestWatts, setGuestWatts] = useState(0);
 
   const [wheelAngle, setWheelAngle] = useState(0);
   const [angularVelocity, setAngularVelocity] = useState(0);
@@ -244,6 +245,7 @@ export default function TapToEarn() {
 
   const { data: user, isLoading } = useQuery<UserWithTierConfig>({
     queryKey: ["/api/user"],
+    enabled: !guest,
   });
 
   interface EstimatedEarnings {
@@ -265,6 +267,7 @@ export default function TapToEarn() {
   const { data: earnings } = useQuery<EstimatedEarnings>({
     queryKey: ["/api/tap/estimated-earnings"],
     refetchInterval: 30000,
+    enabled: !guest,
   });
 
   const upgradeMutation = useMutation({
@@ -355,6 +358,18 @@ export default function TapToEarn() {
   }, [tapMutation]);
 
   const registerCrankTap = useCallback(() => {
+    if (guest) {
+      setGuestWatts((prev) => prev + 1);
+      const half = WHEEL_SIZE / 2;
+      const angle = wheelAngleRef.current * (Math.PI / 180);
+      const spawnX = half + Math.cos(angle) * (half * 0.6);
+      const spawnY = half + Math.sin(angle) * (half * 0.6);
+      const id = ++wattIdRef.current;
+      setFloatingWatts((prev) => [...prev, { id, x: spawnX, y: spawnY }]);
+      setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 800);
+      return;
+    }
+
     const currentEnergy = liveEnergyRef.current ?? 0;
     if (currentEnergy <= 0) return;
 
@@ -381,10 +396,10 @@ export default function TapToEarn() {
     } else {
       flushTimerRef.current = setTimeout(flushTaps, 2000);
     }
-  }, [tc.tapMultiplier, flushTaps]);
+  }, [guest, tc.tapMultiplier, flushTaps]);
 
   useEffect(() => {
-    const isFree = (user?.tier || "FREE") === "FREE";
+    const isFree = guest || (user?.tier || "FREE") === "FREE";
     if (!isFree) return;
 
     let lastTime = performance.now();
@@ -394,21 +409,29 @@ export default function TapToEarn() {
       lastTime = now;
 
       let vel = angularVelocityRef.current;
-      const currentEnergy = liveEnergyRef.current ?? 0;
 
-      if (currentEnergy <= 0) {
-        vel *= Math.pow(NO_ENERGY_FRICTION, dt);
-        if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
-      } else if (!isDraggingRef.current) {
-        vel *= Math.pow(FRICTION, dt);
-        if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+      if (guest) {
+        if (!isDraggingRef.current) {
+          vel *= Math.pow(FRICTION, dt);
+          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+        }
+      } else {
+        const currentEnergy = liveEnergyRef.current ?? 0;
+        if (currentEnergy <= 0) {
+          vel *= Math.pow(NO_ENERGY_FRICTION, dt);
+          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+        } else if (!isDraggingRef.current) {
+          vel *= Math.pow(FRICTION, dt);
+          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+        }
       }
 
       angularVelocityRef.current = vel;
       const angleDelta = vel * dt;
       wheelAngleRef.current = (wheelAngleRef.current + angleDelta) % 360;
 
-      if (Math.abs(angleDelta) > 0.01 && currentEnergy > 0) {
+      const canGenerate = guest || (liveEnergyRef.current ?? 0) > 0;
+      if (Math.abs(angleDelta) > 0.01 && canGenerate) {
         accumulatedRotationRef.current += Math.abs(angleDelta);
         while (accumulatedRotationRef.current >= 360) {
           accumulatedRotationRef.current -= 360;
@@ -430,7 +453,7 @@ export default function TapToEarn() {
         flushTaps();
       }
     };
-  }, [user?.tier, registerCrankTap, flushTaps]);
+  }, [guest, user?.tier, registerCrankTap, flushTaps]);
 
   const getAngleFromPointer = useCallback((clientX: number, clientY: number): number | null => {
     const el = wheelRef.current;
@@ -453,8 +476,10 @@ export default function TapToEarn() {
 
   const handleCrankMove = useCallback((e: React.PointerEvent) => {
     if (!isDraggingRef.current || lastAngleRef.current === null) return;
-    const currentEnergy = liveEnergyRef.current ?? 0;
-    if (currentEnergy <= 0) return;
+    if (!guest) {
+      const currentEnergy = liveEnergyRef.current ?? 0;
+      if (currentEnergy <= 0) return;
+    }
 
     const angle = getAngleFromPointer(e.clientX, e.clientY);
     if (angle === null) return;
@@ -519,7 +544,7 @@ export default function TapToEarn() {
     [user, liveEnergy, flushTaps]
   );
 
-  if (isLoading) {
+  if (!guest && isLoading) {
     return (
       <div className="p-4 md:p-6 space-y-6 max-w-md mx-auto">
         <Skeleton className="h-8 w-40" />
@@ -537,14 +562,63 @@ export default function TapToEarn() {
   const refillRateLabel = tc.energyRefillRateMs <= 1000 ? "1/sec" : "1/2sec";
 
   const generatorName = getGeneratorName(user);
-  const totalWatts = user?.totalCoins || 0;
-  const isFreeUser = (user?.tier || "FREE") === "FREE";
+  const totalWatts = guest ? guestWatts : (user?.totalCoins || 0);
+  const isFreeUser = guest || (user?.tier || "FREE") === "FREE";
   const solarProgress = isFreeUser ? Math.min(100, (totalWatts / SOLAR_THRESHOLD) * 100) : 0;
 
   const handleChallengeResolved = useCallback((passed: boolean) => {
     setShowChallenge(false);
     queryClient.invalidateQueries({ queryKey: ["/api/user"] });
   }, []);
+
+  if (guest) {
+    return (
+      <div className="p-4 md:p-6 space-y-6 max-w-md mx-auto">
+        <div className="text-center space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-tap-title">
+            Power Plant
+          </h1>
+          <p className="text-muted-foreground text-sm">Turn the crank to generate power</p>
+        </div>
+
+        <Card>
+          <CardContent className="p-6 text-center space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              <span className="text-3xl font-bold" data-testid="text-total-coins">
+                {formatNumber(guestWatts)}
+              </span>
+              <span className="text-lg font-semibold text-muted-foreground">W</span>
+            </div>
+            <p className="text-sm text-muted-foreground">Watts (W)</p>
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-center">
+          <CrankWheel
+            angularVelocity={angularVelocity}
+            wheelAngle={wheelAngle}
+            hasEnergy={true}
+            isDragging={isDragging}
+            floatingWatts={floatingWatts}
+            multiplier={1}
+            onPointerDown={handleCrankDown}
+            onPointerMove={handleCrankMove}
+            onPointerUp={handleCrankUp}
+            wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
+          />
+        </div>
+
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Sign in to save your progress and earn real rewards
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-md mx-auto">
