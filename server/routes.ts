@@ -2231,13 +2231,13 @@ export async function registerRoutes(
     try {
       const existing = await storage.getGlobalConfig();
       if (!existing.prediction_share) {
-        await storage.setGlobalConfigValue("prediction_share", 0.30, "Percentage of daily unit allocated to prediction pot");
+        await storage.setGlobalConfigValue("prediction_share", 0, "Percentage of daily unit allocated to prediction pot (disabled)");
       }
       if (!existing.tap_share) {
-        await storage.setGlobalConfigValue("tap_share", 0.50, "Percentage of daily unit allocated to tap pot");
+        await storage.setGlobalConfigValue("tap_share", 1.0, "Percentage of daily unit allocated to tap pot");
       }
       if (!existing.wheel_share) {
-        await storage.setGlobalConfigValue("wheel_share", 0.20, "Percentage of daily unit allocated to wheel vault");
+        await storage.setGlobalConfigValue("wheel_share", 0, "Percentage of daily unit allocated to wheel vault (disabled)");
       }
       if (!existing.admin_split) {
         await storage.setGlobalConfigValue("admin_split", 0.40, "Admin profit share of subscription payments (0-1)");
@@ -2252,25 +2252,25 @@ export async function registerRoutes(
         await storage.setGlobalConfigValue("expiry_warning_hours", 48, "Hours before subscription expiry to send warning notification");
       }
       if (!existing.spins_free) {
-        await storage.setGlobalConfigValue("spins_free", 1, "Monthly spin allocation for Free tier users");
+        await storage.setGlobalConfigValue("spins_free", 0, "Monthly spin allocation for Free tier users (wheel disabled)");
       }
       if (!existing.spins_bronze) {
-        await storage.setGlobalConfigValue("spins_bronze", 4, "Monthly spin allocation for Bronze tier subscribers");
+        await storage.setGlobalConfigValue("spins_bronze", 0, "Monthly spin allocation for Bronze tier subscribers (wheel disabled)");
       }
       if (!existing.spins_silver) {
-        await storage.setGlobalConfigValue("spins_silver", 12, "Monthly spin allocation for Silver tier subscribers");
+        await storage.setGlobalConfigValue("spins_silver", 0, "Monthly spin allocation for Silver tier subscribers (wheel disabled)");
       }
       if (!existing.spins_gold) {
-        await storage.setGlobalConfigValue("spins_gold", 40, "Monthly spin allocation for Gold tier subscribers");
+        await storage.setGlobalConfigValue("spins_gold", 0, "Monthly spin allocation for Gold tier subscribers (wheel disabled)");
       }
       if (!existing.wheel_unlock_bronze) {
-        await storage.setGlobalConfigValue("wheel_unlock_bronze", 5, "Paid referrals required for Bronze to unlock wheel");
+        await storage.setGlobalConfigValue("wheel_unlock_bronze", 0, "Paid referrals required for Bronze to unlock wheel (wheel disabled)");
       }
       if (!existing.wheel_unlock_silver) {
-        await storage.setGlobalConfigValue("wheel_unlock_silver", 2, "Paid referrals required for Silver to unlock wheel");
+        await storage.setGlobalConfigValue("wheel_unlock_silver", 0, "Paid referrals required for Silver to unlock wheel (wheel disabled)");
       }
       if (!existing.wheel_unlock_gold) {
-        await storage.setGlobalConfigValue("wheel_unlock_gold", 0, "Paid referrals required for Gold to unlock wheel (0 = instant)");
+        await storage.setGlobalConfigValue("wheel_unlock_gold", 0, "Paid referrals required for Gold to unlock wheel (wheel disabled)");
       }
       if (!existing.referral_reward_amount) {
         await storage.setGlobalConfigValue("referral_reward_amount", 1, "USDT reward per referral subscription payment (deducted from treasury share)");
@@ -2324,11 +2324,11 @@ export async function registerRoutes(
       if (existingUsers.length > 0) return;
 
       const seedUsers = [
-        { username: "CryptoKing", email: "cryptoking@demo.local", totalCoins: 15420, correctPredictions: 18, totalPredictions: 25, totalWheelWinnings: 12.50, totalSpins: 8 },
-        { username: "MoonShot", email: "moonshot@demo.local", totalCoins: 12800, correctPredictions: 14, totalPredictions: 20, totalWheelWinnings: 8.30, totalSpins: 6 },
-        { username: "DiamondHands", email: "diamondhands@demo.local", totalCoins: 9500, correctPredictions: 22, totalPredictions: 30, totalWheelWinnings: 105.10, totalSpins: 12 },
-        { username: "SatoshiFan", email: "satoshifan@demo.local", totalCoins: 7200, correctPredictions: 11, totalPredictions: 18, totalWheelWinnings: 3.60, totalSpins: 5 },
-        { username: "BlockRunner", email: "blockrunner@demo.local", totalCoins: 5800, correctPredictions: 9, totalPredictions: 15, totalWheelWinnings: 6.20, totalSpins: 7 },
+        { username: "CryptoKing", email: "cryptoking@demo.local", totalCoins: 15420, correctPredictions: 0, totalPredictions: 0, totalWheelWinnings: 0, totalSpins: 0 },
+        { username: "MoonShot", email: "moonshot@demo.local", totalCoins: 12800, correctPredictions: 0, totalPredictions: 0, totalWheelWinnings: 0, totalSpins: 0 },
+        { username: "DiamondHands", email: "diamondhands@demo.local", totalCoins: 9500, correctPredictions: 0, totalPredictions: 0, totalWheelWinnings: 0, totalSpins: 0 },
+        { username: "SatoshiFan", email: "satoshifan@demo.local", totalCoins: 7200, correctPredictions: 0, totalPredictions: 0, totalWheelWinnings: 0, totalSpins: 0 },
+        { username: "BlockRunner", email: "blockrunner@demo.local", totalCoins: 5800, correctPredictions: 0, totalPredictions: 0, totalWheelWinnings: 0, totalSpins: 0 },
       ];
 
       for (const userData of seedUsers) {

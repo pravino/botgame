@@ -18,9 +18,9 @@ async function getAdminTreasurySplit(): Promise<{ adminSplit: number; treasurySp
 }
 
 const DEFAULT_POOL_SPLIT = {
-  tapPot: 0.50,
-  predictPot: 0.30,
-  wheelVault: 0.20,
+  tapPot: 1.0,
+  predictPot: 0,
+  wheelVault: 0,
 };
 
 async function getPoolSplit(): Promise<{ tapPot: number; predictPot: number; wheelVault: number }> {

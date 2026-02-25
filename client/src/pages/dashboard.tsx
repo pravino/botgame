@@ -3,8 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Coins, TrendingUp, CircleDot, Trophy, ArrowRight, Zap, Medal, ClipboardList, Puzzle } from "lucide-react";
-import { formatNumber, formatUSD } from "@/lib/game-utils";
+import { Coins, Trophy, ArrowRight, Zap, Medal, ClipboardList, Puzzle } from "lucide-react";
+import { formatNumber } from "@/lib/game-utils";
 import type { User } from "@shared/schema";
 
 function StatCard({
@@ -126,20 +126,6 @@ export default function Dashboard() {
           sub={`/ ${user?.maxEnergy || 1000}`}
           color="bg-chart-2/10 text-chart-2"
         />
-        <StatCard
-          icon={TrendingUp}
-          label="Predictions"
-          value={`${user?.correctPredictions || 0}/${user?.totalPredictions || 0}`}
-          sub="Correct / Total"
-          color="bg-chart-3/10 text-chart-3"
-        />
-        <StatCard
-          icon={CircleDot}
-          label="Wheel Winnings"
-          value={formatUSD(user?.totalWheelWinnings || 0)}
-          sub={`${user?.totalSpins || 0} spins total`}
-          color="bg-chart-4/10 text-chart-4"
-        />
       </div>
 
       <div className="space-y-3">
@@ -152,22 +138,6 @@ export default function Dashboard() {
             href="/tap"
             gradient="bg-gradient-to-br from-amber-500 to-orange-600"
             badge="Daily"
-          />
-          <GameCard
-            title="Price Prediction"
-            description="Will BTC go higher or lower? Predict correctly and climb the leaderboard."
-            icon={TrendingUp}
-            href="/predict"
-            gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
-            badge="Skill"
-          />
-          <GameCard
-            title="Lucky Wheel"
-            description="Spin the wheel for a chance to win up to 100 USDT. Fortune favors the bold."
-            icon={CircleDot}
-            href="/wheel"
-            gradient="bg-gradient-to-br from-purple-500 to-pink-600"
-            badge="Luck"
           />
         </div>
       </div>

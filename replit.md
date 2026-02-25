@@ -23,9 +23,9 @@ The application is built with a modern web stack, featuring a React + TypeScript
 **Technical Implementations:**
 - **Authentication**: Telegram-based authentication supporting both Mini App (WebApp initData with HMAC verification) and browser Login Widget. New users are auto-provisioned with Telegram profile data. ALLOWED_TESTERS env var gates access during testing.
 - **Gamification**:
-    - **Tap-to-Earn**: Coin tapping with an energy system (refills every 24 hours, visual animations). Features a multiplier upgrade system where users spend in-game currency to increase their tap multiplier.
-    - **Price Prediction**: Users predict BTC price movement, with results resolving after 12 hours based on real-time data. Submissions are locked at 12:00 UTC daily to prevent last-minute sniping.
-    - **Lucky Wheel**: A spin-the-wheel game offering various USDT rewards, with limited spins.
+    - **Tap-to-Earn**: Coin tapping with an energy system (refills every 24 hours, visual animations). Features a multiplier upgrade system where users spend in-game currency to increase their tap multiplier. This is currently the ONLY active game — 100% of the treasury share goes to the tap pot.
+    - **Price Prediction**: DISABLED — routes and UI removed, pot allocation set to 0%.
+    - **Lucky Wheel**: DISABLED — routes and UI removed, pot allocation set to 0%, all spin allocations set to 0.
 - **Wallet & Deposits**: USDT wallet functionality, supporting deposits via TON and TRC-20 networks with QR code generation.
 - **Leaderboards**: Three categories (Coins, Predictions, Wheel winnings) showcasing top players.
 - **Subscription System**: Tiered subscription plans (Free, Bronze, Silver, Gold) with different benefits and a sandbox payment flow via TON Pay. Features a "No-Overlap Rule" for multiplier upgrades ensuring higher tiers always offer better progression.
@@ -55,7 +55,7 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - **Scalability**: Batched tap processing (50 taps/2000ms) to reduce server load.
 - **Reliability**: Multi-oracle BTC price system (CoinGecko, Binance, CoinMarketCap) with median calculation and retry mechanisms for robust price data.
 - **Admin Control**: Admin endpoints are protected by email-based authorization (`ADMIN_EMAILS` env var).
-- **Revenue Split**: Subscription payments are split via `global_config`: 40% admin (`admin_split`), 60% treasury (`treasury_split`). From the treasury, `referral_reward_amount` ($1 default) is deducted for the referrer on each payment (including renewals), with the remainder distributed to game pots. If no referrer, the full treasury goes to pots. Both transactionSplit and referralTracker cap the reward at grossTreasury for accounting integrity.
+- **Revenue Split**: Subscription payments are split via `global_config`: 40% admin (`admin_split`), 60% treasury (`treasury_split`). From the treasury, `referral_reward_amount` ($1 default) is deducted for the referrer on each payment (including renewals), with the remainder distributed to the tap pot (100%). Prediction and wheel pots are set to 0%. Both transactionSplit and referralTracker cap the reward at grossTreasury for accounting integrity.
 - **Dynamic Oracle Settlement**: Prediction payouts are fully dynamic — driven by a `global_config` database table (prediction_share, tap_share, wheel_share). Each tier's prediction pot is calculated with per-subscriber pro-rating (mid-day joiners contribute proportionally), with per-tier rollover tracking in `tier_rollovers`. If no winners, the pot accumulates for the next settlement and a "Mega Pot" Telegram announcement is sent. Tier pots are fully segregated — no cross-tier sharing. Oracle payouts (wallet + ledger) are wrapped in atomic DB transactions for consistency.
 - **Lucky Wheel Fortress (Layer 3)**: Vault-backed gacha system with mathematical EV control.
     - PRNG range 0-10,000 with jackpot trigger at exactly 7777 ("Double-Lock" verification).

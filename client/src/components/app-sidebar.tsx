@@ -11,7 +11,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LayoutDashboard, Coins, TrendingUp, CircleDot, Trophy, Wallet, Crown, ClipboardList, Puzzle, Medal, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Coins, Trophy, Wallet, Crown, ClipboardList, Puzzle, Medal, Users, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@shared/schema";
 import { formatNumber } from "@/lib/game-utils";
@@ -21,8 +21,6 @@ import { queryClient } from "@/lib/queryClient";
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Tap to Earn", url: "/tap", icon: Coins },
-  { title: "Predict", url: "/predict", icon: TrendingUp },
-  { title: "Lucky Wheel", url: "/wheel", icon: CircleDot },
   { title: "Tasks", url: "/tasks", icon: ClipboardList },
   { title: "Daily Combo", url: "/combo", icon: Puzzle },
   { title: "Leagues", url: "/leagues", icon: Medal },

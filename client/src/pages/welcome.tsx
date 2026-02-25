@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Coins, TrendingUp, CircleDot, ShieldAlert } from "lucide-react";
+import { Coins, ShieldAlert } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -176,27 +176,15 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
             Vault60
           </h1>
           <p className="text-muted-foreground text-sm">
-            Tap, predict, spin. Earn rewards every day.
+            Tap to earn. Rewards every day.
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="flex justify-center">
           <Card>
-            <CardContent className="p-3 text-center space-y-1">
+            <CardContent className="p-3 text-center space-y-1 px-8">
               <Coins className="h-5 w-5 mx-auto text-amber-500" />
               <p className="text-xs text-muted-foreground">Tap & Earn</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center space-y-1">
-              <TrendingUp className="h-5 w-5 mx-auto text-blue-500" />
-              <p className="text-xs text-muted-foreground">Predict</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center space-y-1">
-              <CircleDot className="h-5 w-5 mx-auto text-purple-500" />
-              <p className="text-xs text-muted-foreground">Spin</p>
             </CardContent>
           </Card>
         </div>

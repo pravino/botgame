@@ -11,8 +11,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import TapToEarn from "@/pages/tap-to-earn";
-import PricePrediction from "@/pages/price-prediction";
-import LuckyWheel from "@/pages/lucky-wheel";
 import Leaderboard from "@/pages/leaderboard";
 import WalletPage from "@/pages/wallet";
 import Welcome from "@/pages/welcome";
@@ -28,8 +26,6 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/tap" component={TapToEarn} />
-      <Route path="/predict" component={PricePrediction} />
-      <Route path="/wheel" component={LuckyWheel} />
       <Route path="/tasks" component={Tasks} />
       <Route path="/combo" component={DailyCombo} />
       <Route path="/leagues" component={Leagues} />
