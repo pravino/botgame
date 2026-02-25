@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp } from "lucide-react";
+import { Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp, Gauge } from "lucide-react";
 import {
   formatNumber,
   getEnergyPercentage,
@@ -32,6 +32,11 @@ interface FloatingWatt {
 }
 
 const SOLAR_THRESHOLD = 1_000_000;
+const FRICTION = 0.975;
+const STOP_THRESHOLD = 0.3;
+const NO_ENERGY_FRICTION = 0.9;
+const WHEEL_SIZE = 192;
+const SPOKE_COUNT = 8;
 
 function getGeneratorName(user: UserWithTierConfig | undefined): string {
   if (!user) return "Crank Generator";
@@ -61,7 +66,6 @@ function CooldownRing({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - Math.min(1, Math.max(0, progress)));
-
   const pct = Math.round(progress * 100);
 
   return (
@@ -76,43 +80,137 @@ function CooldownRing({
         aria-valuemax={100}
         aria-label={`Refill cooldown ${pct}% complete`}
       >
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          strokeWidth={strokeWidth}
-          className="stroke-muted"
-        />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" strokeWidth={strokeWidth} className="stroke-muted" />
         <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          className="stroke-primary"
+          cx={size / 2} cy={size / 2} r={radius} fill="none"
+          strokeWidth={strokeWidth} strokeLinecap="round" className="stroke-primary"
           style={{ strokeDasharray: circumference }}
           animate={{ strokeDashoffset: offset }}
           transition={{ duration: 0.8, ease: "easeOut" }}
         />
       </svg>
       {showLabel && (
-        <div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ fontSize: size * 0.18 }}
-        >
+        <div className="absolute inset-0 flex items-center justify-center" style={{ fontSize: size * 0.18 }}>
           <span className="font-medium text-muted-foreground leading-none" data-testid="text-refill-time">{label}</span>
         </div>
       )}
       {!showLabel && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <BatteryCharging
-            className="text-primary"
-            style={{ width: size * 0.4, height: size * 0.4 }}
-          />
+          <BatteryCharging className="text-primary" style={{ width: size * 0.4, height: size * 0.4 }} />
         </div>
       )}
+    </div>
+  );
+}
+
+function CrankWheel({
+  angularVelocity,
+  wheelAngle,
+  hasEnergy,
+  isDragging,
+  floatingWatts,
+  multiplier,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  wheelRef,
+}: {
+  angularVelocity: number;
+  wheelAngle: number;
+  hasEnergy: boolean;
+  isDragging: boolean;
+  floatingWatts: FloatingWatt[];
+  multiplier: number;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerMove: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  wheelRef: React.RefObject<HTMLDivElement>;
+}) {
+  const speed = Math.abs(angularVelocity);
+  const glowIntensity = Math.min(1, speed / 15);
+  const rpm = Math.round(speed * 10);
+  const half = WHEEL_SIZE / 2;
+  const spokeLen = half - 20;
+  const handleRadius = half - 14;
+  const handleAngleRad = (wheelAngle * Math.PI) / 180;
+  const handleX = half + Math.cos(handleAngleRad) * handleRadius;
+  const handleY = half + Math.sin(handleAngleRad) * handleRadius;
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="flex items-center gap-2">
+        <Gauge className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm font-mono text-muted-foreground" data-testid="text-rpm">
+          {rpm} RPM
+        </span>
+      </div>
+      <div
+        ref={wheelRef}
+        className="relative select-none touch-none cursor-grab active:cursor-grabbing"
+        style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
+        onPointerCancel={onPointerUp}
+        data-testid="crank-wheel"
+      >
+        <div
+          className={`w-full h-full rounded-full ${hasEnergy ? "" : "opacity-40"}`}
+          style={{
+            background: `radial-gradient(circle at 40% 40%, rgba(6,182,212,0.15), transparent 70%)`,
+            boxShadow: hasEnergy
+              ? `0 0 ${20 + glowIntensity * 40}px rgba(6,182,212,${0.15 + glowIntensity * 0.4}), inset 0 0 ${10 + glowIntensity * 20}px rgba(6,182,212,${0.1 + glowIntensity * 0.2})`
+              : "inset 0 -4px 12px rgba(0,0,0,0.15)",
+            transition: "box-shadow 0.15s ease-out",
+          }}
+        >
+          <svg width={WHEEL_SIZE} height={WHEEL_SIZE} className="absolute inset-0">
+            <circle cx={half} cy={half} r={half - 4} fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
+            <circle cx={half} cy={half} r={half - 12} fill="none" stroke="hsl(var(--border))" strokeWidth="1.5" strokeDasharray="4 4" />
+            <circle cx={half} cy={half} r={20} fill="hsl(var(--muted))" stroke="hsl(var(--border))" strokeWidth="2" />
+            <circle cx={half} cy={half} r={8} fill={`rgba(6,182,212,${0.4 + glowIntensity * 0.6})`} />
+            {Array.from({ length: SPOKE_COUNT }).map((_, i) => {
+              const angle = (wheelAngle + (i * 360) / SPOKE_COUNT) * (Math.PI / 180);
+              const x1 = half + Math.cos(angle) * 22;
+              const y1 = half + Math.sin(angle) * 22;
+              const x2 = half + Math.cos(angle) * spokeLen;
+              const y2 = half + Math.sin(angle) * spokeLen;
+              return (
+                <line
+                  key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+                  stroke={`rgba(6,182,212,${0.3 + glowIntensity * 0.5})`}
+                  strokeWidth="2.5" strokeLinecap="round"
+                />
+              );
+            })}
+            <circle
+              cx={handleX} cy={handleY} r={12}
+              fill={isDragging ? "rgba(6,182,212,0.9)" : "rgba(6,182,212,0.6)"}
+              stroke="rgba(255,255,255,0.5)" strokeWidth="2"
+            />
+            <circle cx={handleX} cy={handleY} r={5} fill="rgba(255,255,255,0.7)" />
+          </svg>
+        </div>
+
+        <AnimatePresence>
+          {floatingWatts.map((watt) => (
+            <motion.div
+              key={watt.id}
+              initial={{ x: watt.x - 20, y: watt.y - 20, opacity: 1, scale: 1 }}
+              animate={{ y: watt.y - 80, opacity: 0, scale: 0.5 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+              className="absolute top-0 left-0 pointer-events-none text-primary font-bold text-lg"
+            >
+              +{multiplier} W
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {isDragging ? "Cranking..." : speed > STOP_THRESHOLD ? "Spinning..." : hasEnergy ? "Drag in a circle to crank" : "No energy"}
+      </p>
     </div>
   );
 }
@@ -125,9 +223,23 @@ export default function TapToEarn() {
   const [canRefill, setCanRefill] = useState(false);
   const [cooldownProgress, setCooldownProgress] = useState(0);
   const [showChallenge, setShowChallenge] = useState(false);
+
+  const [wheelAngle, setWheelAngle] = useState(0);
+  const [angularVelocity, setAngularVelocity] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
   const wattIdRef = useRef(0);
   const pendingTapsRef = useRef(0);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const lastAngleRef = useRef<number | null>(null);
+  const accumulatedRotationRef = useRef(0);
+  const angularVelocityRef = useRef(0);
+  const wheelAngleRef = useRef(0);
+  const animFrameRef = useRef<number>(0);
+  const isDraggingRef = useRef(false);
+  const liveEnergyRef = useRef<number | null>(null);
+
   const { toast } = useToast();
 
   const { data: user, isLoading } = useQuery<UserWithTierConfig>({
@@ -184,22 +296,15 @@ export default function TapToEarn() {
 
   useEffect(() => {
     if (!user) return;
-
     const tick = () => {
-      const current = calculateCurrentEnergy(
-        user.energy,
-        user.maxEnergy,
-        user.lastEnergyRefill,
-        tc
-      );
+      const current = calculateCurrentEnergy(user.energy, user.maxEnergy, user.lastEnergyRefill, tc);
       setLiveEnergy(current);
-
+      liveEnergyRef.current = current;
       const cooldown = getRefillCooldownRemaining(user.lastFreeRefill, tc);
       setCanRefill(cooldown.canRefill);
       setCooldownLabel(cooldown.remainingMs > 0 ? formatCooldownTime(cooldown.remainingMs) : "");
       setCooldownProgress(cooldown.progress);
     };
-
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
@@ -220,14 +325,9 @@ export default function TapToEarn() {
       const jsonPart = msg.includes(": ") ? msg.substring(msg.indexOf(": ") + 2) : msg;
       try {
         const parsed = JSON.parse(jsonPart);
-        if (parsed.challengeRequired) {
-          setShowChallenge(true);
-          return;
-        }
+        if (parsed.challengeRequired) { setShowChallenge(true); return; }
       } catch {}
-      if (msg.includes("challengeRequired") || msg.includes("challenge")) {
-        setShowChallenge(true);
-      }
+      if (msg.includes("challengeRequired") || msg.includes("challenge")) { setShowChallenge(true); }
     },
   });
 
@@ -254,6 +354,128 @@ export default function TapToEarn() {
     }
   }, [tapMutation]);
 
+  const registerCrankTap = useCallback(() => {
+    const currentEnergy = liveEnergyRef.current ?? 0;
+    if (currentEnergy <= 0) return;
+
+    pendingTapsRef.current += 1;
+    setLiveEnergy((prev) => Math.max(0, (prev ?? currentEnergy) - 1));
+    liveEnergyRef.current = Math.max(0, currentEnergy - 1);
+
+    const mult = tc.tapMultiplier ?? 1;
+    queryClient.setQueryData<UserWithTierConfig>(["/api/user"], (old) =>
+      old ? { ...old, energy: Math.max(0, old.energy - 1), totalCoins: old.totalCoins + mult } : old
+    );
+
+    const half = WHEEL_SIZE / 2;
+    const angle = wheelAngleRef.current * (Math.PI / 180);
+    const spawnX = half + Math.cos(angle) * (half * 0.6);
+    const spawnY = half + Math.sin(angle) * (half * 0.6);
+    const id = ++wattIdRef.current;
+    setFloatingWatts((prev) => [...prev, { id, x: spawnX, y: spawnY }]);
+    setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 800);
+
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    if (pendingTapsRef.current >= 50) {
+      flushTaps();
+    } else {
+      flushTimerRef.current = setTimeout(flushTaps, 2000);
+    }
+  }, [tc.tapMultiplier, flushTaps]);
+
+  useEffect(() => {
+    const isFree = (user?.tier || "FREE") === "FREE";
+    if (!isFree) return;
+
+    let lastTime = performance.now();
+
+    const animate = (now: number) => {
+      const dt = Math.min((now - lastTime) / 16.667, 3);
+      lastTime = now;
+
+      let vel = angularVelocityRef.current;
+      const currentEnergy = liveEnergyRef.current ?? 0;
+
+      if (currentEnergy <= 0) {
+        vel *= Math.pow(NO_ENERGY_FRICTION, dt);
+        if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+      } else if (!isDraggingRef.current) {
+        vel *= Math.pow(FRICTION, dt);
+        if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+      }
+
+      angularVelocityRef.current = vel;
+      const angleDelta = vel * dt;
+      wheelAngleRef.current = (wheelAngleRef.current + angleDelta) % 360;
+
+      if (Math.abs(angleDelta) > 0.01 && currentEnergy > 0) {
+        accumulatedRotationRef.current += Math.abs(angleDelta);
+        while (accumulatedRotationRef.current >= 360) {
+          accumulatedRotationRef.current -= 360;
+          registerCrankTap();
+        }
+      }
+
+      setWheelAngle(wheelAngleRef.current);
+      setAngularVelocity(vel);
+
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animFrameRef.current = requestAnimationFrame(animate);
+    return () => {
+      cancelAnimationFrame(animFrameRef.current);
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTaps();
+      }
+    };
+  }, [user?.tier, registerCrankTap, flushTaps]);
+
+  const getAngleFromPointer = useCallback((clientX: number, clientY: number): number | null => {
+    const el = wheelRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    return Math.atan2(clientY - cy, clientX - cx);
+  }, []);
+
+  const handleCrankDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const angle = getAngleFromPointer(e.clientX, e.clientY);
+    if (angle === null) return;
+    lastAngleRef.current = angle;
+    isDraggingRef.current = true;
+    setIsDragging(true);
+  }, [getAngleFromPointer]);
+
+  const handleCrankMove = useCallback((e: React.PointerEvent) => {
+    if (!isDraggingRef.current || lastAngleRef.current === null) return;
+    const currentEnergy = liveEnergyRef.current ?? 0;
+    if (currentEnergy <= 0) return;
+
+    const angle = getAngleFromPointer(e.clientX, e.clientY);
+    if (angle === null) return;
+
+    let delta = (angle - lastAngleRef.current) * (180 / Math.PI);
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+
+    angularVelocityRef.current += delta * 0.4;
+    const maxVel = 25;
+    angularVelocityRef.current = Math.max(-maxVel, Math.min(maxVel, angularVelocityRef.current));
+
+    lastAngleRef.current = angle;
+  }, [getAngleFromPointer]);
+
+  const handleCrankUp = useCallback((e: React.PointerEvent) => {
+    isDraggingRef.current = false;
+    lastAngleRef.current = null;
+    setIsDragging(false);
+  }, []);
+
   const handleTap = useCallback(
     (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
       const currentEnergy = liveEnergy ?? user?.energy ?? 0;
@@ -274,26 +496,17 @@ export default function TapToEarn() {
 
       const id = ++wattIdRef.current;
       setFloatingWatts((prev) => [...prev, { id, x, y }]);
-      setTimeout(() => {
-        setFloatingWatts((prev) => prev.filter((c) => c.id !== id));
-      }, 800);
+      setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 800);
 
       setTapScale(0.92);
       setTimeout(() => setTapScale(1), 100);
 
       pendingTapsRef.current += 1;
-
       setLiveEnergy((prev) => Math.max(0, (prev ?? currentEnergy) - 1));
 
       const mult = tc.tapMultiplier ?? 1;
       queryClient.setQueryData<UserWithTierConfig>(["/api/user"], (old) =>
-        old
-          ? {
-              ...old,
-              energy: Math.max(0, old.energy - 1),
-              totalCoins: old.totalCoins + mult,
-            }
-          : old
+        old ? { ...old, energy: Math.max(0, old.energy - 1), totalCoins: old.totalCoins + mult } : old
       );
 
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
@@ -342,7 +555,9 @@ export default function TapToEarn() {
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-tap-title">
           Power Plant
         </h1>
-        <p className="text-muted-foreground text-sm">Crank to generate power</p>
+        <p className="text-muted-foreground text-sm">
+          {isFreeUser ? "Turn the crank to generate power" : "Tap to generate power"}
+        </p>
       </div>
 
       <Card>
@@ -358,7 +573,7 @@ export default function TapToEarn() {
             <p className="text-sm text-muted-foreground">Watts (W)</p>
             {(tc.tapMultiplier ?? 1) > 1 && (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" data-testid="text-tap-multiplier">
-                {tc.tapMultiplier}x W per crank
+                {tc.tapMultiplier}x W per {isFreeUser ? "rotation" : "tap"}
               </span>
             )}
           </div>
@@ -525,47 +740,62 @@ export default function TapToEarn() {
       )}
 
       <div className="flex justify-center">
-        <div
-          className="relative select-none touch-none cursor-pointer"
-          onMouseDown={handleTap}
-          onTouchStart={handleTap}
-          data-testid="button-tap-coin"
-        >
-          <motion.div
-            animate={{ scale: tapScale }}
-            transition={{ type: "spring", stiffness: 500, damping: 20 }}
-            className={`w-44 h-44 rounded-full flex items-center justify-center
-              bg-gradient-to-br from-blue-400 via-cyan-500 to-teal-500
-              ${currentEnergy > 0 ? "" : "opacity-50"}
-            `}
-            style={{
-              boxShadow: currentEnergy > 0
-                ? "0 0 30px rgba(6, 182, 212, 0.3), inset 0 -4px 12px rgba(0,0,0,0.15)"
-                : "inset 0 -4px 12px rgba(0,0,0,0.15)",
-            }}
+        {isFreeUser ? (
+          <CrankWheel
+            angularVelocity={angularVelocity}
+            wheelAngle={wheelAngle}
+            hasEnergy={currentEnergy > 0}
+            isDragging={isDragging}
+            floatingWatts={floatingWatts}
+            multiplier={tc.tapMultiplier ?? 1}
+            onPointerDown={handleCrankDown}
+            onPointerMove={handleCrankMove}
+            onPointerUp={handleCrankUp}
+            wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
+          />
+        ) : (
+          <div
+            className="relative select-none touch-none cursor-pointer"
+            onMouseDown={handleTap}
+            onTouchStart={handleTap}
+            data-testid="button-tap-coin"
           >
-            <div className="w-36 h-36 rounded-full bg-gradient-to-br from-cyan-300 via-blue-400 to-teal-600 flex items-center justify-center"
-              style={{ boxShadow: "inset 0 2px 8px rgba(255,255,255,0.4), inset 0 -2px 8px rgba(0,0,0,0.2)" }}
+            <motion.div
+              animate={{ scale: tapScale }}
+              transition={{ type: "spring", stiffness: 500, damping: 20 }}
+              className={`w-44 h-44 rounded-full flex items-center justify-center
+                bg-gradient-to-br from-blue-400 via-cyan-500 to-teal-500
+                ${currentEnergy > 0 ? "" : "opacity-50"}
+              `}
+              style={{
+                boxShadow: currentEnergy > 0
+                  ? "0 0 30px rgba(6, 182, 212, 0.3), inset 0 -4px 12px rgba(0,0,0,0.15)"
+                  : "inset 0 -4px 12px rgba(0,0,0,0.15)",
+              }}
             >
-              <Zap className="w-16 h-16 text-white/80" />
-            </div>
-          </motion.div>
-
-          <AnimatePresence>
-            {floatingWatts.map((watt) => (
-              <motion.div
-                key={watt.id}
-                initial={{ x: watt.x - 20, y: watt.y - 20, opacity: 1, scale: 1 }}
-                animate={{ y: watt.y - 80, opacity: 0, scale: 0.5 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.7, ease: "easeOut" }}
-                className="absolute top-0 left-0 pointer-events-none text-primary font-bold text-lg"
+              <div className="w-36 h-36 rounded-full bg-gradient-to-br from-cyan-300 via-blue-400 to-teal-600 flex items-center justify-center"
+                style={{ boxShadow: "inset 0 2px 8px rgba(255,255,255,0.4), inset 0 -2px 8px rgba(0,0,0,0.2)" }}
               >
-                +{tc.tapMultiplier ?? 1} W
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+                <Zap className="w-16 h-16 text-white/80" />
+              </div>
+            </motion.div>
+
+            <AnimatePresence>
+              {floatingWatts.map((watt) => (
+                <motion.div
+                  key={watt.id}
+                  initial={{ x: watt.x - 20, y: watt.y - 20, opacity: 1, scale: 1 }}
+                  animate={{ y: watt.y - 80, opacity: 0, scale: 0.5 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.7, ease: "easeOut" }}
+                  className="absolute top-0 left-0 pointer-events-none text-primary font-bold text-lg"
+                >
+                  +{tc.tapMultiplier ?? 1} W
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
       <Card>

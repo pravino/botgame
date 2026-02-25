@@ -39,6 +39,9 @@ The application is built with a modern web stack, featuring a React + TypeScript
 **Technical Implementations:**
 - **Authentication**: Telegram-based authentication supporting both Mini App (WebApp initData with HMAC verification) and browser Login Widget. Connected as @Vault60Bot.
 - **Power Plant (Tap-to-Earn)**: Generator cranking with an energy system (passive refill). Features a multiplier upgrade system. This is the ONLY active game — 100% of treasury goes to tap pot.
+  - **Free tier**: Circular crank wheel mechanic — user drags in a circle to spin a generator wheel. Physics-based (friction=0.975, NO_ENERGY_FRICTION=0.9, STOP_THRESHOLD=0.3 deg/frame). Each full 360° rotation = 1 tap equivalent. 8-spoke SVG wheel with handle, glow scales with speed, RPM display. Uses requestAnimationFrame loop + pointer events with capture.
+  - **Paid tiers**: Standard tap-on-circle mechanic (unchanged). Tap → scale animation → floating "+X W" particle.
+  - Both paths use same backend contract: POST /api/tap with batched taps (max 50, flush every 2s).
   - Free users see "Crank Generator" label, upgrading to "Solar Panels" display at 1MW (1,000,000 totalCoins)
   - Paid users see tier-based generator names (Diesel/LNG/Fusion)
   - Progress bar shows free users their path to Solar upgrade
