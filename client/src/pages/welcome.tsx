@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Zap, ShieldAlert } from "lucide-react";
+import { Zap } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -32,13 +32,11 @@ declare global {
 }
 
 export default function Welcome({ onLogin }: { onLogin: () => void }) {
-  const [isMiniApp, setIsMiniApp] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
   const { toast } = useToast();
 
   const telegramAuthMutation = useMutation({
-    mutationFn: async (data: { initData?: string; widgetData?: any; referralCode?: string }) => {
+    mutationFn: async (data: { widgetData: Record<string, string> }) => {
       const res = await apiRequest("POST", "/api/auth/telegram", data);
       return res.json();
     },
@@ -65,25 +63,6 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
   }, []);
 
   useEffect(() => {
-    const tg = window.Telegram?.WebApp;
-    if (tg && tg.initData) {
-      setIsMiniApp(true);
-      tg.ready();
-      tg.expand();
-
-      const startParam = tg.initDataUnsafe?.start_param;
-
-      if (!autoAuthAttempted) {
-        setAutoAuthAttempted(true);
-        telegramAuthMutation.mutate({
-          initData: tg.initData,
-          referralCode: startParam || undefined,
-        });
-      }
-    }
-  }, [autoAuthAttempted]);
-
-  useEffect(() => {
     window.onTelegramAuth = handleTelegramWidgetAuth;
     return () => { delete window.onTelegramAuth; };
   }, [handleTelegramWidgetAuth]);
@@ -91,12 +70,6 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
   const openTelegramLogin = useCallback(() => {
     const botUsername = "Vault60Bot";
     const origin = window.location.origin;
-    const authUrl = `https://oauth.telegram.org/auth?bot_id=&scope=write&public_key=&nonce=&return_to=${encodeURIComponent(origin)}`;
-
-    const width = 550;
-    const height = 470;
-    const left = Math.max(0, (window.screen.width - width) / 2);
-    const top = Math.max(0, (window.screen.height - height) / 2);
 
     const container = document.getElementById("telegram-login-container");
     if (!container) return;
@@ -126,42 +99,6 @@ export default function Welcome({ onLogin }: { onLogin: () => void }) {
       }, 500);
     };
   }, []);
-
-  if (isMiniApp) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <div className="text-center space-y-4">
-          <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 flex items-center justify-center animate-pulse"
-            style={{ boxShadow: "0 0 40px rgba(16, 185, 129, 0.3)" }}
-          >
-            <Zap className="h-10 w-10 text-emerald-900/70" />
-          </div>
-          {authError ? (
-            <div className="space-y-3">
-              <ShieldAlert className="h-8 w-8 mx-auto text-destructive" />
-              <p className="text-sm text-destructive font-medium">{authError}</p>
-              <Button
-                onClick={() => {
-                  setAuthError(null);
-                  setAutoAuthAttempted(false);
-                }}
-                data-testid="button-retry-auth"
-              >
-                Try Again
-              </Button>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">Connecting to Vault60...</p>
-              {telegramAuthMutation.isPending && (
-                <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">

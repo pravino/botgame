@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient, getQueryFn } from "./lib/queryClient";
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery, useMutation } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Zap, ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { apiRequest } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import TapToEarn from "@/pages/tap-to-earn";
@@ -38,6 +41,21 @@ function Router() {
   );
 }
 
+function LoadingScreen({ message }: { message?: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center space-y-3">
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 mx-auto animate-pulse flex items-center justify-center"
+          style={{ boxShadow: "0 0 30px rgba(16, 185, 129, 0.3)" }}
+        >
+          <Zap className="h-6 w-6 text-white" />
+        </div>
+        <p className="text-sm text-muted-foreground">{message || "Loading..."}</p>
+      </div>
+    </div>
+  );
+}
+
 function AuthenticatedApp() {
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/user"],
@@ -45,17 +63,67 @@ function AuthenticatedApp() {
   });
 
   const [loggedIn, setLoggedIn] = useState(false);
+  const [miniAppAuthFailed, setMiniAppAuthFailed] = useState(false);
+  const autoAuthRef = useRef(false);
+
+  const tg = window.Telegram?.WebApp;
+  const isMiniApp = !!(tg && tg.initData);
+
+  const miniAppAuthMutation = useMutation({
+    mutationFn: async (data: { initData: string; referralCode?: string }) => {
+      const res = await apiRequest("POST", "/api/auth/telegram", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      setLoggedIn(true);
+    },
+    onError: () => {
+      setMiniAppAuthFailed(true);
+    },
+  });
 
   useEffect(() => {
     if (user) setLoggedIn(true);
   }, [user]);
 
+  useEffect(() => {
+    if (isMiniApp && !isLoading && !user && !autoAuthRef.current) {
+      autoAuthRef.current = true;
+      tg!.ready();
+      tg!.expand();
+      const startParam = tg!.initDataUnsafe?.start_param;
+      miniAppAuthMutation.mutate({
+        initData: tg!.initData,
+        referralCode: startParam || undefined,
+      });
+    }
+  }, [isMiniApp, isLoading, user]);
+
   if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (isMiniApp && !loggedIn && !miniAppAuthFailed) {
+    return <LoadingScreen message="Connecting to Vault60..." />;
+  }
+
+  if (isMiniApp && miniAppAuthFailed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 mx-auto animate-pulse" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+        <div className="text-center space-y-4">
+          <ShieldAlert className="h-10 w-10 mx-auto text-destructive" />
+          <p className="text-sm text-destructive font-medium">Authentication failed</p>
+          <p className="text-xs text-muted-foreground">Could not verify your Telegram identity.</p>
+          <Button
+            onClick={() => {
+              setMiniAppAuthFailed(false);
+              autoAuthRef.current = false;
+            }}
+            data-testid="button-retry-auth"
+          >
+            Try Again
+          </Button>
         </div>
       </div>
     );
