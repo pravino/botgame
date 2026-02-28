@@ -1,21 +1,22 @@
 # Volt60 Grid Tycoon — Tap-to-Earn Power Generation Platform
 
 ## Overview
-A gamified crypto-themed web application built around a "power generation" theme. Users generate **Watts (W)** by tapping/cranking a virtual generator. The platform supports Telegram authentication, tiered subscriptions, USDT wallets, and competitive leaderboards. Revenue from subscriptions is split 40% admin / 60% treasury, with the treasury funding a daily tap pot distributed proportionally to subscribers based on watts generated.
+A gamified crypto-themed web application built around a "power generation" theme. Users generate **Watts (W)** by tapping a virtual energy orb. The platform supports Telegram authentication, tiered subscriptions, USDT wallets, and competitive leaderboards. Revenue from subscriptions is split 40% admin / 60% treasury, with the treasury funding a daily tap pot distributed proportionally to subscribers based on watts generated.
 
 ## Theme & Branding
 - **Power Generation** theme throughout (not "coins")
 - Users earn **Watts (W)** instead of coins
-- Tapping = "cranking" a generator
+- Tapping = generating power via an energy orb
 - All user-facing text uses watts/power language
 - Internal DB columns remain as `totalCoins`, `coinsEarned`, etc. for stability
 - Gold/amber + emerald/teal color scheme on dark mode default
+- Sci-fi gaming aesthetic with glowing orbs and dark backgrounds
 
 ## Tier Structure (Power Sources)
 | Internal | Display Name | Price | Status |
 |----------|-------------|-------|--------|
-| FREE | Crank Generator | $0 | Active (upgrades to "Solar Panels" at 1MW / 1,000,000 watts) |
-| BRONZE | Diesel Generator | $5/mo | Active (only paid tier currently available) |
+| FREE | Hand-Crank Dynamo | $0 | Active (upgrades to "Solar Array" at 1MW / 1,000,000 watts) |
+| BRONZE | Diesel V8 | $5/mo | Active (only paid tier currently available) |
 | SILVER | LNG Turbine | $15/mo | **Disabled** — "Coming Soon" badge, invoice creation blocked |
 | GOLD | Fusion Reactor | $50/mo | **Disabled** — "Coming Soon" badge, invoice creation blocked |
 
@@ -28,23 +29,31 @@ A gamified crypto-themed web application built around a "power generation" theme
 ## System Architecture
 The application is built with a modern web stack, featuring a React + TypeScript frontend utilizing TailwindCSS, shadcn/ui, and Framer Motion for a responsive and animated user interface. The backend is an Express.js server employing session-based authentication. Data persistence is handled by PostgreSQL with Drizzle ORM, with Neon for production hosting.
 
-**UI/UX Decisions:**
-- Gold/amber primary color scheme with emerald/teal accents for the power generation theme.
-- Dark mode is the default theme, with a toggle for light mode.
-- The Inter font family is used throughout for consistent typography.
-- Fully responsive design with a collapsing sidebar for mobile navigation.
-- Framer Motion provides fluid animations for game interactions and transitions.
-- Consistent card-based layout across all pages.
+**UI/UX Design (v2 — Mobile-First Redesign):**
+- **Navigation**: Bottom tab bar with 4 tabs (Grid, Dashboard, Tiers, Portal) replacing the sidebar
+- **Top Header**: VOLT60 branding with lightning bolt, USDT balance pill, user avatar, tier badge and rank
+- **Main Game (Grid/Power Plant)**: Central energy orb as tap target with tier-specific color gradients:
+  - FREE: Cyan/blue orb
+  - BRONZE: Orange/amber orb
+  - SILVER: Yellow/amber orb
+  - GOLD: Purple/violet orb
+- **Layout**: Single-column mobile layout optimized for Telegram mini app webview
+- **Components**: `BottomTabBar`, `TopHeader`, `EnergyOrb`, `PotCard`
+- Gold/amber primary color scheme with emerald/teal accents
+- Dark mode is the default and primary theme
+- Framer Motion for tap feedback and floating watt animations
+- Custom CSS animations for orb pulsing, rotation, and electric arcs
 
 **Technical Implementations:**
-- **Authentication**: Telegram-based authentication supporting both Mini App (WebApp initData with HMAC verification) and browser Login Widget. Connected as @Vault60Bot. Guest landing: unauthenticated users see the crank generator immediately (guest mode, local-only watts, no API calls). Small "Sign in" button in top-right opens Telegram login modal. Mini App users auto-auth as before.
-- **Power Plant (Tap-to-Earn)**: Generator cranking with an energy system (passive refill). Features a multiplier upgrade system. This is the ONLY active game — 100% of treasury goes to tap pot.
-  - **Free tier**: Circular crank wheel mechanic — user drags in a circle to spin a generator wheel. Physics-based (friction=0.975, NO_ENERGY_FRICTION=0.9, STOP_THRESHOLD=0.3 deg/frame). Each full 360° rotation = 1 tap equivalent. 8-spoke SVG wheel with handle, glow scales with speed, RPM display. Uses requestAnimationFrame loop + pointer events with capture.
-  - **Paid tiers**: Standard tap-on-circle mechanic (unchanged). Tap → scale animation → floating "+X W" particle.
-  - Both paths use same backend contract: POST /api/tap with batched taps (max 50, flush every 2s).
-  - Free users see "Crank Generator" label, upgrading to "Solar Panels" display at 1MW (1,000,000 totalCoins)
-  - Paid users see tier-based generator names (Diesel/LNG/Fusion)
-  - Progress bar shows free users their path to Solar upgrade
+- **Authentication**: Telegram-based authentication supporting both Mini App (WebApp initData with HMAC verification) and browser Login Widget. Connected as @Vault60Bot. Guest landing: unauthenticated users see the energy orb immediately (guest mode, local-only watts, no API calls). "Sign in" button in header opens Telegram login modal. Mini App users auto-auth as before.
+- **Power Plant (Tap-to-Earn)**: Energy orb tapping with energy system (passive refill). Features a multiplier upgrade system. This is the ONLY active game — 100% of treasury goes to tap pot.
+  - All tiers now use tap-on-orb mechanic (crank wheel removed in v2 redesign)
+  - Tap → scale animation → floating "+X W" particle
+  - Uses batched taps (max 50, flush every 2s) via POST /api/tap
+  - Daily Pot Distribution cards show Diesel/LNG/Fusion pot values
+  - Live Leaderboard preview shows top 3 players
+  - Upgrades card and My Earnings card at bottom
+  - Daily streak and booster pills flank the orb
 - **Price Prediction**: DISABLED — routes and UI removed, pot allocation set to 0%.
 - **Lucky Wheel**: DISABLED — routes and UI removed, pot allocation set to 0%.
 - **Wallet & Deposits**: USDT wallet functionality via TON and TRC-20 networks.
@@ -53,9 +62,6 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - **Energy System**: Hybrid passive regeneration with "Full Tank" rolling cooldown refill, tiered for subscribers.
 - **Proof of Humanity**: "Spatial Tap Challenge" triggers periodically to mitigate bot activity.
 - **Referral System**: Simple $1 USDT per referral payment model.
-  - Auto-generated referral codes on user creation.
-  - $1 USDT credited to referrer on each subscription payment (initial + renewals).
-  - No milestone bonuses — flat $1 per payment only.
 - **Task Verification System**: Social tasks with Telegram membership verification and external link visit-then-claim flow.
 - **League System**: Bronze → Silver → Gold → Platinum → Diamond leagues based on lifetime watts generated. Higher leagues get bigger payout multipliers.
 
@@ -78,7 +84,8 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - `server/cron/settlementCron.ts` — Daily midnight settlement, withdrawal batching, retention checks
 - `server/services/referralTracker.ts` — Flat $1/payment referral tracking
 - `server/middleware/transactionSplit.ts` — 40/60 revenue split logic
-- `client/src/pages/tap-to-earn.tsx` — Power Plant (main game page)
+- `client/src/pages/tap-to-earn.tsx` — Power Plant (main game page with energy orb)
 - `client/src/pages/subscription.tsx` — Power Plans (tier selection)
 - `client/src/pages/dashboard.tsx` — Dashboard with watts stats
-- `client/src/components/app-sidebar.tsx` — Navigation sidebar
+- `client/src/components/bottom-tab-bar.tsx` — Bottom navigation bar (4 tabs)
+- `client/src/components/top-header.tsx` — Top header with VOLT60 branding, balance, avatar

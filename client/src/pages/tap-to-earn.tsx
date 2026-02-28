@@ -1,11 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp, Gauge } from "lucide-react";
+import { Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp, Flame, Rocket, Crown, Trophy, ChevronRight } from "lucide-react";
 import {
   formatNumber,
   getEnergyPercentage,
@@ -20,6 +17,7 @@ import type { User } from "@shared/schema";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { ChallengeOverlay } from "@/components/challenge-overlay";
+import { Link } from "wouter";
 
 interface UserWithTierConfig extends User {
   tierConfig?: TierConfig;
@@ -35,182 +33,182 @@ const SOLAR_THRESHOLD = 1_000_000;
 const FRICTION = 0.975;
 const STOP_THRESHOLD = 0.3;
 const NO_ENERGY_FRICTION = 0.9;
-const WHEEL_SIZE = 192;
-const SPOKE_COUNT = 8;
+const ORB_SIZE = 220;
 
 function getGeneratorName(user: UserWithTierConfig | undefined): string {
-  if (!user) return "Crank Generator";
+  if (!user) return "Hand-Crank Dynamo";
   const tier = user.tier || "FREE";
   if (tier === "FREE") {
-    return (user.totalCoins || 0) >= SOLAR_THRESHOLD ? "Solar Panels" : "Crank Generator";
+    return (user.totalCoins || 0) >= SOLAR_THRESHOLD ? "Solar Array" : "Hand-Crank Dynamo";
   }
-  if (tier === "BRONZE") return "Diesel Generator";
+  if (tier === "BRONZE") return "Diesel V8";
   if (tier === "SILVER") return "LNG Turbine";
   if (tier === "GOLD") return "Fusion Reactor";
-  return "Crank Generator";
+  return "Hand-Crank Dynamo";
 }
 
-function CooldownRing({
-  progress,
-  size = 40,
-  strokeWidth = 3,
-  showLabel = false,
-  label = "",
+function getTierLabel(user: UserWithTierConfig | undefined): string {
+  if (!user) return "FREE TIER";
+  const tier = user.tier || "FREE";
+  return `${tier} TIER`;
+}
+
+const TIER_ORB_COLORS: Record<string, { primary: string; secondary: string; glow: string }> = {
+  FREE: { primary: "from-cyan-500 via-blue-500 to-cyan-400", secondary: "rgba(6, 182, 212, 0.4)", glow: "rgba(6, 182, 212, 0.3)" },
+  BRONZE: { primary: "from-orange-500 via-amber-500 to-orange-400", secondary: "rgba(245, 158, 11, 0.4)", glow: "rgba(245, 158, 11, 0.3)" },
+  SILVER: { primary: "from-yellow-400 via-amber-300 to-yellow-500", secondary: "rgba(250, 204, 21, 0.4)", glow: "rgba(250, 204, 21, 0.3)" },
+  GOLD: { primary: "from-purple-500 via-violet-500 to-fuchsia-500", secondary: "rgba(139, 92, 246, 0.4)", glow: "rgba(139, 92, 246, 0.3)" },
+};
+
+function EnergyOrb({
+  hasEnergy,
+  tier,
+  onTap,
+  floatingWatts,
+  multiplier,
+  tapScale,
+  orbRef,
 }: {
-  progress: number;
-  size?: number;
-  strokeWidth?: number;
-  showLabel?: boolean;
-  label?: string;
+  hasEnergy: boolean;
+  tier: string;
+  onTap: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
+  floatingWatts: FloatingWatt[];
+  multiplier: number;
+  tapScale: number;
+  orbRef: React.RefObject<HTMLDivElement>;
 }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - Math.min(1, Math.max(0, progress)));
-  const pct = Math.round(progress * 100);
+  const colors = TIER_ORB_COLORS[tier] || TIER_ORB_COLORS.FREE;
 
   return (
-    <div className="relative" style={{ width: size, height: size }} data-testid="status-refill-progress">
-      <svg
-        width={size}
-        height={size}
-        className="-rotate-90"
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`Refill cooldown ${pct}% complete`}
+    <div className="relative flex items-center justify-center" ref={orbRef}>
+      <div
+        className="absolute animate-orb-rotate"
+        style={{ width: ORB_SIZE + 40, height: ORB_SIZE + 40 }}
       >
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" strokeWidth={strokeWidth} className="stroke-muted" />
-        <motion.circle
-          cx={size / 2} cy={size / 2} r={radius} fill="none"
-          strokeWidth={strokeWidth} strokeLinecap="round" className="stroke-primary"
-          style={{ strokeDasharray: circumference }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-        />
-      </svg>
-      {showLabel && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ fontSize: size * 0.18 }}>
-          <span className="font-medium text-muted-foreground leading-none" data-testid="text-refill-time">{label}</span>
+        <svg width={ORB_SIZE + 40} height={ORB_SIZE + 40} className="opacity-30">
+          <circle
+            cx={(ORB_SIZE + 40) / 2}
+            cy={(ORB_SIZE + 40) / 2}
+            r={(ORB_SIZE + 40) / 2 - 4}
+            fill="none"
+            stroke={colors.secondary}
+            strokeWidth="1"
+            strokeDasharray="8 12"
+          />
+        </svg>
+      </div>
+
+      <motion.div
+        animate={{ scale: tapScale }}
+        transition={{ type: "spring", stiffness: 500, damping: 20 }}
+        className={`relative select-none touch-none cursor-pointer rounded-full ${hasEnergy ? "" : "opacity-40"}`}
+        style={{ width: ORB_SIZE, height: ORB_SIZE }}
+        onMouseDown={onTap}
+        onTouchStart={onTap}
+        data-testid="energy-orb"
+      >
+        <div
+          className={`w-full h-full rounded-full bg-gradient-to-br ${colors.primary} animate-orb-pulse`}
+          style={{
+            boxShadow: hasEnergy
+              ? `0 0 60px ${colors.glow}, 0 0 120px ${colors.glow}, inset 0 0 60px rgba(255,255,255,0.1)`
+              : "none",
+          }}
+        >
+          <div
+            className="absolute inset-0 rounded-full opacity-50"
+            style={{
+              background: `radial-gradient(circle at 35% 35%, rgba(255,255,255,0.3), transparent 60%)`,
+            }}
+          />
+
+          <div className="absolute inset-0 rounded-full overflow-hidden">
+            <div
+              className="absolute inset-[-50%] animate-orb-rotate"
+              style={{
+                background: `conic-gradient(from 0deg, transparent, ${colors.secondary}, transparent, ${colors.secondary}, transparent)`,
+                opacity: hasEnergy ? 0.3 : 0.1,
+              }}
+            />
+          </div>
+
+          <svg
+            className="absolute inset-0 animate-electric-arc"
+            width={ORB_SIZE}
+            height={ORB_SIZE}
+            viewBox={`0 0 ${ORB_SIZE} ${ORB_SIZE}`}
+          >
+            <path
+              d={`M ${ORB_SIZE * 0.3} ${ORB_SIZE * 0.2} Q ${ORB_SIZE * 0.5} ${ORB_SIZE * 0.35} ${ORB_SIZE * 0.7} ${ORB_SIZE * 0.25}`}
+              fill="none"
+              stroke="rgba(255,255,255,0.6)"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            <path
+              d={`M ${ORB_SIZE * 0.25} ${ORB_SIZE * 0.6} Q ${ORB_SIZE * 0.45} ${ORB_SIZE * 0.7} ${ORB_SIZE * 0.65} ${ORB_SIZE * 0.55}`}
+              fill="none"
+              stroke="rgba(255,255,255,0.4)"
+              strokeWidth="1"
+              strokeLinecap="round"
+            />
+          </svg>
         </div>
-      )}
-      {!showLabel && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <BatteryCharging className="text-primary" style={{ width: size * 0.4, height: size * 0.4 }} />
-        </div>
-      )}
+      </motion.div>
+
+      <AnimatePresence>
+        {floatingWatts.map((watt) => (
+          <motion.div
+            key={watt.id}
+            initial={{ x: watt.x - ORB_SIZE / 2, y: watt.y - ORB_SIZE / 2, opacity: 1, scale: 1 }}
+            animate={{ y: watt.y - ORB_SIZE / 2 - 80, opacity: 0, scale: 0.5 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="absolute pointer-events-none text-primary font-bold text-lg"
+          >
+            +{multiplier} W
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
 
-function CrankWheel({
-  angularVelocity,
-  wheelAngle,
-  hasEnergy,
-  isDragging,
-  floatingWatts,
-  multiplier,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  wheelRef,
+interface LeaderboardEntry {
+  id: number;
+  username: string;
+  telegramFirstName: string | null;
+  telegramPhotoUrl: string | null;
+  totalCoins: number;
+  tier: string;
+}
+
+function PotCard({
+  label,
+  amount,
+  colorClass,
+  borderColor,
 }: {
-  angularVelocity: number;
-  wheelAngle: number;
-  hasEnergy: boolean;
-  isDragging: boolean;
-  floatingWatts: FloatingWatt[];
-  multiplier: number;
-  onPointerDown: (e: React.PointerEvent) => void;
-  onPointerMove: (e: React.PointerEvent) => void;
-  onPointerUp: (e: React.PointerEvent) => void;
-  wheelRef: React.RefObject<HTMLDivElement>;
+  label: string;
+  amount: number;
+  colorClass: string;
+  borderColor: string;
 }) {
-  const speed = Math.abs(angularVelocity);
-  const glowIntensity = Math.min(1, speed / 15);
-  const rpm = Math.round(speed * 10);
-  const half = WHEEL_SIZE / 2;
-  const spokeLen = half - 20;
-  const handleRadius = half - 14;
-  const handleAngleRad = (wheelAngle * Math.PI) / 180;
-  const handleX = half + Math.cos(handleAngleRad) * handleRadius;
-  const handleY = half + Math.sin(handleAngleRad) * handleRadius;
-
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="flex items-center gap-2">
-        <Gauge className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-mono text-muted-foreground" data-testid="text-rpm">
-          {rpm} RPM
-        </span>
+    <div
+      className={`flex-1 rounded-xl p-3 text-center border ${borderColor}`}
+      style={{ background: "rgba(0,0,0,0.3)" }}
+      data-testid={`pot-card-${label.toLowerCase()}`}
+    >
+      <div className={`text-[10px] font-bold uppercase tracking-wider ${colorClass} mb-1`}>
+        {label}
       </div>
-      <div
-        ref={wheelRef}
-        className="relative select-none touch-none cursor-grab active:cursor-grabbing"
-        style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
-        onPointerCancel={onPointerUp}
-        data-testid="crank-wheel"
-      >
-        <div
-          className={`w-full h-full rounded-full ${hasEnergy ? "" : "opacity-40"}`}
-          style={{
-            background: `radial-gradient(circle at 40% 40%, rgba(6,182,212,0.15), transparent 70%)`,
-            boxShadow: hasEnergy
-              ? `0 0 ${20 + glowIntensity * 40}px rgba(6,182,212,${0.15 + glowIntensity * 0.4}), inset 0 0 ${10 + glowIntensity * 20}px rgba(6,182,212,${0.1 + glowIntensity * 0.2})`
-              : "inset 0 -4px 12px rgba(0,0,0,0.15)",
-            transition: "box-shadow 0.15s ease-out",
-          }}
-        >
-          <svg width={WHEEL_SIZE} height={WHEEL_SIZE} className="absolute inset-0">
-            <circle cx={half} cy={half} r={half - 4} fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
-            <circle cx={half} cy={half} r={half - 12} fill="none" stroke="hsl(var(--border))" strokeWidth="1.5" strokeDasharray="4 4" />
-            <circle cx={half} cy={half} r={20} fill="hsl(var(--muted))" stroke="hsl(var(--border))" strokeWidth="2" />
-            <circle cx={half} cy={half} r={8} fill={`rgba(6,182,212,${0.4 + glowIntensity * 0.6})`} />
-            {Array.from({ length: SPOKE_COUNT }).map((_, i) => {
-              const angle = (wheelAngle + (i * 360) / SPOKE_COUNT) * (Math.PI / 180);
-              const x1 = half + Math.cos(angle) * 22;
-              const y1 = half + Math.sin(angle) * 22;
-              const x2 = half + Math.cos(angle) * spokeLen;
-              const y2 = half + Math.sin(angle) * spokeLen;
-              return (
-                <line
-                  key={i} x1={x1} y1={y1} x2={x2} y2={y2}
-                  stroke={`rgba(6,182,212,${0.3 + glowIntensity * 0.5})`}
-                  strokeWidth="2.5" strokeLinecap="round"
-                />
-              );
-            })}
-            <circle
-              cx={handleX} cy={handleY} r={12}
-              fill={isDragging ? "rgba(6,182,212,0.9)" : "rgba(6,182,212,0.6)"}
-              stroke="rgba(255,255,255,0.5)" strokeWidth="2"
-            />
-            <circle cx={handleX} cy={handleY} r={5} fill="rgba(255,255,255,0.7)" />
-          </svg>
-        </div>
-
-        <AnimatePresence>
-          {floatingWatts.map((watt) => (
-            <motion.div
-              key={watt.id}
-              initial={{ x: watt.x - 20, y: watt.y - 20, opacity: 1, scale: 1 }}
-              animate={{ y: watt.y - 80, opacity: 0, scale: 0.5 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.7, ease: "easeOut" }}
-              className="absolute top-0 left-0 pointer-events-none text-primary font-bold text-lg"
-            >
-              +{multiplier} W
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      <div className="text-base font-bold text-foreground">
+        ${formatNumber(amount)}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {isDragging ? "Cranking..." : speed > STOP_THRESHOLD ? "Spinning..." : hasEnergy ? "Drag in a circle to crank" : "No energy"}
-      </p>
+      <div className="text-[10px] text-muted-foreground">
+        <span className="uppercase">USDT</span>
+      </div>
     </div>
   );
 }
@@ -225,20 +223,10 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   const [showChallenge, setShowChallenge] = useState(false);
   const [guestWatts, setGuestWatts] = useState(0);
 
-  const [wheelAngle, setWheelAngle] = useState(0);
-  const [angularVelocity, setAngularVelocity] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-
   const wattIdRef = useRef(0);
   const pendingTapsRef = useRef(0);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wheelRef = useRef<HTMLDivElement>(null);
-  const lastAngleRef = useRef<number | null>(null);
-  const accumulatedRotationRef = useRef(0);
-  const angularVelocityRef = useRef(0);
-  const wheelAngleRef = useRef(0);
-  const animFrameRef = useRef<number>(0);
-  const isDraggingRef = useRef(false);
+  const orbRef = useRef<HTMLDivElement>(null);
   const liveEnergyRef = useRef<number | null>(null);
 
   const { toast } = useToast();
@@ -270,6 +258,11 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     enabled: !guest,
   });
 
+  const { data: leaderboard } = useQuery<LeaderboardEntry[]>({
+    queryKey: ["/api/leaderboard", "coins"],
+    enabled: !guest,
+  });
+
   const upgradeMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/games/upgrade-multiplier");
@@ -280,7 +273,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
       queryClient.invalidateQueries({ queryKey: ["/api/tap/estimated-earnings"] });
       toast({
         title: "Multiplier Upgraded!",
-        description: `Level ${data.newMultiplierLevel} unlocked! You now earn ${data.effectiveMultiplier}x W per crank.`,
+        description: `Level ${data.newMultiplierLevel} unlocked! You now earn ${data.effectiveMultiplier}x W per tap.`,
       });
     },
     onError: (error: any) => {
@@ -341,7 +334,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({ title: "Full Tank!", description: "Energy fully restored. Keep cranking!" });
+      toast({ title: "Full Tank!", description: "Energy fully restored. Keep tapping!" });
     },
     onError: (error: any) => {
       const msg = error.message || "Refill not available right now";
@@ -357,152 +350,29 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     }
   }, [tapMutation]);
 
-  const registerCrankTap = useCallback(() => {
-    if (guest) {
-      setGuestWatts((prev) => prev + 1);
-      const half = WHEEL_SIZE / 2;
-      const angle = wheelAngleRef.current * (Math.PI / 180);
-      const spawnX = half + Math.cos(angle) * (half * 0.6);
-      const spawnY = half + Math.sin(angle) * (half * 0.6);
-      const id = ++wattIdRef.current;
-      setFloatingWatts((prev) => [...prev, { id, x: spawnX, y: spawnY }]);
-      setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 800);
-      return;
-    }
-
-    const currentEnergy = liveEnergyRef.current ?? 0;
-    if (currentEnergy <= 0) return;
-
-    pendingTapsRef.current += 1;
-    setLiveEnergy((prev) => Math.max(0, (prev ?? currentEnergy) - 1));
-    liveEnergyRef.current = Math.max(0, currentEnergy - 1);
-
-    const mult = tc.tapMultiplier ?? 1;
-    queryClient.setQueryData<UserWithTierConfig>(["/api/user"], (old) =>
-      old ? { ...old, energy: Math.max(0, old.energy - 1), totalCoins: old.totalCoins + mult } : old
-    );
-
-    const half = WHEEL_SIZE / 2;
-    const angle = wheelAngleRef.current * (Math.PI / 180);
-    const spawnX = half + Math.cos(angle) * (half * 0.6);
-    const spawnY = half + Math.sin(angle) * (half * 0.6);
-    const id = ++wattIdRef.current;
-    setFloatingWatts((prev) => [...prev, { id, x: spawnX, y: spawnY }]);
-    setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 800);
-
-    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
-    if (pendingTapsRef.current >= 50) {
-      flushTaps();
-    } else {
-      flushTimerRef.current = setTimeout(flushTaps, 2000);
-    }
-  }, [guest, tc.tapMultiplier, flushTaps]);
-
-  useEffect(() => {
-    const isFree = guest || (user?.tier || "FREE") === "FREE";
-    if (!isFree) return;
-
-    let lastTime = performance.now();
-
-    const animate = (now: number) => {
-      const dt = Math.min((now - lastTime) / 16.667, 3);
-      lastTime = now;
-
-      let vel = angularVelocityRef.current;
-
-      if (guest) {
-        if (!isDraggingRef.current) {
-          vel *= Math.pow(FRICTION, dt);
-          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
-        }
-      } else {
-        const currentEnergy = liveEnergyRef.current ?? 0;
-        if (currentEnergy <= 0) {
-          vel *= Math.pow(NO_ENERGY_FRICTION, dt);
-          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
-        } else if (!isDraggingRef.current) {
-          vel *= Math.pow(FRICTION, dt);
-          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
-        }
-      }
-
-      angularVelocityRef.current = vel;
-      const angleDelta = vel * dt;
-      wheelAngleRef.current = (wheelAngleRef.current + angleDelta) % 360;
-
-      const canGenerate = guest || (liveEnergyRef.current ?? 0) > 0;
-      if (Math.abs(angleDelta) > 0.01 && canGenerate) {
-        accumulatedRotationRef.current += Math.abs(angleDelta);
-        while (accumulatedRotationRef.current >= 360) {
-          accumulatedRotationRef.current -= 360;
-          registerCrankTap();
-        }
-      }
-
-      setWheelAngle(wheelAngleRef.current);
-      setAngularVelocity(vel);
-
-      animFrameRef.current = requestAnimationFrame(animate);
-    };
-
-    animFrameRef.current = requestAnimationFrame(animate);
-    return () => {
-      cancelAnimationFrame(animFrameRef.current);
-      if (flushTimerRef.current) {
-        clearTimeout(flushTimerRef.current);
-        flushTaps();
-      }
-    };
-  }, [guest, user?.tier, registerCrankTap, flushTaps]);
-
-  const getAngleFromPointer = useCallback((clientX: number, clientY: number): number | null => {
-    const el = wheelRef.current;
-    if (!el) return null;
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    return Math.atan2(clientY - cy, clientX - cx);
-  }, []);
-
-  const handleCrankDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    const angle = getAngleFromPointer(e.clientX, e.clientY);
-    if (angle === null) return;
-    lastAngleRef.current = angle;
-    isDraggingRef.current = true;
-    setIsDragging(true);
-  }, [getAngleFromPointer]);
-
-  const handleCrankMove = useCallback((e: React.PointerEvent) => {
-    if (!isDraggingRef.current || lastAngleRef.current === null) return;
-    if (!guest) {
-      const currentEnergy = liveEnergyRef.current ?? 0;
-      if (currentEnergy <= 0) return;
-    }
-
-    const angle = getAngleFromPointer(e.clientX, e.clientY);
-    if (angle === null) return;
-
-    let delta = (angle - lastAngleRef.current) * (180 / Math.PI);
-    if (delta > 180) delta -= 360;
-    if (delta < -180) delta += 360;
-
-    angularVelocityRef.current += delta * 0.4;
-    const maxVel = 25;
-    angularVelocityRef.current = Math.max(-maxVel, Math.min(maxVel, angularVelocityRef.current));
-
-    lastAngleRef.current = angle;
-  }, [getAngleFromPointer]);
-
-  const handleCrankUp = useCallback((e: React.PointerEvent) => {
-    isDraggingRef.current = false;
-    lastAngleRef.current = null;
-    setIsDragging(false);
-  }, []);
-
   const handleTap = useCallback(
     (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+      if (guest) {
+        setGuestWatts((prev) => prev + 1);
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        let clientX: number, clientY: number;
+        if ("touches" in e) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        const id = ++wattIdRef.current;
+        setFloatingWatts((prev) => [...prev, { id, x, y }]);
+        setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 800);
+        setTapScale(0.92);
+        setTimeout(() => setTapScale(1), 100);
+        return;
+      }
+
       const currentEnergy = liveEnergy ?? user?.energy ?? 0;
       if (!user || currentEnergy <= 0) return;
 
@@ -541,14 +411,23 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
         flushTimerRef.current = setTimeout(flushTaps, 2000);
       }
     },
-    [user, liveEnergy, flushTaps]
+    [guest, user, liveEnergy, flushTaps, tc.tapMultiplier]
   );
+
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTaps();
+      }
+    };
+  }, [flushTaps]);
 
   if (!guest && isLoading) {
     return (
-      <div className="p-4 md:p-6 space-y-6 max-w-md mx-auto">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-80 rounded-md" />
+      <div className="p-4 space-y-4 max-w-md mx-auto">
+        <Skeleton className="h-8 w-40 mx-auto" />
+        <Skeleton className="h-56 w-56 rounded-full mx-auto" />
         <Skeleton className="h-20" />
       </div>
     );
@@ -557,401 +436,349 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   const currentEnergy = liveEnergy ?? user?.energy ?? 0;
   const maxEnergy = user?.maxEnergy ?? 1000;
   const energyPct = getEnergyPercentage(currentEnergy, maxEnergy);
-  const timeUntilFull = getTimeUntilFullEnergy(currentEnergy, maxEnergy, tc);
   const hasRefillFeature = tc.refillCooldownMs !== null && tc.refillCooldownMs > 0;
-  const refillRateLabel = tc.energyRefillRateMs <= 1000 ? "1/sec" : "1/2sec";
 
-  const generatorName = getGeneratorName(user);
   const totalWatts = guest ? guestWatts : (user?.totalCoins || 0);
-  const isFreeUser = guest || (user?.tier || "FREE") === "FREE";
-  const solarProgress = isFreeUser ? Math.min(100, (totalWatts / SOLAR_THRESHOLD) * 100) : 0;
+  const currentTier = guest ? "FREE" : (user?.tier || "FREE");
+  const tierLabel = getTierLabel(user);
+  const generatorName = getGeneratorName(user);
+  const walletBalance = user?.walletBalance ?? 0;
 
   const handleChallengeResolved = useCallback((passed: boolean) => {
     setShowChallenge(false);
     queryClient.invalidateQueries({ queryKey: ["/api/user"] });
   }, []);
 
+  const topThree = (leaderboard || []).slice(0, 3);
+
   if (guest) {
     return (
-      <div className="p-4 md:p-6 space-y-6 max-w-md mx-auto">
+      <div className="flex flex-col items-center px-4 pb-6 pt-2 max-w-md mx-auto space-y-5">
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-tap-title">
-            Power Plant
-          </h1>
-          <p className="text-muted-foreground text-sm">Turn the crank to generate power</p>
+          <div className="flex items-center justify-center gap-2">
+            <Zap className="h-4 w-4 text-amber-400 fill-amber-400" />
+            <span className="text-xs font-bold uppercase tracking-widest text-amber-400" data-testid="text-tier-label">
+              FREE TIER
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">{generatorName}</p>
         </div>
 
-        <Card>
-          <CardContent className="p-6 text-center space-y-2">
-            <div className="flex items-center justify-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
-              <span className="text-3xl font-bold" data-testid="text-total-coins">
-                {formatNumber(guestWatts)}
-              </span>
-              <span className="text-lg font-semibold text-muted-foreground">W</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Watts (W)</p>
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-center">
-          <CrankWheel
-            angularVelocity={angularVelocity}
-            wheelAngle={wheelAngle}
-            hasEnergy={true}
-            isDragging={isDragging}
-            floatingWatts={floatingWatts}
-            multiplier={1}
-            onPointerDown={handleCrankDown}
-            onPointerMove={handleCrankMove}
-            onPointerUp={handleCrankUp}
-            wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
-          />
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Tap to Generate</p>
+          <div className="flex items-baseline justify-center gap-1">
+            <span className="text-4xl font-black tracking-tight" data-testid="text-total-coins">
+              {formatNumber(guestWatts)}
+            </span>
+            <span className="text-lg font-semibold text-muted-foreground">W</span>
+          </div>
         </div>
 
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Sign in to save your progress and earn real rewards
-            </p>
-          </CardContent>
-        </Card>
+        <EnergyOrb
+          hasEnergy={true}
+          tier="FREE"
+          onTap={handleTap}
+          floatingWatts={floatingWatts}
+          multiplier={1}
+          tapScale={tapScale}
+          orbRef={orbRef as React.RefObject<HTMLDivElement>}
+        />
+
+        <div
+          className="w-full rounded-xl border border-border/50 p-4 text-center"
+          style={{ background: "rgba(0,0,0,0.2)" }}
+        >
+          <p className="text-sm text-muted-foreground">
+            Sign in to save your progress and earn real rewards
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-md mx-auto">
+    <div className="flex flex-col items-center px-4 pb-6 pt-2 max-w-md mx-auto space-y-4">
       {showChallenge && (
         <ChallengeOverlay onResolved={handleChallengeResolved} />
       )}
-      <div className="text-center space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-tap-title">
-          Power Plant
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          {isFreeUser ? "Turn the crank to generate power" : "Tap to generate power"}
-        </p>
+
+      <div className="text-center space-y-0.5">
+        <div className="flex items-center justify-center gap-2">
+          <Zap className="h-4 w-4 text-amber-400 fill-amber-400" />
+          <span className="text-xs font-bold uppercase tracking-widest text-amber-400" data-testid="text-tier-label">
+            {tierLabel}: {generatorName}
+          </span>
+          {currentTier !== "FREE" && (
+            <Crown className="h-3.5 w-3.5 text-amber-400" />
+          )}
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="p-6 text-center space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <Zap className="h-5 w-5 text-primary" />
-            <span className="text-3xl font-bold" data-testid="text-total-coins">
-              {formatNumber(totalWatts)}
-            </span>
-            <span className="text-lg font-semibold text-muted-foreground">W</span>
+      <div className="relative w-full flex items-center justify-center">
+        <div className="absolute left-0 top-1/2 -translate-y-1/2">
+          <div className="flex flex-col items-center gap-1 rounded-lg border border-border/30 px-2.5 py-2"
+            style={{ background: "rgba(0,0,0,0.3)" }}
+            data-testid="info-daily-streak"
+          >
+            <Flame className="h-4 w-4 text-orange-400" />
+            <span className="text-sm font-bold">0</span>
+            <span className="text-[9px] text-muted-foreground">Days</span>
           </div>
-          <div className="flex items-center justify-center gap-2 flex-wrap">
-            <p className="text-sm text-muted-foreground">Watts (W)</p>
+        </div>
+
+        <div className="flex flex-col items-center gap-2">
+          <div className="text-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Tap to Generate</p>
+            <div className="flex items-baseline justify-center gap-1">
+              <span className="text-4xl font-black tracking-tight" data-testid="text-total-coins">
+                {formatNumber(totalWatts)}
+              </span>
+              <span className="text-lg font-semibold text-muted-foreground">W</span>
+            </div>
             {(tc.tapMultiplier ?? 1) > 1 && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" data-testid="text-tap-multiplier">
-                {tc.tapMultiplier}x W per {isFreeUser ? "rotation" : "tap"}
+              <span className="text-xs text-emerald-400 font-medium" data-testid="text-wps">
+                +{tc.tapMultiplier} W/tap
               </span>
             )}
           </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-primary" />
-              <span className="font-medium text-sm" data-testid="text-generator-name">{generatorName}</span>
-            </div>
-            {isFreeUser && totalWatts < SOLAR_THRESHOLD && (
-              <Badge variant="secondary" data-testid="badge-generator-tier">Free Tier</Badge>
-            )}
-            {isFreeUser && totalWatts >= SOLAR_THRESHOLD && (
-              <Badge variant="default" data-testid="badge-generator-tier">Solar Unlocked</Badge>
-            )}
-            {!isFreeUser && (
-              <Badge variant="default" data-testid="badge-generator-tier">{user?.tier}</Badge>
-            )}
-          </div>
-          {isFreeUser && totalWatts < SOLAR_THRESHOLD && (
-            <div className="mt-3 space-y-1">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className="text-xs text-muted-foreground">Progress to Solar Panels (1 MW)</p>
-                <span className="text-xs font-mono text-muted-foreground" data-testid="text-solar-progress">
-                  {formatNumber(totalWatts)} / {formatNumber(SOLAR_THRESHOLD)} W
-                </span>
-              </div>
-              <Progress value={solarProgress} className="h-2" data-testid="progress-solar-upgrade" />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {earnings && user?.tier !== "FREE" && (
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-green-500" />
-              <span className="font-medium text-sm">Estimated Daily Earnings</span>
-            </div>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="space-y-0.5">
-                <p className="text-lg font-bold text-green-500" data-testid="text-estimated-usdt">
-                  ${earnings.estimatedUsdt.toFixed(4)} USDT
-                </p>
-                <p className="text-xs text-muted-foreground" data-testid="text-pool-share">
-                  {earnings.mySharePct}% of ${earnings.tapPotSize.toFixed(2)} pot
-                </p>
-              </div>
-              <div className="text-right space-y-0.5">
-                <div className="flex items-center gap-1 justify-end">
-                  <TrendingUp className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground" data-testid="text-coins-today">
-                    {formatNumber(earnings.myCoinsToday)} W generated today
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  of {formatNumber(earnings.totalTierCoins)} total
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {user?.tier === "FREE" && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Upgrade to Diesel Generator or higher to earn USDT from your daily power generation
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {earnings && (
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                <span className="font-medium text-sm">Crank Power</span>
-              </div>
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" data-testid="text-effective-multiplier">
-                Level {earnings.tapMultiplierLevel}/{earnings.maxUpgradeLevel} ({earnings.tapMultiplier}x)
-              </span>
-            </div>
-            {earnings.tierBaseMultiplier > 1 && (
-              <p className="text-xs text-muted-foreground">
-                Tier bonus: {earnings.tierBaseMultiplier}x
-              </p>
-            )}
-            {user?.tier === "FREE" ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <p className="text-xs text-muted-foreground">
-                    Upgrades locked on Free tier
-                  </p>
-                  <Button
-                    size="sm"
-                    onClick={() => window.location.href = "/subscription"}
-                    data-testid="button-unlock-upgrades"
-                  >
-                    Unlock Upgrades
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  Subscribe to Diesel Generator or higher to start upgrading your multiplier!
-                </p>
-              </div>
-            ) : earnings.isMaxed ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <Badge variant="secondary" data-testid="badge-max-level">
-                    {user?.tier} Peak Reached
-                  </Badge>
-                  {earnings.nextTier && (
-                    <Button
-                      size="sm"
-                      onClick={() => window.location.href = "/subscription"}
-                      data-testid="button-unlock-tier"
-                    >
-                      Unlock {earnings.nextTier} Power
-                    </Button>
-                  )}
-                </div>
-                {earnings.nextTier && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    You've maxed out at {earnings.tapMultiplier}x. Upgrade to {earnings.nextTier} to unlock even higher multipliers!
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <p className="text-xs text-muted-foreground">
-                    Next level: {formatNumber(earnings.upgradeCost!)} W
-                  </p>
-                  <Button
-                    size="sm"
-                    onClick={() => upgradeMutation.mutate()}
-                    disabled={upgradeMutation.isPending || (user?.totalCoins ?? 0) < (earnings.upgradeCost ?? Infinity)}
-                    data-testid="button-upgrade-multiplier"
-                  >
-                    {upgradeMutation.isPending ? "Upgrading..." : "Upgrade"}
-                  </Button>
-                </div>
-                {(user?.totalCoins ?? 0) < (earnings.upgradeCost ?? 0) && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    Need {formatNumber((earnings.upgradeCost ?? 0) - (user?.totalCoins ?? 0))} more W
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex justify-center">
-        {isFreeUser ? (
-          <CrankWheel
-            angularVelocity={angularVelocity}
-            wheelAngle={wheelAngle}
+          <EnergyOrb
             hasEnergy={currentEnergy > 0}
-            isDragging={isDragging}
+            tier={currentTier}
+            onTap={handleTap}
             floatingWatts={floatingWatts}
             multiplier={tc.tapMultiplier ?? 1}
-            onPointerDown={handleCrankDown}
-            onPointerMove={handleCrankMove}
-            onPointerUp={handleCrankUp}
-            wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
+            tapScale={tapScale}
+            orbRef={orbRef as React.RefObject<HTMLDivElement>}
           />
-        ) : (
-          <div
-            className="relative select-none touch-none cursor-pointer"
-            onMouseDown={handleTap}
-            onTouchStart={handleTap}
-            data-testid="button-tap-coin"
-          >
-            <motion.div
-              animate={{ scale: tapScale }}
-              transition={{ type: "spring", stiffness: 500, damping: 20 }}
-              className={`w-44 h-44 rounded-full flex items-center justify-center
-                bg-gradient-to-br from-blue-400 via-cyan-500 to-teal-500
-                ${currentEnergy > 0 ? "" : "opacity-50"}
-              `}
-              style={{
-                boxShadow: currentEnergy > 0
-                  ? "0 0 30px rgba(6, 182, 212, 0.3), inset 0 -4px 12px rgba(0,0,0,0.15)"
-                  : "inset 0 -4px 12px rgba(0,0,0,0.15)",
-              }}
-            >
-              <div className="w-36 h-36 rounded-full bg-gradient-to-br from-cyan-300 via-blue-400 to-teal-600 flex items-center justify-center"
-                style={{ boxShadow: "inset 0 2px 8px rgba(255,255,255,0.4), inset 0 -2px 8px rgba(0,0,0,0.2)" }}
-              >
-                <Zap className="w-16 h-16 text-white/80" />
-              </div>
-            </motion.div>
+        </div>
 
-            <AnimatePresence>
-              {floatingWatts.map((watt) => (
-                <motion.div
-                  key={watt.id}
-                  initial={{ x: watt.x - 20, y: watt.y - 20, opacity: 1, scale: 1 }}
-                  animate={{ y: watt.y - 80, opacity: 0, scale: 0.5 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.7, ease: "easeOut" }}
-                  className="absolute top-0 left-0 pointer-events-none text-primary font-bold text-lg"
-                >
-                  +{tc.tapMultiplier ?? 1} W
-                </motion.div>
-              ))}
-            </AnimatePresence>
+        <div className="absolute right-0 top-1/2 -translate-y-1/2">
+          <div className="flex flex-col items-center gap-1 rounded-lg border border-border/30 px-2.5 py-2"
+            style={{ background: "rgba(0,0,0,0.3)" }}
+            data-testid="info-boosters"
+          >
+            <Rocket className="h-4 w-4 text-violet-400" />
+            <span className="text-sm font-bold">{earnings?.tapMultiplierLevel ?? 1}</span>
+            <span className="text-[9px] text-muted-foreground">Boost</span>
           </div>
-        )}
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-chart-2" />
-              <span className="font-medium text-sm">Energy</span>
-              <span className="text-xs text-muted-foreground">({refillRateLabel})</span>
-            </div>
-            <span className="text-sm font-mono text-muted-foreground" data-testid="text-energy">
-              {currentEnergy} / {maxEnergy}
-            </span>
+      <div className="w-full space-y-1.5">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-muted-foreground">Energy</span>
           </div>
-          <Progress
-            value={energyPct}
-            className="h-3"
+          <span className="font-mono text-muted-foreground" data-testid="text-energy">
+            {currentEnergy}/{maxEnergy}
+          </span>
+        </div>
+        <div className="h-2 w-full rounded-full bg-muted/50 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-300"
+            style={{
+              width: `${energyPct}%`,
+              background: energyPct > 50 ? "linear-gradient(90deg, #10b981, #34d399)" :
+                energyPct > 20 ? "linear-gradient(90deg, #f59e0b, #fbbf24)" :
+                "linear-gradient(90deg, #ef4444, #f87171)",
+            }}
             data-testid="progress-energy"
           />
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              <span>{currentEnergy >= maxEnergy ? "Tank full!" : `Full in: ${timeUntilFull}`}</span>
-            </div>
-            {hasRefillFeature ? (
-              canRefill ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => refillMutation.mutate()}
-                  disabled={refillMutation.isPending || currentEnergy >= maxEnergy}
-                  data-testid="button-full-tank"
-                >
-                  <BatteryCharging className="h-3.5 w-3.5 mr-1" />
-                  {refillMutation.isPending ? "Filling..." : "Full Tank"}
-                </Button>
-              ) : (
-                <div className="flex items-center gap-2" data-testid="text-refill-cooldown">
-                  <CooldownRing progress={cooldownProgress} size={32} strokeWidth={3} />
-                  <span className="text-xs text-muted-foreground">{cooldownLabel}</span>
-                </div>
-              )
-            ) : (
-              <span className="text-xs text-muted-foreground flex items-center gap-1" data-testid="text-refill-locked">
-                <Lock className="h-3 w-3" />
-                Upgrade to unlock Full Tank
-              </span>
-            )}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {currentEnergy >= maxEnergy ? "Full!" : getTimeUntilFullEnergy(currentEnergy, maxEnergy, tc)}
+          </span>
+          {hasRefillFeature && canRefill && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] px-2"
+              onClick={() => refillMutation.mutate()}
+              disabled={refillMutation.isPending || currentEnergy >= maxEnergy}
+              data-testid="button-full-tank"
+            >
+              <BatteryCharging className="h-3 w-3 mr-1" />
+              {refillMutation.isPending ? "Filling..." : "Refill"}
+            </Button>
+          )}
+          {hasRefillFeature && !canRefill && (
+            <span className="text-[10px] text-muted-foreground" data-testid="text-refill-cooldown">
+              Refill in {cooldownLabel}
+            </span>
+          )}
+          {!hasRefillFeature && (
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1" data-testid="text-refill-locked">
+              <Lock className="h-3 w-3" />
+              Upgrade for refills
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="w-full">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Daily Pot Distribution</span>
+        </div>
+        <div className="flex gap-2">
+          <PotCard
+            label="Diesel"
+            amount={earnings?.tapPotSize ?? 0}
+            colorClass="text-orange-400"
+            borderColor="border-orange-500/30"
+          />
+          <PotCard
+            label="LNG"
+            amount={(earnings?.tapPotSize ?? 0) * 3.3}
+            colorClass="text-yellow-400"
+            borderColor="border-yellow-500/30"
+          />
+          <PotCard
+            label="Fusion"
+            amount={(earnings?.tapPotSize ?? 0) * 10.5}
+            colorClass="text-purple-400"
+            borderColor="border-purple-500/30"
+          />
+        </div>
+      </div>
+
+      {topThree.length > 0 && (
+        <div className="w-full">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Live Leaderboard (Today)</span>
+            <Link href="/leaderboard" className="text-[10px] text-primary flex items-center gap-0.5" data-testid="link-view-leaderboard">
+              View All <ChevronRight className="h-3 w-3" />
+            </Link>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {topThree.map((entry, idx) => (
+              <div
+                key={entry.id}
+                className="flex items-center gap-2 rounded-xl border border-border/30 px-3 py-2 min-w-[120px]"
+                style={{ background: "rgba(0,0,0,0.3)" }}
+                data-testid={`leaderboard-entry-${idx}`}
+              >
+                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-muted text-xs font-bold">
+                  {entry.telegramFirstName?.slice(0, 1) || entry.username.slice(0, 1)}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="text-amber-400 text-xs font-bold">#{idx + 1}</span>
+                    <span className="text-xs font-medium truncate">
+                      {entry.telegramFirstName || entry.username}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-emerald-400 font-semibold">
+                    {formatNumber(entry.totalCoins)} W
+                  </span>
+                </div>
+                {idx === 0 && <Trophy className="h-4 w-4 text-amber-400 ml-auto flex-shrink-0" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="w-full grid grid-cols-2 gap-2">
+        <div
+          className="rounded-xl border border-border/30 p-3"
+          style={{ background: "rgba(0,0,0,0.3)" }}
+          data-testid="card-upgrades"
+        >
+          <div className="flex items-center gap-1.5 mb-2">
+            <TrendingUp className="h-3.5 w-3.5 text-amber-400" />
+            <span className="text-xs font-semibold">Upgrades</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mb-1">
+            Generator Lv.{earnings?.tapMultiplierLevel ?? 1}
+          </p>
+          {user?.tier === "FREE" ? (
+            <Link href="/subscription">
+              <Button size="sm" className="w-full h-7 text-[10px] bg-amber-500 hover:bg-amber-600 text-black" data-testid="button-unlock-upgrades">
+                Unlock
+              </Button>
+            </Link>
+          ) : earnings?.isMaxed ? (
+            earnings?.nextTier ? (
+              <Link href="/subscription">
+                <Button size="sm" variant="outline" className="w-full h-7 text-[10px]" data-testid="button-unlock-tier">
+                  Next Tier
+                </Button>
+              </Link>
+            ) : (
+              <span className="text-[10px] text-emerald-400 font-semibold">Maxed!</span>
+            )
+          ) : (
+            <Button
+              size="sm"
+              className="w-full h-7 text-[10px] bg-amber-500 hover:bg-amber-600 text-black"
+              onClick={() => upgradeMutation.mutate()}
+              disabled={upgradeMutation.isPending || (user?.totalCoins ?? 0) < (earnings?.upgradeCost ?? Infinity)}
+              data-testid="button-upgrade-multiplier"
+            >
+              {upgradeMutation.isPending ? "..." : `Upgrade (${formatNumber(earnings?.upgradeCost ?? 0)} W)`}
+            </Button>
+          )}
+        </div>
+
+        <div
+          className="rounded-xl border border-emerald-500/30 p-3"
+          style={{ background: "rgba(0,0,0,0.3)" }}
+          data-testid="card-earnings"
+        >
+          <div className="flex items-center gap-1.5 mb-2">
+            <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-xs font-semibold">My Earnings</span>
+          </div>
+          <p className="text-lg font-black text-emerald-400" data-testid="text-wallet-balance">
+            ${typeof walletBalance === 'number' ? walletBalance.toFixed(2) : '0.00'}
+          </p>
+          <Link href="/wallet">
+            <Button
+              size="sm"
+              className="w-full h-7 text-[10px] mt-1 bg-emerald-500 hover:bg-emerald-600 text-black font-bold"
+              data-testid="button-withdraw"
+            >
+              Withdraw
+            </Button>
+          </Link>
+        </div>
+      </div>
 
       {currentEnergy <= 0 && (
-        <Card>
-          <CardContent className="p-4 text-center space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Energy depleted. It refills at {refillRateLabel} — come back in a few minutes!
+        <div
+          className="w-full rounded-xl border border-destructive/30 p-4 text-center space-y-2"
+          style={{ background: "rgba(0,0,0,0.3)" }}
+        >
+          <p className="text-sm text-muted-foreground">
+            Energy depleted. Recharging...
+          </p>
+          {hasRefillFeature && canRefill && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => refillMutation.mutate()}
+              disabled={refillMutation.isPending}
+              data-testid="button-full-tank-cta"
+            >
+              <BatteryCharging className="h-4 w-4 mr-1" />
+              {refillMutation.isPending ? "Filling..." : "Use Full Tank Now"}
+            </Button>
+          )}
+          {hasRefillFeature && !canRefill && (
+            <p className="text-xs text-muted-foreground">
+              Full Tank recharging: {cooldownLabel}
             </p>
-            {hasRefillFeature && canRefill && (
-              <Button
-                variant="default"
-                onClick={() => refillMutation.mutate()}
-                disabled={refillMutation.isPending}
-                data-testid="button-full-tank-cta"
-              >
-                <BatteryCharging className="h-4 w-4 mr-1" />
-                {refillMutation.isPending ? "Filling..." : "Use Full Tank Now"}
-              </Button>
-            )}
-            {hasRefillFeature && !canRefill && (
-              <div className="flex flex-col items-center gap-2">
-                <CooldownRing progress={cooldownProgress} size={56} strokeWidth={4} showLabel label={cooldownLabel} />
-                <p className="text-xs text-muted-foreground">Full Tank recharging</p>
-              </div>
-            )}
-            {!hasRefillFeature && (
-              <p className="text-xs text-muted-foreground">
-                Upgrade to Diesel Generator or higher to unlock Full Tank refills!
-              </p>
-            )}
-          </CardContent>
-        </Card>
+          )}
+          {!hasRefillFeature && (
+            <p className="text-xs text-muted-foreground">
+              Upgrade to unlock Full Tank refills!
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

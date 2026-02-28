@@ -4,10 +4,9 @@ import { queryClient, getQueryFn } from "./lib/queryClient";
 import { QueryClientProvider, useQuery, useMutation } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { BottomTabBar } from "@/components/bottom-tab-bar";
+import { TopHeader } from "@/components/top-header";
 import { Zap, ShieldAlert, LogIn } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import { Button } from "@/components/ui/button";
@@ -112,19 +111,27 @@ function GuestLanding({ onLogin }: { onLogin: () => void }) {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-background">
-      <div className="absolute top-3 right-3 z-50">
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-2"
-          onClick={openTelegramLogin}
-          data-testid="button-guest-login"
-        >
-          <SiTelegram className="h-4 w-4" />
-          <span className="hidden sm:inline">Sign in</span>
-          <LogIn className="h-4 w-4 sm:hidden" />
-        </Button>
+    <div className="flex flex-col h-screen w-full bg-background">
+      <div className="w-full border-b border-border/40">
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <Zap className="h-5 w-5 text-amber-400 fill-amber-400" />
+            <span className="font-black text-lg tracking-tight">
+              <span className="text-amber-400">VOLT</span>
+              <span className="text-foreground">60</span>
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2"
+            onClick={openTelegramLogin}
+            data-testid="button-guest-login"
+          >
+            <SiTelegram className="h-4 w-4" />
+            <span>Sign in</span>
+          </Button>
+        </div>
       </div>
 
       {showLogin && (
@@ -145,7 +152,10 @@ function GuestLanding({ onLogin }: { onLogin: () => void }) {
         </div>
       )}
 
-      <TapToEarn guest />
+      <main className="flex-1 overflow-auto pb-2">
+        <TapToEarn guest />
+      </main>
+      <BottomTabBar />
     </div>
   );
 }
@@ -227,26 +237,16 @@ function AuthenticatedApp() {
     return <GuestLanding onLogin={() => setLoggedIn(true)} />;
   }
 
-  const style = {
-    "--sidebar-width": "15rem",
-    "--sidebar-width-icon": "3rem",
-  };
-
   return (
-    <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
-        <AppSidebar user={user} />
-        <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-2 p-2 border-b sticky top-0 z-50 bg-background">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <ThemeToggle />
-          </header>
-          <main className="flex-1 overflow-auto">
-            <Router />
-          </main>
-        </div>
-      </div>
-    </SidebarProvider>
+    <div className="flex flex-col h-screen w-full">
+      <header className="sticky top-0 z-50 bg-background">
+        <TopHeader user={user} />
+      </header>
+      <main className="flex-1 overflow-auto pb-2">
+        <Router />
+      </main>
+      <BottomTabBar />
+    </div>
   );
 }
 
