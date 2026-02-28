@@ -22,7 +22,6 @@ import potDieselBg from "@assets/pot-diesel.png";
 import potLngBg from "@assets/pot-lng.png";
 import potFusionBg from "@assets/pot-fusion.png";
 import bgAtmosphere from "@assets/bg-atmosphere.png";
-import bgPlatform from "@assets/bg-platform.png";
 import cardUpgradesBg from "@assets/card-upgrades.png";
 import cardEarningsBg from "@assets/card-earnings.png";
 import cardLeaderboardBg from "@assets/card-leaderboard.png";
@@ -328,7 +327,6 @@ function EnergyOrb({
         </AnimatePresence>
       </div>
 
-      <div className="sci-fi-platform mt-[-10px]"><img src={bgPlatform} alt="" /></div>
     </div>
   );
 }
@@ -784,7 +782,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
             </div>
           </div>
 
-          <div className="flex flex-col items-center flex-shrink-0">
+          <div className="flex flex-col items-center min-w-0">
             <div className="text-center mb-2">
               <p className="text-[10px] text-white/50 uppercase tracking-[0.2em]">Spin to Generate</p>
               <div className="flex items-baseline justify-center gap-1">
@@ -806,7 +804,6 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
               onPointerUp={handleCrankUp}
               wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
             />
-            <div className="sci-fi-platform mt-[-6px]"><img src={bgPlatform} alt="" /></div>
           </div>
 
           <div className="flex-shrink-0">
@@ -986,7 +983,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           </div>
         </div>
 
-        <div className="flex flex-col items-center flex-shrink-0">
+        <div className="flex flex-col items-center min-w-0">
           {isFreeUser ? (
             <>
               <div className="text-center mb-2">
@@ -1015,7 +1012,6 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
                 onPointerUp={handleCrankUp}
                 wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
               />
-              <div className="sci-fi-platform mt-[-6px]"><img src={bgPlatform} alt="" /></div>
             </>
           ) : (
             <EnergyOrb
