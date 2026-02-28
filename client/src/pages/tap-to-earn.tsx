@@ -18,6 +18,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { ChallengeOverlay } from "@/components/challenge-overlay";
 import { Link } from "wouter";
+import potDieselBg from "@assets/pot-diesel.png";
+import potLngBg from "@assets/pot-lng.png";
+import potFusionBg from "@assets/pot-fusion.png";
 
 interface UserWithTierConfig extends User {
   tierConfig?: TierConfig;
@@ -353,13 +356,13 @@ interface EstimatedEarnings {
 function PotCard({
   label,
   amount,
-  gradientClass,
+  bgImage,
   borderColor,
   labelColor,
 }: {
   label: string;
   amount: number;
-  gradientClass: string;
+  bgImage: string;
   borderColor: string;
   labelColor: string;
 }) {
@@ -368,8 +371,11 @@ function PotCard({
       className={`flex-1 rounded-xl overflow-hidden border ${borderColor} relative`}
       data-testid={`pot-card-${label.toLowerCase()}`}
     >
-      <div className={`absolute inset-0 ${gradientClass}`} />
-      <div className="absolute inset-0 bg-black/40" />
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${bgImage})` }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/30" />
       <div className="relative z-10 p-3 text-center">
         <div className={`text-[10px] font-black uppercase tracking-widest ${labelColor} mb-1`}>
           {label}
@@ -826,21 +832,21 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
             <PotCard
               label="DIESEL"
               amount={12402}
-              gradientClass="pot-bg-diesel"
+              bgImage={potDieselBg}
               borderColor="border-orange-500/50"
               labelColor="text-orange-400"
             />
             <PotCard
               label="LNG"
               amount={41221}
-              gradientClass="pot-bg-lng"
+              bgImage={potLngBg}
               borderColor="border-yellow-500/50"
               labelColor="text-yellow-400"
             />
             <PotCard
               label="FUSION"
               amount={129880}
-              gradientClass="pot-bg-fusion"
+              bgImage={potFusionBg}
               borderColor="border-purple-500/50"
               labelColor="text-purple-400"
             />
@@ -1090,21 +1096,21 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           <PotCard
             label="DIESEL"
             amount={earnings?.tapPotSize ?? 12402}
-            gradientClass="pot-bg-diesel"
+            bgImage={potDieselBg}
             borderColor="border-orange-500/50"
             labelColor="text-orange-400"
           />
           <PotCard
             label="LNG"
             amount={(earnings?.tapPotSize ?? 12402) * 3.3}
-            gradientClass="pot-bg-lng"
+            bgImage={potLngBg}
             borderColor="border-yellow-500/50"
             labelColor="text-yellow-400"
           />
           <PotCard
             label="FUSION"
             amount={(earnings?.tapPotSize ?? 12402) * 10.5}
-            gradientClass="pot-bg-fusion"
+            bgImage={potFusionBg}
             borderColor="border-purple-500/50"
             labelColor="text-purple-400"
           />
