@@ -33,9 +33,9 @@ const SOLAR_THRESHOLD = 1_000_000;
 const FRICTION = 0.975;
 const STOP_THRESHOLD = 0.3;
 const NO_ENERGY_FRICTION = 0.9;
-const WHEEL_SIZE = 200;
+const WHEEL_SIZE = 180;
 const SPOKE_COUNT = 8;
-const ORB_SIZE = 260;
+const ORB_SIZE = 220;
 
 function getGeneratorName(user: UserWithTierConfig | undefined): string {
   if (!user) return "Hand-Crank Dynamo";
@@ -759,21 +759,21 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           </span>
         </div>
 
-        <div className="relative w-full flex items-center justify-center z-10">
-          <div className="absolute left-0 top-1/2 -translate-y-1/2">
-            <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-3 py-2.5"
+        <div className="w-full flex items-center justify-between z-10 gap-2">
+          <div className="flex-shrink-0">
+            <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-2 py-2"
               style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
             >
-              <span className="text-[9px] text-white/50 uppercase tracking-wider">Daily Streak</span>
-              <div className="flex items-center gap-1">
-                <Flame className="h-4 w-4 text-orange-400" />
-                <span className="text-lg font-black text-white">0</span>
+              <span className="text-[8px] text-white/50 uppercase tracking-wider">Streak</span>
+              <div className="flex items-center gap-0.5">
+                <Flame className="h-3.5 w-3.5 text-orange-400" />
+                <span className="text-base font-black text-white">0</span>
               </div>
-              <span className="text-[9px] text-white/40">Days</span>
+              <span className="text-[8px] text-white/40">Days</span>
             </div>
           </div>
 
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center flex-shrink-0">
             <div className="text-center mb-2">
               <p className="text-[10px] text-white/50 uppercase tracking-[0.2em]">Spin to Generate</p>
               <div className="flex items-baseline justify-center gap-1">
@@ -798,16 +798,16 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
             <div className="sci-fi-platform mt-[-6px]" />
           </div>
 
-          <div className="absolute right-0 top-1/2 -translate-y-1/2">
-            <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-3 py-2.5"
+          <div className="flex-shrink-0">
+            <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-2 py-2"
               style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
             >
-              <span className="text-[9px] text-white/50 uppercase tracking-wider">Boosters</span>
-              <div className="flex items-center gap-1">
-                <Rocket className="h-4 w-4 text-violet-400" />
-                <span className="text-lg font-black text-white">0</span>
+              <span className="text-[8px] text-white/50 uppercase tracking-wider">Boost</span>
+              <div className="flex items-center gap-0.5">
+                <Rocket className="h-3.5 w-3.5 text-violet-400" />
+                <span className="text-base font-black text-white">0</span>
               </div>
-              <span className="text-[9px] text-white/40">Active</span>
+              <span className="text-[8px] text-white/40">Active</span>
             </div>
           </div>
         </div>
@@ -955,22 +955,22 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
         )}
       </div>
 
-      <div className="relative w-full flex items-center justify-center z-10">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2">
-          <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-3 py-2.5"
+      <div className="w-full flex items-center justify-between z-10 gap-2">
+        <div className="flex-shrink-0">
+          <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-2 py-2"
             style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
             data-testid="info-daily-streak"
           >
-            <span className="text-[9px] text-white/50 uppercase tracking-wider">Daily Streak</span>
-            <div className="flex items-center gap-1">
-              <Flame className="h-4 w-4 text-orange-400" />
-              <span className="text-lg font-black text-white">0</span>
+            <span className="text-[8px] text-white/50 uppercase tracking-wider">Streak</span>
+            <div className="flex items-center gap-0.5">
+              <Flame className="h-3.5 w-3.5 text-orange-400" />
+              <span className="text-base font-black text-white">0</span>
             </div>
-            <span className="text-[9px] text-white/40">Days</span>
+            <span className="text-[8px] text-white/40">Days</span>
           </div>
         </div>
 
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center flex-shrink-0">
           {isFreeUser ? (
             <>
               <div className="text-center mb-2">
@@ -1016,17 +1016,17 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           )}
         </div>
 
-        <div className="absolute right-0 top-1/2 -translate-y-1/2">
-          <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-3 py-2.5"
+        <div className="flex-shrink-0">
+          <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-2 py-2"
             style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
             data-testid="info-boosters"
           >
-            <span className="text-[9px] text-white/50 uppercase tracking-wider">Boosters</span>
-            <div className="flex items-center gap-1">
-              <Rocket className="h-4 w-4 text-violet-400" />
-              <span className="text-lg font-black text-white">{earnings?.tapMultiplierLevel ?? 1}</span>
+            <span className="text-[8px] text-white/50 uppercase tracking-wider">Boost</span>
+            <div className="flex items-center gap-0.5">
+              <Rocket className="h-3.5 w-3.5 text-violet-400" />
+              <span className="text-base font-black text-white">{earnings?.tapMultiplierLevel ?? 1}</span>
             </div>
-            <span className="text-[9px] text-white/40">Active</span>
+            <span className="text-[8px] text-white/40">Active</span>
           </div>
         </div>
       </div>
