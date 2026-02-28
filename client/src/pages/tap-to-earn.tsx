@@ -768,8 +768,8 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           </span>
         </div>
 
-        <div className="w-full flex items-center justify-between z-10 gap-2">
-          <div className="flex-shrink-0">
+        <div className="w-full relative flex items-center justify-center z-10">
+          <div className="absolute left-4 z-20">
             <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-2 py-2"
               style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
             >
@@ -782,7 +782,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
             </div>
           </div>
 
-          <div className="flex flex-col items-center min-w-0">
+          <div className="flex flex-col items-center mx-auto">
             <div className="text-center mb-2">
               <p className="text-[10px] text-white/50 uppercase tracking-[0.2em]">Spin to Generate</p>
               <div className="flex items-baseline justify-center gap-1">
@@ -806,7 +806,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
             />
           </div>
 
-          <div className="flex-shrink-0">
+          <div className="absolute right-4 z-20">
             <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-2 py-2"
               style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
             >
@@ -968,8 +968,8 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
         )}
       </div>
 
-      <div className="w-full flex items-center justify-between z-10 gap-2">
-        <div className="flex-shrink-0">
+      <div className="w-full relative flex items-center justify-center z-10">
+        <div className="absolute left-4 z-20">
           <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-2 py-2"
             style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
             data-testid="info-daily-streak"
@@ -983,7 +983,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           </div>
         </div>
 
-        <div className="flex flex-col items-center min-w-0">
+        <div className="flex flex-col items-center mx-auto">
           {isFreeUser ? (
             <>
               <div className="text-center mb-2">
@@ -1028,7 +1028,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           )}
         </div>
 
-        <div className="flex-shrink-0">
+        <div className="absolute right-4 z-20">
           <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-2 py-2"
             style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
             data-testid="info-boosters"
