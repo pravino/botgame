@@ -300,4 +300,68 @@
   .animate-electric-arc {
     animation: electric-arc 2s ease-in-out infinite;
   }
+
+  .atmospheric-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 120% 40% at 50% 0%, rgba(245,158,11,0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 100% 30% at 50% 5%, rgba(139,92,246,0.05) 0%, transparent 60%),
+      linear-gradient(180deg, rgba(20,15,10,0.3) 0%, rgba(8,8,12,1) 40%, rgba(8,8,12,1) 100%);
+  }
+
+  .sci-fi-platform {
+    width: 220px;
+    height: 28px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .sci-fi-platform::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(245,158,11,0.15) 0%, rgba(245,158,11,0.05) 40%, transparent 70%);
+    box-shadow:
+      0 0 30px rgba(245,158,11,0.1),
+      inset 0 -2px 8px rgba(245,158,11,0.1);
+  }
+
+  .sci-fi-platform::after {
+    content: "";
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    top: 30%;
+    bottom: 30%;
+    border-radius: 50%;
+    border: 1px solid rgba(245,158,11,0.2);
+    box-shadow: 0 0 12px rgba(245,158,11,0.08);
+  }
+
+  .pot-bg-diesel {
+    background:
+      linear-gradient(135deg, rgba(180,80,20,0.5) 0%, rgba(120,50,10,0.3) 50%, rgba(40,20,5,0.8) 100%),
+      radial-gradient(ellipse at bottom, rgba(245,158,11,0.15) 0%, transparent 60%);
+  }
+
+  .pot-bg-lng {
+    background:
+      linear-gradient(135deg, rgba(180,160,20,0.4) 0%, rgba(60,80,120,0.3) 50%, rgba(20,30,50,0.8) 100%),
+      radial-gradient(ellipse at bottom, rgba(250,204,21,0.1) 0%, transparent 60%);
+  }
+
+  .pot-bg-fusion {
+    background:
+      linear-gradient(135deg, rgba(120,40,180,0.5) 0%, rgba(80,20,120,0.3) 50%, rgba(30,10,50,0.8) 100%),
+      radial-gradient(ellipse at bottom, rgba(139,92,246,0.15) 0%, transparent 60%);
+  }
+
+  @keyframes platform-glow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
 }

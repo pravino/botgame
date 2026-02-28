@@ -111,20 +111,20 @@ function GuestLanding({ onLogin }: { onLogin: () => void }) {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background">
-      <div className="w-full border-b border-border/40">
-        <div className="flex items-center justify-between px-3 py-2">
+    <div className="flex flex-col h-screen w-full" style={{ background: "rgb(8,8,12)" }}>
+      <div className="w-full" style={{ background: "rgba(0,0,0,0.4)" }}>
+        <div className="flex items-center justify-between px-3 py-2.5">
           <div className="flex items-center gap-1.5">
             <Zap className="h-5 w-5 text-amber-400 fill-amber-400" />
-            <span className="font-black text-lg tracking-tight">
+            <span className="font-black text-xl tracking-tight italic">
               <span className="text-amber-400">VOLT</span>
-              <span className="text-foreground">60</span>
+              <span className="text-white">60</span>
             </span>
           </div>
           <Button
             size="sm"
             variant="outline"
-            className="gap-2"
+            className="gap-2 border-white/20 text-white/70 hover:text-white bg-white/5"
             onClick={openTelegramLogin}
             data-testid="button-guest-login"
           >
@@ -132,6 +132,7 @@ function GuestLanding({ onLogin }: { onLogin: () => void }) {
             <span>Sign in</span>
           </Button>
         </div>
+        <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, rgba(245,158,11,0.3), transparent)" }} />
       </div>
 
       {showLogin && (
@@ -238,11 +239,11 @@ function AuthenticatedApp() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full">
-      <header className="sticky top-0 z-50 bg-background">
+    <div className="flex flex-col h-screen w-full" style={{ background: "rgb(8,8,12)" }}>
+      <header className="sticky top-0 z-50" style={{ background: "rgba(8,8,12,0.9)", backdropFilter: "blur(12px)" }}>
         <TopHeader user={user} />
       </header>
-      <main className="flex-1 overflow-auto pb-2">
+      <main className="flex-1 overflow-auto pb-2" style={{ background: "rgb(8,8,12)" }}>
         <Router />
       </main>
       <BottomTabBar />

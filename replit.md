@@ -32,22 +32,30 @@ The application is built with a modern web stack, featuring a React + TypeScript
 **UI/UX Design (v2 — Mobile-First Redesign):**
 - **Navigation**: Bottom tab bar with 4 tabs (Grid, Dashboard, Tiers, Portal) replacing the sidebar
 - **Top Header**: VOLT60 branding with lightning bolt, USDT balance pill, user avatar, tier badge and rank
-- **Main Game (Grid/Power Plant)**: Central energy orb as tap target with tier-specific color gradients:
-  - FREE: Cyan/blue orb
-  - BRONZE: Orange/amber orb
-  - SILVER: Yellow/amber orb
-  - GOLD: Purple/violet orb
+- **Main Game (Grid/Power Plant)**: Dual mechanic based on tier:
+  - FREE tier: **CrankWheel** — physics-based spinning wheel (drag in circle to generate watts, 360° = 1 tap). Cyan/teal glow.
+  - Paid tiers: **EnergyOrb** — tap-to-earn glowing orb with watts counter displayed INSIDE the orb. Tier-specific colors:
+    - BRONZE: Orange/amber orb
+    - SILVER: Yellow/amber orb
+    - GOLD: Purple/violet orb
+- **Sci-fi Design Elements**:
+  - Atmospheric gradient background (warm amber horizon fading to dark)
+  - Sci-fi platform/pedestal beneath orb/wheel (CSS elliptical ring)
+  - Daily Streak and Boosters flanking pills beside the main mechanic
+  - Pot distribution cards with tier-themed gradient backgrounds (DIESEL=orange, LNG=yellow, FUSION=purple)
+  - Horizontal scrollable live leaderboard with avatars and crowns
+  - Upgrades card (amber, gear icon) and Earnings card (green, dollar amount)
 - **Layout**: Single-column mobile layout optimized for Telegram mini app webview
-- **Components**: `BottomTabBar`, `TopHeader`, `EnergyOrb`, `PotCard`
+- **Components**: `BottomTabBar`, `TopHeader`, `EnergyOrb`, `CrankWheel`, `PotCard`
 - Gold/amber primary color scheme with emerald/teal accents
-- Dark mode is the default and primary theme
+- Dark mode is the default and primary theme (very dark backgrounds rgb(8,8,12))
 - Framer Motion for tap feedback and floating watt animations
-- Custom CSS animations for orb pulsing, rotation, and electric arcs
+- Custom CSS animations for orb pulsing, rotation, electric arcs, atmospheric backgrounds
 
 **Technical Implementations:**
 - **Authentication**: Telegram-based authentication supporting both Mini App (WebApp initData with HMAC verification) and browser Login Widget. Connected as @Vault60Bot. Guest landing: unauthenticated users see the energy orb immediately (guest mode, local-only watts, no API calls). "Sign in" button in header opens Telegram login modal. Mini App users auto-auth as before.
 - **Power Plant (Tap-to-Earn)**: Energy orb tapping with energy system (passive refill). Features a multiplier upgrade system. This is the ONLY active game — 100% of treasury goes to tap pot.
-  - All tiers now use tap-on-orb mechanic (crank wheel removed in v2 redesign)
+  - FREE tier uses crank wheel (spin to generate); paid tiers use tap-on-orb mechanic
   - Tap → scale animation → floating "+X W" particle
   - Uses batched taps (max 50, flush every 2s) via POST /api/tap
   - Daily Pot Distribution cards show Diesel/LNG/Fusion pot values
