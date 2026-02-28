@@ -25,6 +25,7 @@ import bgAtmosphere from "@assets/bg-atmosphere.png";
 import bgPlatform from "@assets/bg-platform.png";
 import cardUpgradesBg from "@assets/card-upgrades.png";
 import cardEarningsBg from "@assets/card-earnings.png";
+import cardLeaderboardBg from "@assets/card-leaderboard.png";
 
 interface UserWithTierConfig extends User {
   tierConfig?: TierConfig;
@@ -857,8 +858,10 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           </div>
         </div>
 
-        <div className="w-full z-10 rounded-xl p-3" style={{ background: "rgba(8,8,12,0.85)", backdropFilter: "blur(8px)" }}>
-          <div className="flex items-center justify-between mb-2">
+        <div className="w-full z-10 rounded-xl p-3 relative overflow-hidden">
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${cardLeaderboardBg})` }} />
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative z-10 flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-bold text-white">Live Leaderboard</span>
               <span className="text-sm text-white/40">(Today)</span>
@@ -867,7 +870,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
               View All <ChevronRight className="h-3 w-3" />
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="relative z-10 grid grid-cols-3 gap-2">
             {placeholderLeaderboard.map((entry, idx) => {
               const tc2 = TIER_COLORS[entry.tier]?.label || "text-cyan-400";
               const name = entry.telegramFirstName || entry.username;
@@ -1125,8 +1128,10 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
       </div>
 
       {topThree.length > 0 && (
-        <div className="w-full z-10 rounded-xl p-3" style={{ background: "rgba(8,8,12,0.85)", backdropFilter: "blur(8px)" }}>
-          <div className="flex items-center justify-between mb-2">
+        <div className="w-full z-10 rounded-xl p-3 relative overflow-hidden">
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${cardLeaderboardBg})` }} />
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative z-10 flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-bold text-white">Live Leaderboard</span>
               <span className="text-sm text-white/40">(Today)</span>
@@ -1135,7 +1140,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
               View All <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="relative z-10 grid grid-cols-3 gap-2">
             {topThree.map((entry, idx) => {
               const tierColor = TIER_COLORS[entry.tier]?.label || "text-cyan-400";
               const name = entry.telegramFirstName || entry.username;
