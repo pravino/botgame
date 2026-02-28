@@ -23,6 +23,8 @@ import potLngBg from "@assets/pot-lng.png";
 import potFusionBg from "@assets/pot-fusion.png";
 import bgAtmosphere from "@assets/bg-atmosphere.png";
 import bgPlatform from "@assets/bg-platform.png";
+import cardUpgradesBg from "@assets/card-upgrades.png";
+import cardEarningsBg from "@assets/card-earnings.png";
 
 interface UserWithTierConfig extends User {
   tierConfig?: TierConfig;
@@ -855,7 +857,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           </div>
         </div>
 
-        <div className="w-full z-10">
+        <div className="w-full z-10 rounded-xl p-3" style={{ background: "rgba(8,8,12,0.85)", backdropFilter: "blur(8px)" }}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-bold text-white">Live Leaderboard</span>
@@ -872,7 +874,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
                 <div
                   key={entry.id}
                   className="flex items-center gap-2.5 rounded-xl border border-white/10 px-3 py-2.5 min-w-[140px]"
-                  style={{ background: "rgba(0,0,0,0.4)" }}
+                  style={{ background: "rgba(255,255,255,0.05)" }}
                   data-testid={`leaderboard-entry-${idx}`}
                 >
                   <div className="relative">
@@ -904,41 +906,47 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
         <div className="w-full grid grid-cols-2 gap-2.5 z-10">
           <div
             className="rounded-xl border border-amber-500/30 p-3.5 relative overflow-hidden"
-            style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.6), rgba(30,20,0,0.4))" }}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.15)" }}>
-                <Settings className="h-6 w-6 text-amber-400" />
+            <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${cardUpgradesBg})` }} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/60 to-black/40" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.2)" }}>
+                  <Settings className="h-6 w-6 text-amber-400" />
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-white block">Upgrades</span>
+                  <span className="text-[10px] text-white/50">Generator Lv.1</span>
+                </div>
               </div>
-              <div>
-                <span className="text-sm font-bold text-white block">Upgrades</span>
-                <span className="text-[10px] text-white/50">Generator Lv.1</span>
-              </div>
+              <Button size="sm" className="w-full h-8 text-xs bg-amber-500 hover:bg-amber-600 text-black font-bold" data-testid="button-guest-upgrade">
+                Unlock
+              </Button>
             </div>
-            <Button size="sm" className="w-full h-8 text-xs bg-amber-500 hover:bg-amber-600 text-black font-bold" data-testid="button-guest-upgrade">
-              Unlock
-            </Button>
           </div>
 
           <div
             className="rounded-xl border border-emerald-500/40 p-3.5 relative overflow-hidden"
-            style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.6), rgba(0,30,15,0.4))" }}
           >
-            <div className="flex items-center gap-1.5 mb-1">
-              <DollarSign className="h-4 w-4 text-emerald-400" />
-              <span className="text-sm font-bold text-white">My Earnings</span>
+            <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${cardEarningsBg})` }} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/60 to-black/40" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-1.5 mb-1">
+                <DollarSign className="h-4 w-4 text-emerald-400" />
+                <span className="text-sm font-bold text-white">My Earnings</span>
+              </div>
+              <p className="text-2xl font-black text-emerald-400 leading-tight">
+                $0.00
+              </p>
+              <p className="text-[10px] text-white/40 mb-2">This Month</p>
+              <Button
+                size="sm"
+                className="w-full h-8 text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold"
+                data-testid="button-guest-withdraw"
+              >
+                Withdraw
+              </Button>
             </div>
-            <p className="text-2xl font-black text-emerald-400 leading-tight">
-              $0.00
-            </p>
-            <p className="text-[10px] text-white/40 mb-2">This Month</p>
-            <Button
-              size="sm"
-              className="w-full h-8 text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold"
-              data-testid="button-guest-withdraw"
-            >
-              Withdraw
-            </Button>
           </div>
         </div>
       </div>
@@ -1120,7 +1128,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
       </div>
 
       {topThree.length > 0 && (
-        <div className="w-full z-10">
+        <div className="w-full z-10 rounded-xl p-3" style={{ background: "rgba(8,8,12,0.85)", backdropFilter: "blur(8px)" }}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-bold text-white">Live Leaderboard</span>
@@ -1137,7 +1145,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
                 <div
                   key={entry.id}
                   className="flex items-center gap-2.5 rounded-xl border border-white/10 px-3 py-2.5 min-w-[140px]"
-                  style={{ background: "rgba(0,0,0,0.4)" }}
+                  style={{ background: "rgba(255,255,255,0.05)" }}
                   data-testid={`leaderboard-entry-${idx}`}
                 >
                   <div className="relative">
@@ -1174,69 +1182,75 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
       <div className="w-full grid grid-cols-2 gap-2.5 z-10">
         <div
           className="rounded-xl border border-amber-500/30 p-3.5 relative overflow-hidden"
-          style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.6), rgba(30,20,0,0.4))" }}
           data-testid="card-upgrades"
         >
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.15)" }}>
-              <Settings className="h-6 w-6 text-amber-400" />
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${cardUpgradesBg})` }} />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/60 to-black/40" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.2)" }}>
+                <Settings className="h-6 w-6 text-amber-400" />
+              </div>
+              <div>
+                <span className="text-sm font-bold text-white block">Upgrades</span>
+                <span className="text-[10px] text-white/50">Generator Lv.{earnings?.tapMultiplierLevel ?? 1}</span>
+              </div>
             </div>
-            <div>
-              <span className="text-sm font-bold text-white block">Upgrades</span>
-              <span className="text-[10px] text-white/50">Generator Lv.{earnings?.tapMultiplierLevel ?? 1}</span>
-            </div>
-          </div>
-          {user?.tier === "FREE" ? (
-            <Link href="/subscription">
-              <Button size="sm" className="w-full h-8 text-xs bg-amber-500 hover:bg-amber-600 text-black font-bold" data-testid="button-unlock-upgrades">
-                Unlock
-              </Button>
-            </Link>
-          ) : earnings?.isMaxed ? (
-            earnings?.nextTier ? (
+            {user?.tier === "FREE" ? (
               <Link href="/subscription">
-                <Button size="sm" variant="outline" className="w-full h-8 text-xs border-amber-500/30" data-testid="button-unlock-tier">
-                  Next Tier
+                <Button size="sm" className="w-full h-8 text-xs bg-amber-500 hover:bg-amber-600 text-black font-bold" data-testid="button-unlock-upgrades">
+                  Unlock
                 </Button>
               </Link>
+            ) : earnings?.isMaxed ? (
+              earnings?.nextTier ? (
+                <Link href="/subscription">
+                  <Button size="sm" variant="outline" className="w-full h-8 text-xs border-amber-500/30" data-testid="button-unlock-tier">
+                    Next Tier
+                  </Button>
+                </Link>
+              ) : (
+                <span className="text-xs text-emerald-400 font-bold">Maxed!</span>
+              )
             ) : (
-              <span className="text-xs text-emerald-400 font-bold">Maxed!</span>
-            )
-          ) : (
-            <Button
-              size="sm"
-              className="w-full h-8 text-xs bg-amber-500 hover:bg-amber-600 text-black font-bold"
-              onClick={() => upgradeMutation.mutate()}
-              disabled={upgradeMutation.isPending || (user?.totalCoins ?? 0) < (earnings?.upgradeCost ?? Infinity)}
-              data-testid="button-upgrade-multiplier"
-            >
-              {upgradeMutation.isPending ? "..." : `Upgrade`}
-            </Button>
-          )}
+              <Button
+                size="sm"
+                className="w-full h-8 text-xs bg-amber-500 hover:bg-amber-600 text-black font-bold"
+                onClick={() => upgradeMutation.mutate()}
+                disabled={upgradeMutation.isPending || (user?.totalCoins ?? 0) < (earnings?.upgradeCost ?? Infinity)}
+                data-testid="button-upgrade-multiplier"
+              >
+                {upgradeMutation.isPending ? "..." : `Upgrade`}
+              </Button>
+            )}
+          </div>
         </div>
 
         <div
           className="rounded-xl border border-emerald-500/40 p-3.5 relative overflow-hidden"
-          style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.6), rgba(0,30,15,0.4))" }}
           data-testid="card-earnings"
         >
-          <div className="flex items-center gap-1.5 mb-1">
-            <DollarSign className="h-4 w-4 text-emerald-400" />
-            <span className="text-sm font-bold text-white">My Earnings</span>
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${cardEarningsBg})` }} />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/60 to-black/40" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-1.5 mb-1">
+              <DollarSign className="h-4 w-4 text-emerald-400" />
+              <span className="text-sm font-bold text-white">My Earnings</span>
+            </div>
+            <p className="text-2xl font-black text-emerald-400 leading-tight" data-testid="text-wallet-balance">
+              ${typeof walletBalance === 'number' ? walletBalance.toFixed(2) : '0.00'}
+            </p>
+            <p className="text-[10px] text-white/40 mb-2">This Month</p>
+            <Link href="/wallet">
+              <Button
+                size="sm"
+                className="w-full h-8 text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold"
+                data-testid="button-withdraw"
+              >
+                Withdraw
+              </Button>
+            </Link>
           </div>
-          <p className="text-2xl font-black text-emerald-400 leading-tight" data-testid="text-wallet-balance">
-            ${typeof walletBalance === 'number' ? walletBalance.toFixed(2) : '0.00'}
-          </p>
-          <p className="text-[10px] text-white/40 mb-2">This Month</p>
-          <Link href="/wallet">
-            <Button
-              size="sm"
-              className="w-full h-8 text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold"
-              data-testid="button-withdraw"
-            >
-              Withdraw
-            </Button>
-          </Link>
         </div>
       </div>
 
