@@ -867,36 +867,33 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
               View All <ChevronRight className="h-3 w-3" />
             </span>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="grid grid-cols-3 gap-2">
             {placeholderLeaderboard.map((entry, idx) => {
               const tc2 = TIER_COLORS[entry.tier]?.label || "text-cyan-400";
+              const name = entry.telegramFirstName || entry.username;
               return (
                 <div
                   key={entry.id}
-                  className="flex items-center gap-2.5 rounded-xl border border-white/10 px-3 py-2.5 min-w-[140px]"
+                  className="flex flex-col items-center rounded-xl border border-white/10 px-2 py-3 overflow-hidden"
                   style={{ background: "rgba(255,255,255,0.05)" }}
                   data-testid={`leaderboard-entry-${idx}`}
                 >
-                  <div className="relative">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-full border-2 border-white/20 text-sm font-bold text-white"
+                  <div className="relative mb-1.5">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-2 border-white/20 text-sm font-bold text-white"
                       style={{ background: "rgba(255,255,255,0.1)" }}
                     >
-                      {(entry.telegramFirstName?.slice(0, 1) || entry.username.slice(0, 1)).toUpperCase()}
+                      {(name.slice(0, 1)).toUpperCase()}
                     </div>
-                    {idx === 0 && <Crown className="absolute -top-2 -right-1 h-3.5 w-3.5 text-amber-400" />}
+                    {idx === 0 && <Crown className="absolute -top-2 left-1/2 -translate-x-1/2 h-3.5 w-3.5 text-amber-400" />}
+                    <Trophy className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 ${tc2}`} />
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="text-amber-400 text-xs font-black">#{idx + 1}</span>
-                      <span className="text-xs font-semibold text-white truncate">
-                        {entry.telegramFirstName || entry.username}
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-emerald-400 font-bold">
-                      {formatNumber(entry.totalCoins)} W
-                    </span>
-                  </div>
-                  <Trophy className={`h-4 w-4 ${tc2} ml-auto flex-shrink-0`} />
+                  <span className="text-amber-400 text-[10px] font-black">#{idx + 1}</span>
+                  <span className="text-xs font-semibold text-white text-center leading-tight mt-0.5 w-full truncate px-1">
+                    {name}
+                  </span>
+                  <span className="text-[11px] text-emerald-400 font-bold mt-0.5">
+                    {formatNumber(entry.totalCoins)} W
+                  </span>
                 </div>
               );
             })}
@@ -1138,40 +1135,37 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
               View All <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="grid grid-cols-3 gap-2">
             {topThree.map((entry, idx) => {
               const tierColor = TIER_COLORS[entry.tier]?.label || "text-cyan-400";
+              const name = entry.telegramFirstName || entry.username;
               return (
                 <div
                   key={entry.id}
-                  className="flex items-center gap-2.5 rounded-xl border border-white/10 px-3 py-2.5 min-w-[140px]"
+                  className="flex flex-col items-center rounded-xl border border-white/10 px-2 py-3 overflow-hidden"
                   style={{ background: "rgba(255,255,255,0.05)" }}
                   data-testid={`leaderboard-entry-${idx}`}
                 >
-                  <div className="relative">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-full border-2 border-white/20 text-sm font-bold text-white"
+                  <div className="relative mb-1.5">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-2 border-white/20 text-sm font-bold text-white overflow-hidden"
                       style={{ background: "rgba(255,255,255,0.1)" }}
                     >
                       {entry.telegramPhotoUrl ? (
                         <img src={entry.telegramPhotoUrl} alt="" className="w-full h-full rounded-full object-cover" />
                       ) : (
-                        (entry.telegramFirstName?.slice(0, 1) || entry.username.slice(0, 1)).toUpperCase()
+                        (name.slice(0, 1)).toUpperCase()
                       )}
                     </div>
-                    {idx === 0 && <Crown className="absolute -top-2 -right-1 h-3.5 w-3.5 text-amber-400" />}
+                    {idx === 0 && <Crown className="absolute -top-2 left-1/2 -translate-x-1/2 h-3.5 w-3.5 text-amber-400" />}
+                    <Trophy className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 ${tierColor}`} />
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="text-amber-400 text-xs font-black">#{idx + 1}</span>
-                      <span className="text-xs font-semibold text-white truncate">
-                        {entry.telegramFirstName || entry.username}
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-emerald-400 font-bold">
-                      {formatNumber(entry.totalCoins)} W
-                    </span>
-                  </div>
-                  {idx < 3 && <Trophy className={`h-4 w-4 ${tierColor} ml-auto flex-shrink-0`} />}
+                  <span className="text-amber-400 text-[10px] font-black">#{idx + 1}</span>
+                  <span className="text-xs font-semibold text-white text-center leading-tight mt-0.5 w-full truncate px-1">
+                    {name}
+                  </span>
+                  <span className="text-[11px] text-emerald-400 font-bold mt-0.5">
+                    {formatNumber(entry.totalCoins)} W
+                  </span>
                 </div>
               );
             })}
