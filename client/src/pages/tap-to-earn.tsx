@@ -741,6 +741,12 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
 
   const topThree = (leaderboard || []).slice(0, 3);
 
+  const placeholderLeaderboard: LeaderboardEntry[] = guest && topThree.length === 0 ? [
+    { id: 1, username: "Sarah", telegramFirstName: "Sarah", telegramPhotoUrl: null, totalCoins: 3200000, tier: "GOLD" },
+    { id: 2, username: "Max", telegramFirstName: "Max", telegramPhotoUrl: null, totalCoins: 2900000, tier: "SILVER" },
+    { id: 3, username: "John", telegramFirstName: "John", telegramPhotoUrl: null, totalCoins: 2700000, tier: "BRONZE" },
+  ] : topThree;
+
   if (guest) {
     return (
       <div className="relative flex flex-col items-center px-4 pb-8 pt-2 max-w-md mx-auto space-y-4 min-h-full">
@@ -753,40 +759,179 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           </span>
         </div>
 
-        <div className="text-center z-10">
-          <p className="text-[10px] text-white/50 uppercase tracking-[0.2em] mb-1">Spin to Generate</p>
-          <div className="flex items-baseline justify-center gap-1">
-            <span className="text-3xl font-black tracking-tight text-white" data-testid="text-total-coins">
-              {formatNumber(guestWatts)}
-            </span>
-            <span className="text-lg font-bold text-white/60">W</span>
+        <div className="relative w-full flex items-center justify-center z-10">
+          <div className="absolute left-0 top-1/2 -translate-y-1/2">
+            <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-3 py-2.5"
+              style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
+            >
+              <span className="text-[9px] text-white/50 uppercase tracking-wider">Daily Streak</span>
+              <div className="flex items-center gap-1">
+                <Flame className="h-4 w-4 text-orange-400" />
+                <span className="text-lg font-black text-white">0</span>
+              </div>
+              <span className="text-[9px] text-white/40">Days</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center">
+            <div className="text-center mb-2">
+              <p className="text-[10px] text-white/50 uppercase tracking-[0.2em]">Spin to Generate</p>
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-3xl font-black tracking-tight text-white" data-testid="text-total-coins">
+                  {formatNumber(guestWatts)}
+                </span>
+                <span className="text-lg font-bold text-white/60">W</span>
+              </div>
+            </div>
+            <CrankWheel
+              angularVelocity={angularVelocity}
+              wheelAngle={wheelAngle}
+              hasEnergy={true}
+              isDragging={isDragging}
+              floatingWatts={floatingWatts}
+              multiplier={1}
+              onPointerDown={handleCrankDown}
+              onPointerMove={handleCrankMove}
+              onPointerUp={handleCrankUp}
+              wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
+            />
+            <div className="sci-fi-platform mt-[-6px]" />
+          </div>
+
+          <div className="absolute right-0 top-1/2 -translate-y-1/2">
+            <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 px-3 py-2.5"
+              style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
+            >
+              <span className="text-[9px] text-white/50 uppercase tracking-wider">Boosters</span>
+              <div className="flex items-center gap-1">
+                <Rocket className="h-4 w-4 text-violet-400" />
+                <span className="text-lg font-black text-white">0</span>
+              </div>
+              <span className="text-[9px] text-white/40">Active</span>
+            </div>
           </div>
         </div>
 
-        <div className="z-10">
-          <CrankWheel
-            angularVelocity={angularVelocity}
-            wheelAngle={wheelAngle}
-            hasEnergy={true}
-            isDragging={isDragging}
-            floatingWatts={floatingWatts}
-            multiplier={1}
-            onPointerDown={handleCrankDown}
-            onPointerMove={handleCrankMove}
-            onPointerUp={handleCrankUp}
-            wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
-          />
-        </div>
-
-        <div className="sci-fi-platform z-10" />
-
         <div
-          className="w-full rounded-xl border border-border/30 p-4 text-center z-10"
+          className="w-full rounded-xl border border-amber-500/30 p-3 text-center z-10"
           style={{ background: "rgba(0,0,0,0.4)" }}
         >
-          <p className="text-sm text-white/60">
+          <p className="text-xs text-amber-400 font-semibold">
             Sign in to save your progress and earn real rewards
           </p>
+        </div>
+
+        <div className="w-full z-10">
+          <div className="flex gap-2">
+            <PotCard
+              label="DIESEL"
+              amount={12402}
+              gradientClass="pot-bg-diesel"
+              borderColor="border-orange-500/50"
+              labelColor="text-orange-400"
+            />
+            <PotCard
+              label="LNG"
+              amount={41221}
+              gradientClass="pot-bg-lng"
+              borderColor="border-yellow-500/50"
+              labelColor="text-yellow-400"
+            />
+            <PotCard
+              label="FUSION"
+              amount={129880}
+              gradientClass="pot-bg-fusion"
+              borderColor="border-purple-500/50"
+              labelColor="text-purple-400"
+            />
+          </div>
+        </div>
+
+        <div className="w-full z-10">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold text-white">Live Leaderboard</span>
+              <span className="text-sm text-white/40">(Today)</span>
+            </div>
+            <span className="text-[11px] text-white/50 flex items-center gap-0.5">
+              View All <ChevronRight className="h-3 w-3" />
+            </span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {placeholderLeaderboard.map((entry, idx) => {
+              const tc2 = TIER_COLORS[entry.tier]?.label || "text-cyan-400";
+              return (
+                <div
+                  key={entry.id}
+                  className="flex items-center gap-2.5 rounded-xl border border-white/10 px-3 py-2.5 min-w-[140px]"
+                  style={{ background: "rgba(0,0,0,0.4)" }}
+                  data-testid={`leaderboard-entry-${idx}`}
+                >
+                  <div className="relative">
+                    <div className="flex items-center justify-center w-9 h-9 rounded-full border-2 border-white/20 text-sm font-bold text-white"
+                      style={{ background: "rgba(255,255,255,0.1)" }}
+                    >
+                      {(entry.telegramFirstName?.slice(0, 1) || entry.username.slice(0, 1)).toUpperCase()}
+                    </div>
+                    {idx === 0 && <Crown className="absolute -top-2 -right-1 h-3.5 w-3.5 text-amber-400" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className="text-amber-400 text-xs font-black">#{idx + 1}</span>
+                      <span className="text-xs font-semibold text-white truncate">
+                        {entry.telegramFirstName || entry.username}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-emerald-400 font-bold">
+                      {formatNumber(entry.totalCoins)} W
+                    </span>
+                  </div>
+                  <Trophy className={`h-4 w-4 ${tc2} ml-auto flex-shrink-0`} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="w-full grid grid-cols-2 gap-2.5 z-10">
+          <div
+            className="rounded-xl border border-amber-500/30 p-3.5 relative overflow-hidden"
+            style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.6), rgba(30,20,0,0.4))" }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.15)" }}>
+                <Settings className="h-6 w-6 text-amber-400" />
+              </div>
+              <div>
+                <span className="text-sm font-bold text-white block">Upgrades</span>
+                <span className="text-[10px] text-white/50">Generator Lv.1</span>
+              </div>
+            </div>
+            <Button size="sm" className="w-full h-8 text-xs bg-amber-500 hover:bg-amber-600 text-black font-bold" data-testid="button-guest-upgrade">
+              Unlock
+            </Button>
+          </div>
+
+          <div
+            className="rounded-xl border border-emerald-500/40 p-3.5 relative overflow-hidden"
+            style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.6), rgba(0,30,15,0.4))" }}
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <DollarSign className="h-4 w-4 text-emerald-400" />
+              <span className="text-sm font-bold text-white">My Earnings</span>
+            </div>
+            <p className="text-2xl font-black text-emerald-400 leading-tight">
+              $0.00
+            </p>
+            <p className="text-[10px] text-white/40 mb-2">This Month</p>
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold"
+              data-testid="button-guest-withdraw"
+            >
+              Withdraw
+            </Button>
+          </div>
         </div>
       </div>
     );

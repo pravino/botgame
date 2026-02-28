@@ -17,8 +17,14 @@ export function BottomTabBar() {
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       data-testid="bottom-tab-bar"
     >
-      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, rgba(245,158,11,0.3), transparent)" }} />
-      <div className="flex items-center justify-around" style={{ background: "rgba(8,8,12,0.95)", backdropFilter: "blur(12px)" }}>
+      <div className="h-[2px] w-full" style={{ background: "linear-gradient(90deg, transparent 5%, rgba(245,158,11,0.4) 30%, rgba(245,158,11,0.6) 50%, rgba(245,158,11,0.4) 70%, transparent 95%)" }} />
+      <div
+        className="flex items-center justify-around"
+        style={{
+          background: "linear-gradient(180deg, rgba(18,16,22,0.98) 0%, rgba(8,8,12,1) 100%)",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
         {tabs.map((tab) => {
           const isActive = location === tab.path;
           return (
@@ -26,13 +32,26 @@ export function BottomTabBar() {
               key={tab.path}
               href={tab.path}
               data-testid={`tab-${tab.label.toLowerCase()}`}
-              className={`flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-bold tracking-wider transition-colors ${
+              className={`flex flex-1 flex-col items-center gap-1.5 py-3.5 text-[10px] font-extrabold tracking-[0.1em] transition-all ${
                 isActive
                   ? "text-amber-400"
-                  : "text-white/35 hover:text-white/50"
+                  : "text-white/30 hover:text-white/50"
               }`}
             >
-              <tab.icon className={`h-6 w-6 ${isActive ? "drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]" : ""}`} />
+              <div className="relative">
+                <tab.icon
+                  className={`h-6 w-6 ${isActive ? "" : ""}`}
+                  style={isActive ? {
+                    filter: "drop-shadow(0 0 8px rgba(245,158,11,0.6)) drop-shadow(0 0 16px rgba(245,158,11,0.3))",
+                  } : undefined}
+                />
+                {isActive && (
+                  <div
+                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-amber-400"
+                    style={{ boxShadow: "0 0 6px rgba(245,158,11,0.8)" }}
+                  />
+                )}
+              </div>
               <span>{tab.label}</span>
             </Link>
           );
