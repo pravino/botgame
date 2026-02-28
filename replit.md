@@ -39,8 +39,8 @@ The application is built with a modern web stack, featuring a React + TypeScript
     - SILVER: Yellow/amber orb
     - GOLD: Purple/violet orb
 - **Sci-fi Design Elements**:
-  - Dramatic atmospheric gradient background with stormy sky, warm amber horizon glow, lightning flash animation, and atmospheric flicker effects
-  - Enhanced sci-fi platform/pedestal beneath orb/wheel with concentric golden rings, multi-layer glow, and animated pulsing
+  - AI-generated atmospheric background image (`bg-atmosphere.png`) with stormy purple sky, lightning, and warm amber horizon — applied via inline backgroundImage with dark gradient fade overlay
+  - AI-generated sci-fi platform image (`bg-platform.png`) with concentric golden rings beneath orb/wheel — uses CSS mask for edge blending and pulsing glow animation
   - Daily Streak and Boosters flanking pills beside the main mechanic
   - Pot distribution cards with AI-generated scenic background images (DIESEL=industrial plant, LNG=city skyline, FUSION=sci-fi facility) and dark gradient overlays
   - Horizontal scrollable live leaderboard with avatars and crowns

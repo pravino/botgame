@@ -21,6 +21,8 @@ import { Link } from "wouter";
 import potDieselBg from "@assets/pot-diesel.png";
 import potLngBg from "@assets/pot-lng.png";
 import potFusionBg from "@assets/pot-fusion.png";
+import bgAtmosphere from "@assets/bg-atmosphere.png";
+import bgPlatform from "@assets/bg-platform.png";
 
 interface UserWithTierConfig extends User {
   tierConfig?: TierConfig;
@@ -323,7 +325,7 @@ function EnergyOrb({
         </AnimatePresence>
       </div>
 
-      <div className="sci-fi-platform mt-[-10px]" />
+      <div className="sci-fi-platform mt-[-10px]"><img src={bgPlatform} alt="" /></div>
     </div>
   );
 }
@@ -756,7 +758,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   if (guest) {
     return (
       <div className="relative flex flex-col items-center px-4 pb-8 pt-2 max-w-md mx-auto space-y-4 min-h-full">
-        <div className="atmospheric-bg" />
+        <div className="atmospheric-bg" style={{ backgroundImage: `url(${bgAtmosphere})` }} />
 
         <div className="flex items-center justify-center gap-2 z-10">
           <Zap className="h-4 w-4 text-cyan-400 fill-cyan-400" />
@@ -801,7 +803,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
               onPointerUp={handleCrankUp}
               wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
             />
-            <div className="sci-fi-platform mt-[-6px]" />
+            <div className="sci-fi-platform mt-[-6px]"><img src={bgPlatform} alt="" /></div>
           </div>
 
           <div className="flex-shrink-0">
@@ -945,7 +947,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
 
   return (
     <div className="relative flex flex-col items-center px-4 pb-8 pt-2 max-w-md mx-auto space-y-4 min-h-full">
-      <div className="atmospheric-bg" />
+      <div className="atmospheric-bg" style={{ backgroundImage: `url(${bgAtmosphere})` }} />
 
       {showChallenge && (
         <ChallengeOverlay onResolved={handleChallengeResolved} />
@@ -1005,7 +1007,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
                 onPointerUp={handleCrankUp}
                 wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
               />
-              <div className="sci-fi-platform mt-[-6px]" />
+              <div className="sci-fi-platform mt-[-6px]"><img src={bgPlatform} alt="" /></div>
             </>
           ) : (
             <EnergyOrb
