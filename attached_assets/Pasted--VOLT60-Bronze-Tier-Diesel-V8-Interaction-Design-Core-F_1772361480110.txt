@@ -1,0 +1,197 @@
+⚙️ VOLT60 — Bronze Tier (Diesel V8) Interaction Design
+🎯 Core Feeling
+
+Player is no longer generating power manually.
+
+Now they are:
+
+Operating a powerful industrial engine.
+
+They must control output, not create motion.
+
+This psychological shift is VERY important for monetization.
+
+🎮 Main Mechanic: Throttle Control
+Primary Action
+
+User presses and holds a Throttle Lever.
+
+While holding:
+
+Engine revs up
+
+Power output increases
+
+RPM needle rises
+
+Release:
+
+RPM drops gradually.
+
+🕹️ Interaction Model
+Option A (BEST — Recommended)
+
+Vertical throttle slider
+
+User:
+
+Tap + hold lever
+
+Drag up/down to control power level
+
+LOW  → engine idle
+MID  → optimal power
+HIGH → overheating risk
+
+This feels like controlling real machinery.
+
+Option B (Simpler)
+
+Tap and hold anywhere on throttle zone:
+
+Holding increases RPM
+
+Releasing decreases RPM
+
+(Still works but less immersive.)
+
+🟢 The Green Zone Mechanic (Core Gameplay)
+
+You add an RPM gauge:
+
+|----|----|====|----|----|
+      70%–90%
+      GREEN ZONE
+Goal:
+
+Keep RPM needle inside green zone.
+
+Power Generation Logic
+RPM Range	Result
+Below 50%	Low power
+70–90%	MAX efficiency ✅
+Above 95%	Damage risk ⚠️
+Reward Loop
+
+If player maintains green zone:
+
+Combo multiplier builds
+
+Engine glow intensifies
+
+Watts/sec increases
+
+Daily USDT earning improves
+
+🔧 Maintenance Events (VERY IMPORTANT)
+
+This makes Bronze tier feel alive.
+
+Every 20–40 seconds randomly:
+
+Problems appear:
+
+Oil leak
+
+Loose bolt
+
+Steam pipe rupture
+
+Fuel injector warning
+
+Visual:
+Small flashing icon on engine part.
+
+User must:
+👉 Tap that exact part quickly.
+
+If ignored:
+
+Efficiency drops
+
+RPM unstable
+
+Earnings reduced
+
+⛽ Fuel Tank System
+
+New resource appears:
+
+FUEL LEVEL: ███████░░
+
+Engine consumes fuel while running.
+
+User must:
+
+Tap “Refill”
+
+Spend earned coins
+
+This creates economy pressure → upgrades.
+
+🔥 Animation Behavior
+Idle
+
+Engine vibrating slightly
+
+Heat shimmer
+
+Soft diesel rumble
+
+Increasing throttle
+
+Engine shakes stronger
+
+Exhaust smoke increases
+
+Pistons animate faster
+
+Lighting pulses
+
+Perfect Green Zone
+
+Gold glow accents
+
+Stable hum sound
+
+UI pulse feedback
+
+🧠 Why Tap-and-Hold Works Here
+
+Free Tier:
+👉 effort = spinning
+
+Bronze Tier:
+👉 skill = control
+
+You move player psychology from:
+
+“Work harder” → “Operate smarter”
+
+This is what makes users feel progression.
+
+🧩 Replit Dev Instructions (Send This)
+Component
+<DieselEngineControl />
+Core Inputs
+onPointerDown → increase RPM
+onPointerMove → adjust throttle position
+onPointerUp → decay RPM
+RPM Physics
+if (holding) rpm += throttleForce
+else rpm *= 0.985   // engine slowdown
+
+heat += rpm * 0.002
+fuel -= rpm * 0.001
+Green Zone Check
+if (rpm >= 70 && rpm <= 90)
+   efficiency = 1.5x
+else
+   efficiency = 1.0x
+Random Maintenance Event
+
+Every interval:
+
+spawnFault()
+
+User tap clears fault.
