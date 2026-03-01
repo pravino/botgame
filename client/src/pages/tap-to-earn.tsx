@@ -1871,7 +1871,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
         <div className="atmospheric-bg" style={{ backgroundImage: `url(${bgAtmosphere})` }} />
       )}
 
-      {showChallenge && (
+      {showChallenge && !usesDieselEngine && (
         <ChallengeOverlay onResolved={handleChallengeResolved} />
       )}
 
