@@ -46,7 +46,7 @@ The application is built with a modern web stack, featuring a React + TypeScript
   - Horizontal scrollable live leaderboard with avatars and crowns
   - Upgrades card (amber, gear icon) and Earnings card (green, dollar amount)
 - **Layout**: Single-column mobile layout optimized for Telegram mini app webview
-- **Components**: `BottomTabBar`, `TopHeader`, `EnergyOrb`, `CrankWheel`, `PotCard`
+- **Components**: `BottomTabBar`, `TopHeader`, `EnergyOrb`, `CrankWheel`, `DieselEngineControl`, `PotCard`
 - Gold/amber primary color scheme with emerald/teal accents
 - Dark mode is the default and primary theme (very dark backgrounds rgb(8,8,12))
 - Framer Motion for tap feedback and floating watt animations
@@ -62,7 +62,14 @@ The application is built with a modern web stack, featuring a React + TypeScript
     - Floating micro-rewards with variable amounts and "COMBO" text at high speed
     - 1 MW milestone progress bar toward Solar License unlock
     - Enhanced physics: momentum, friction decay, non-linear resistance at high velocity
-  - BRONZE tier also uses **CrankWheel** (same drag mechanic as FREE, themed as "Diesel V8")
+  - BRONZE tier uses **DieselEngineControl** — throttle-operated diesel engine with RPM gauge, green zone efficiency, random maintenance faults
+    - Touch anywhere on engine area: Y position maps to throttle (top=100%, bottom=0%)
+    - RPM gauge (semicircular arc) with zones: grey (0-50%), amber (50-70%), green (70-90%), red (90-100%)
+    - Green zone (70-90% RPM) gives 1.5x efficiency bonus; below 50% gives 0.5x; >95% risks overheat
+    - Random maintenance faults every 20-40 seconds (Oil Leak, Loose Bolt, Steam Pipe, Fuel Injector) — tap to clear for bonus, ignore for 0.5x penalty
+    - Engine visuals: animated pistons, exhaust smoke particles, vibration scaled with RPM, gold glow in green zone, red glow when overheating
+    - Continuous watt generation proportional to RPM (not rotation-based like CrankWheel)
+    - Uses same energy/fuel system and server tap batching as CrankWheel
   - SILVER/GOLD tiers use tap-on-orb mechanic (EnergyOrb)
   - Tap → scale animation → floating "+X W" particle
   - Uses batched taps (max 50, flush every 2s) via POST /api/tap

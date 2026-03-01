@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp, Flame, Rocket, Crown, Trophy, ChevronRight, Gauge, Settings, Fuel } from "lucide-react";
+import { Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp, Flame, Rocket, Crown, Trophy, ChevronRight, Gauge, Settings, Fuel, Wrench, AlertTriangle } from "lucide-react";
 import {
   formatNumber,
   getEnergyPercentage,
@@ -51,6 +51,34 @@ const STRESS_DECAY_RATE = 0.006;
 const OVERHEAT_COOLDOWN_MS = 6000;
 const MAX_VELOCITY = 22;
 const RESISTANCE_FACTOR = 0.004;
+
+const DIESEL_RPM_DECAY = 0.985;
+const DIESEL_THROTTLE_FORCE = 0.8;
+const DIESEL_HEAT_RATE = 0.0008;
+const DIESEL_HEAT_DECAY = 0.004;
+const DIESEL_GREEN_MIN = 70;
+const DIESEL_GREEN_MAX = 90;
+const DIESEL_DANGER_THRESHOLD = 95;
+const DIESEL_ENGINE_SIZE = 240;
+const DIESEL_FAULT_INTERVAL_MIN = 20000;
+const DIESEL_FAULT_INTERVAL_MAX = 40000;
+const DIESEL_FAULT_DURATION = 5000;
+
+interface FaultEvent {
+  id: number;
+  type: "oil_leak" | "loose_bolt" | "steam_pipe" | "fuel_injector";
+  label: string;
+  x: number;
+  y: number;
+  spawnedAt: number;
+}
+
+const FAULT_TYPES: { type: FaultEvent["type"]; label: string }[] = [
+  { type: "oil_leak", label: "OIL LEAK" },
+  { type: "loose_bolt", label: "LOOSE BOLT" },
+  { type: "steam_pipe", label: "STEAM PIPE" },
+  { type: "fuel_injector", label: "FUEL INJECT" },
+];
 
 function getGeneratorName(user: UserWithTierConfig | undefined): string {
   if (!user) return "Hand-Crank Dynamo";
@@ -376,6 +404,303 @@ function CrankWheel({
   );
 }
 
+function DieselEngineControl({
+  rpmPercent,
+  throttlePosition,
+  hasEnergy,
+  isThrottling,
+  floatingWatts,
+  multiplier,
+  engineRef,
+  stress,
+  isOverheated,
+  totalWatts,
+  faults,
+  onFaultTap,
+  inGreenZone,
+}: {
+  rpmPercent: number;
+  throttlePosition: number;
+  hasEnergy: boolean;
+  isThrottling: boolean;
+  floatingWatts: FloatingWatt[];
+  multiplier: number;
+  engineRef: React.RefObject<HTMLDivElement>;
+  stress: number;
+  isOverheated: boolean;
+  totalWatts: number;
+  faults: FaultEvent[];
+  onFaultTap: (id: number) => void;
+  inGreenZone: boolean;
+}) {
+  const rpm = Math.round(rpmPercent * 100);
+  const SIZE = DIESEL_ENGINE_SIZE;
+  const half = SIZE / 2;
+  const vibrationX = rpmPercent > 0.1 ? (Math.random() - 0.5) * rpmPercent * 3 : 0;
+  const vibrationY = rpmPercent > 0.1 ? (Math.random() - 0.5) * rpmPercent * 3 : 0;
+
+  const zoneLabel = isOverheated ? "OVERHEATED" : rpmPercent >= 0.95 ? "DANGER" : inGreenZone ? "GREEN ZONE" : rpmPercent > 0.5 ? "RUNNING" : rpmPercent > 0.1 ? "LOW POWER" : "IDLE";
+  const zoneColor = isOverheated ? "text-red-400" : rpmPercent >= 0.95 ? "text-red-400" : inGreenZone ? "text-emerald-400" : rpmPercent > 0.5 ? "text-orange-400" : "text-white/40";
+
+  const gaugeRadius = 70;
+  const gaugeStartAngle = Math.PI * 0.8;
+  const gaugeEndAngle = Math.PI * 0.2;
+  const gaugeSweep = gaugeStartAngle + (2 * Math.PI - gaugeStartAngle + gaugeEndAngle);
+  const needleAngle = gaugeStartAngle + gaugeSweep * rpmPercent;
+  const gaugeCx = half;
+  const gaugeCy = half * 0.45;
+
+  const makeArcPath = (startFraction: number, endFraction: number, r: number) => {
+    const a1 = gaugeStartAngle + gaugeSweep * startFraction;
+    const a2 = gaugeStartAngle + gaugeSweep * endFraction;
+    const x1 = gaugeCx + Math.cos(a1) * r;
+    const y1 = gaugeCy + Math.sin(a1) * r;
+    const x2 = gaugeCx + Math.cos(a2) * r;
+    const y2 = gaugeCy + Math.sin(a2) * r;
+    const largeArc = (a2 - a1) > Math.PI ? 1 : 0;
+    return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+  };
+
+  const needleX = gaugeCx + Math.cos(needleAngle) * (gaugeRadius - 8);
+  const needleY = gaugeCy + Math.sin(needleAngle) * (gaugeRadius - 8);
+
+  const smokeParticles = Array.from({ length: Math.floor(rpmPercent * 8) }).map((_, i) => ({
+    x: SIZE * 0.15 + Math.random() * 20 - 10,
+    y: half * 0.85 - i * 8 - Math.random() * 15,
+    opacity: 0.15 + Math.random() * 0.25,
+    size: 4 + Math.random() * 6,
+  }));
+
+  const pistonOffset1 = Math.sin(Date.now() / (200 / Math.max(0.3, rpmPercent))) * 8 * rpmPercent;
+  const pistonOffset2 = Math.sin(Date.now() / (200 / Math.max(0.3, rpmPercent)) + Math.PI) * 8 * rpmPercent;
+
+  const throttleTrackHeight = SIZE * 0.55;
+  const throttleY = throttleTrackHeight * (1 - throttlePosition);
+  const throttleTrackX = SIZE - 28;
+
+  const hasFault = faults.length > 0;
+  const effectiveGlow = inGreenZone ? "rgba(245,158,11,0.5)" : isOverheated || rpmPercent >= 0.95 ? "rgba(239,68,68,0.5)" : "rgba(100,100,100,0.2)";
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex items-center gap-2">
+        <Gauge className="h-3.5 w-3.5 text-orange-400/70" />
+        <span className={`text-xs font-mono ${zoneColor}`} data-testid="text-diesel-zone">
+          {zoneLabel}
+        </span>
+        {hasFault && (
+          <span className="text-xs text-red-400 animate-pulse font-bold" data-testid="text-fault-warning">
+            FAULT
+          </span>
+        )}
+      </div>
+
+      <div
+        ref={engineRef}
+        className={`relative select-none ${isOverheated ? "cursor-not-allowed" : "cursor-pointer"}`}
+        style={{ width: SIZE, height: SIZE, touchAction: "none" }}
+        data-testid="diesel-engine"
+      >
+        <div
+          style={{
+            transform: `translate(${vibrationX}px, ${vibrationY}px)`,
+            transition: "transform 0.05s",
+          }}
+        >
+          <svg width={SIZE} height={SIZE} className="absolute inset-0">
+            <path
+              d={makeArcPath(0, 1, gaugeRadius)}
+              fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="10" strokeLinecap="round"
+            />
+            <path
+              d={makeArcPath(0, 0.5, gaugeRadius)}
+              fill="none" stroke="rgba(100,100,100,0.3)" strokeWidth="10" strokeLinecap="round"
+            />
+            <path
+              d={makeArcPath(0.5, 0.7, gaugeRadius)}
+              fill="none" stroke="rgba(245,158,11,0.3)" strokeWidth="10" strokeLinecap="round"
+            />
+            <path
+              d={makeArcPath(0.7, 0.9, gaugeRadius)}
+              fill="none" stroke="rgba(16,185,129,0.5)" strokeWidth="10" strokeLinecap="round"
+            />
+            <path
+              d={makeArcPath(0.9, 1, gaugeRadius)}
+              fill="none" stroke="rgba(239,68,68,0.5)" strokeWidth="10" strokeLinecap="round"
+            />
+
+            <line
+              x1={gaugeCx} y1={gaugeCy}
+              x2={needleX} y2={needleY}
+              stroke={rpmPercent >= 0.95 ? "#ef4444" : inGreenZone ? "#10b981" : "#f59e0b"}
+              strokeWidth="2.5" strokeLinecap="round"
+            />
+            <circle cx={gaugeCx} cy={gaugeCy} r={5} fill="rgba(200,170,80,0.8)" />
+
+            <text x={gaugeCx} y={gaugeCy + 18} textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="monospace">
+              {rpm}%
+            </text>
+
+            <rect
+              x={half - 55} y={half * 0.75}
+              width={110} height={SIZE * 0.45}
+              rx={8} ry={8}
+              fill="rgba(40,30,15,0.9)"
+              stroke={inGreenZone ? "rgba(245,158,11,0.6)" : isOverheated ? "rgba(239,68,68,0.5)" : "rgba(100,80,30,0.5)"}
+              strokeWidth="2"
+            />
+
+            <rect x={half - 45} y={half * 0.75 + 8} width={38} height={SIZE * 0.35} rx={3}
+              fill="rgba(60,45,20,0.8)" stroke="rgba(100,80,30,0.4)" strokeWidth="1"
+            />
+            <rect x={half - 40} y={half * 0.75 + 15 + pistonOffset1} width={28} height={20} rx={2}
+              fill="rgba(160,130,60,0.7)" stroke="rgba(200,170,80,0.5)" strokeWidth="1"
+            />
+            <line x1={half - 26} y1={half * 0.75 + 15 + pistonOffset1} x2={half - 26} y2={half * 0.75 + 8}
+              stroke="rgba(140,110,50,0.6)" strokeWidth="3" strokeLinecap="round"
+            />
+
+            <rect x={half + 7} y={half * 0.75 + 8} width={38} height={SIZE * 0.35} rx={3}
+              fill="rgba(60,45,20,0.8)" stroke="rgba(100,80,30,0.4)" strokeWidth="1"
+            />
+            <rect x={half + 12} y={half * 0.75 + 15 + pistonOffset2} width={28} height={20} rx={2}
+              fill="rgba(160,130,60,0.7)" stroke="rgba(200,170,80,0.5)" strokeWidth="1"
+            />
+            <line x1={half + 26} y1={half * 0.75 + 15 + pistonOffset2} x2={half + 26} y2={half * 0.75 + 8}
+              stroke="rgba(140,110,50,0.6)" strokeWidth="3" strokeLinecap="round"
+            />
+
+            <rect x={half - 60} y={half * 0.78} width={8} height={30} rx={2}
+              fill="rgba(80,60,30,0.8)" stroke="rgba(100,80,30,0.5)" strokeWidth="1"
+            />
+            {smokeParticles.map((p, i) => (
+              <circle key={`smoke-${i}`} cx={p.x} cy={p.y} r={p.size} fill={`rgba(180,180,180,${p.opacity})`}>
+                <animate attributeName="cy" values={`${p.y};${p.y - 20}`} dur="1.5s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values={`${p.opacity};0`} dur="1.5s" repeatCount="indefinite" />
+              </circle>
+            ))}
+
+            {[0.25, 0.5, 0.75].map((mark, i) => {
+              const a = gaugeStartAngle + gaugeSweep * mark;
+              const tx = gaugeCx + Math.cos(a) * (gaugeRadius + 14);
+              const ty = gaugeCy + Math.sin(a) * (gaugeRadius + 14);
+              return (
+                <text key={`mark-${i}`} x={tx} y={ty} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="8" fontFamily="monospace">
+                  {Math.round(mark * 100)}
+                </text>
+              );
+            })}
+
+            <rect
+              x={throttleTrackX} y={half * 0.6}
+              width={16} height={throttleTrackHeight}
+              rx={8} fill="rgba(255,255,255,0.06)"
+              stroke="rgba(255,255,255,0.1)" strokeWidth="1"
+            />
+            <rect
+              x={throttleTrackX - 4} y={half * 0.6 + throttleY - 10}
+              width={24} height={20}
+              rx={4}
+              fill={isThrottling ? "rgba(245,158,11,0.9)" : "rgba(160,130,60,0.7)"}
+              stroke="rgba(200,170,80,0.6)" strokeWidth="1.5"
+            />
+            <line
+              x1={throttleTrackX + 4} y1={half * 0.6 + throttleY - 3}
+              x2={throttleTrackX + 12} y2={half * 0.6 + throttleY - 3}
+              stroke="rgba(0,0,0,0.3)" strokeWidth="1.5" strokeLinecap="round"
+            />
+            <line
+              x1={throttleTrackX + 4} y1={half * 0.6 + throttleY + 3}
+              x2={throttleTrackX + 12} y2={half * 0.6 + throttleY + 3}
+              stroke="rgba(0,0,0,0.3)" strokeWidth="1.5" strokeLinecap="round"
+            />
+
+            {inGreenZone && (
+              <rect
+                x={half - 58} y={half * 0.73}
+                width={116} height={SIZE * 0.49}
+                rx={10} fill="none"
+                stroke="rgba(245,158,11,0.3)" strokeWidth="2"
+              >
+                <animate attributeName="opacity" values="0.3;0.7;0.3" dur="1.5s" repeatCount="indefinite" />
+              </rect>
+            )}
+
+            {isOverheated && (
+              <rect
+                x={half - 58} y={half * 0.73}
+                width={116} height={SIZE * 0.49}
+                rx={10} fill="rgba(239,68,68,0.1)"
+                stroke="rgba(239,68,68,0.5)" strokeWidth="2"
+              >
+                <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.8s" repeatCount="indefinite" />
+              </rect>
+            )}
+          </svg>
+        </div>
+
+        {faults.map((fault) => (
+          <div
+            key={fault.id}
+            className="absolute z-20 cursor-pointer"
+            style={{
+              left: fault.x - 24,
+              top: fault.y - 24,
+              animation: "pulse 0.5s ease-in-out infinite",
+            }}
+            onClick={() => onFaultTap(fault.id)}
+            onTouchEnd={(e) => { e.preventDefault(); onFaultTap(fault.id); }}
+            data-testid={`fault-${fault.type}-${fault.id}`}
+          >
+            <div className="flex flex-col items-center">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(239,68,68,0.3)", border: "2px solid rgba(239,68,68,0.7)" }}
+              >
+                <Wrench className="h-5 w-5 text-red-400" />
+              </div>
+              <span className="text-[8px] font-bold text-red-400 mt-0.5 whitespace-nowrap">
+                {fault.label}
+              </span>
+            </div>
+          </div>
+        ))}
+
+        <AnimatePresence>
+          {floatingWatts.map((watt) => (
+            <motion.div
+              key={watt.id}
+              initial={{ x: watt.x - 30, y: watt.y - 15, opacity: 1, scale: 1 }}
+              animate={{ y: watt.y - 90, opacity: 0, scale: 0.6 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.9, ease: "easeOut" }}
+              className={`absolute top-0 left-0 pointer-events-none font-black ${watt.isCombo ? "text-amber-400 text-base" : "text-orange-400 text-sm"}`}
+            >
+              +{watt.amount ?? multiplier} W{watt.isCombo ? " EFFICIENT" : ""}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        <div
+          className="absolute inset-0 rounded-lg pointer-events-none"
+          style={{
+            boxShadow: `0 0 ${20 + rpmPercent * 40}px ${effectiveGlow}, inset 0 0 ${10 + rpmPercent * 20}px ${effectiveGlow}`,
+            opacity: rpmPercent > 0.1 ? 0.6 : 0,
+            transition: "box-shadow 0.2s, opacity 0.2s",
+          }}
+        />
+      </div>
+
+      <StressMeter stress={stress} isOverheated={isOverheated} />
+
+      <p className="text-[10px] text-muted-foreground" data-testid="text-diesel-status">
+        {isOverheated ? "Cooling engine..." : !hasEnergy ? "No fuel" : isThrottling ? (inGreenZone ? "Optimal efficiency!" : rpmPercent > 0.9 ? "Careful - overheating risk!" : "Hold to rev up") : rpmPercent > 0.1 ? "Engine running..." : "Touch to throttle"}
+      </p>
+
+      <MilestoneProgress totalWatts={totalWatts} />
+    </div>
+  );
+}
+
 function EnergyOrb({
   hasEnergy,
   tier,
@@ -624,6 +949,22 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   const isDraggingRef = useRef(false);
   const liveEnergyRef = useRef<number | null>(null);
 
+  const [dieselRpmPercent, setDieselRpmPercent] = useState(0);
+  const [dieselThrottlePos, setDieselThrottlePos] = useState(0);
+  const [isThrottling, setIsThrottling] = useState(false);
+  const [dieselFaults, setDieselFaults] = useState<FaultEvent[]>([]);
+  const [dieselInGreenZone, setDieselInGreenZone] = useState(false);
+  const dieselRpmRef = useRef(0);
+  const dieselThrottleRef = useRef(0);
+  const isThrottlingRef = useRef(false);
+  const dieselAccumulatedRef = useRef(0);
+  const dieselFaultsRef = useRef<FaultEvent[]>([]);
+  const faultEfficiencyRef = useRef(1);
+  const faultIdRef = useRef(0);
+  const faultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const faultRemovalTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const dieselEngineRef = useRef<HTMLDivElement>(null);
+
   const { toast } = useToast();
 
   const { data: user, isLoading } = useQuery<UserWithTierConfig>({
@@ -738,8 +1079,13 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     const timeSinceLast = now - lastTapTimeRef.current;
     lastTapTimeRef.current = now;
 
-    const speed = Math.abs(angularVelocityRef.current);
-    const isCombo = timeSinceLast < 400 && speed > 5;
+    const currentTierCheck = guest ? "FREE" : (user?.tier || "FREE");
+    const speed = currentTierCheck === "BRONZE"
+      ? dieselRpmRef.current * 15
+      : Math.abs(angularVelocityRef.current);
+    const isCombo = currentTierCheck === "BRONZE"
+      ? (timeSinceLast < 600 && dieselRpmRef.current >= DIESEL_GREEN_MIN / 100)
+      : (timeSinceLast < 400 && speed > 5);
     if (isCombo) {
       comboCountRef.current += 1;
     } else {
@@ -751,10 +1097,14 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     const displayAmount = Math.max(1, speedBonus + comboBonus);
     const showCombo = comboCountRef.current >= 3;
 
-    const half = WHEEL_SIZE / 2;
-    const angle = wheelAngleRef.current * (Math.PI / 180);
+    const currentTierForSpawn = guest ? "FREE" : (user?.tier || "FREE");
+    const spawnSize = currentTierForSpawn === "BRONZE" ? DIESEL_ENGINE_SIZE : WHEEL_SIZE;
+    const half = spawnSize / 2;
+    const angle = currentTierForSpawn === "BRONZE"
+      ? Math.random() * Math.PI * 2
+      : wheelAngleRef.current * (Math.PI / 180);
     const offsetAngle = angle + (Math.random() - 0.5) * 0.8;
-    const dist = half * (0.5 + Math.random() * 0.2);
+    const dist = half * (0.3 + Math.random() * 0.3);
     const spawnX = half + Math.cos(offsetAngle) * dist;
     const spawnY = half + Math.sin(offsetAngle) * dist;
 
@@ -800,96 +1150,184 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
 
   useEffect(() => {
     const tier = guest ? "FREE" : (user?.tier || "FREE");
-    const crankTier = tier === "FREE" || tier === "BRONZE";
-    if (!crankTier) return;
+    const needsLoop = tier === "FREE" || tier === "BRONZE";
+    if (!needsLoop) return;
+    const isBronze = tier === "BRONZE";
 
     let lastTime = performance.now();
     let stressUpdateCounter = 0;
+    let dieselRenderCounter = 0;
 
     const animate = (now: number) => {
       const dt = Math.min((now - lastTime) / 16.667, 3);
       lastTime = now;
 
-      let vel = angularVelocityRef.current;
+      if (isBronze) {
+        let rpm = dieselRpmRef.current;
+        const throttle = dieselThrottleRef.current;
 
-      if (isOverheatedRef.current) {
-        vel *= Math.pow(0.9, dt);
-        if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
-      } else if (guest) {
-        if (!isDraggingRef.current) {
-          vel *= Math.pow(FRICTION, dt);
-          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
-        }
-        const absVel = Math.abs(vel);
-        if (absVel > 12) {
-          const drag = Math.min(0.95, (absVel - 12) * RESISTANCE_FACTOR * dt);
-          vel *= (1 - drag);
-        }
-      } else {
-        const currentEnergy = liveEnergyRef.current ?? 0;
-        if (currentEnergy <= 0) {
-          vel *= Math.pow(NO_ENERGY_FRICTION, dt);
-          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
-        } else if (!isDraggingRef.current) {
-          vel *= Math.pow(FRICTION, dt);
-          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
-        }
-        const absVel = Math.abs(vel);
-        if (absVel > 12) {
-          const drag = Math.min(0.95, (absVel - 12) * RESISTANCE_FACTOR * dt);
-          vel *= (1 - drag);
-        }
-      }
-
-      vel = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, vel));
-      angularVelocityRef.current = vel;
-
-      const speed = Math.abs(vel);
-      if (!isOverheatedRef.current) {
-        if (speed > 3) {
-          stressRef.current = Math.min(1, stressRef.current + STRESS_INCREASE_RATE * (speed / 10) * dt);
+        if (isOverheatedRef.current) {
+          rpm *= Math.pow(0.92, dt);
+          if (rpm < 0.01) rpm = 0;
         } else {
-          stressRef.current = Math.max(0, stressRef.current - STRESS_DECAY_RATE * dt);
+          const currentEnergy = liveEnergyRef.current ?? 0;
+          if (currentEnergy <= 0) {
+            rpm *= Math.pow(0.95, dt);
+            if (rpm < 0.01) rpm = 0;
+          } else if (isThrottlingRef.current) {
+            const target = throttle;
+            const diff = target - rpm;
+            rpm += diff * DIESEL_THROTTLE_FORCE * dt * 0.06;
+          } else {
+            rpm *= Math.pow(DIESEL_RPM_DECAY, dt);
+            if (rpm < 0.01) rpm = 0;
+          }
         }
 
-        if (stressRef.current >= 1 && !isOverheatedRef.current) {
-          isOverheatedRef.current = true;
-          setIsOverheated(true);
-          angularVelocityRef.current = 0;
-          vel = 0;
-          isDraggingRef.current = false;
-          setIsDragging(false);
-
-          if (overheatTimerRef.current) clearTimeout(overheatTimerRef.current);
-          overheatTimerRef.current = setTimeout(() => {
-            isOverheatedRef.current = false;
-            stressRef.current = 0.3;
-            setIsOverheated(false);
-            setStress(0.3);
-          }, OVERHEAT_COOLDOWN_MS);
+        const hasFaultActive = dieselFaultsRef.current.length > 0;
+        if (hasFaultActive) {
+          rpm += (Math.random() - 0.5) * 0.02 * dt;
+          faultEfficiencyRef.current = 0.5;
+        } else {
+          faultEfficiencyRef.current = 1;
         }
-      }
 
-      stressUpdateCounter += dt;
-      if (stressUpdateCounter >= 3) {
-        stressUpdateCounter = 0;
-        setStress(stressRef.current);
-      }
+        rpm = Math.max(0, Math.min(1, rpm));
+        dieselRpmRef.current = rpm;
 
-      const angleDelta = vel * dt;
-      wheelAngleRef.current = (wheelAngleRef.current + angleDelta) % 360;
+        if (!isOverheatedRef.current) {
+          if (rpm > DIESEL_DANGER_THRESHOLD / 100) {
+            stressRef.current = Math.min(1, stressRef.current + DIESEL_HEAT_RATE * (rpm * 2) * dt);
+          } else if (rpm > 0.5) {
+            stressRef.current = Math.min(1, stressRef.current + DIESEL_HEAT_RATE * rpm * 0.3 * dt);
+          } else {
+            stressRef.current = Math.max(0, stressRef.current - DIESEL_HEAT_DECAY * dt);
+          }
 
-      const canGenerate = !isOverheatedRef.current && (guest || (liveEnergyRef.current ?? 0) > 0);
-      if (Math.abs(angleDelta) > 0.01 && canGenerate) {
-        accumulatedRotationRef.current += Math.abs(angleDelta);
-        while (accumulatedRotationRef.current >= 360) {
-          accumulatedRotationRef.current -= 360;
-          registerCrankTapRef.current();
+          if (stressRef.current >= 1) {
+            isOverheatedRef.current = true;
+            setIsOverheated(true);
+            dieselRpmRef.current = 0;
+            rpm = 0;
+            isThrottlingRef.current = false;
+            setIsThrottling(false);
+            dieselThrottleRef.current = 0;
+            setDieselThrottlePos(0);
+
+            if (overheatTimerRef.current) clearTimeout(overheatTimerRef.current);
+            overheatTimerRef.current = setTimeout(() => {
+              isOverheatedRef.current = false;
+              stressRef.current = 0.3;
+              setIsOverheated(false);
+              setStress(0.3);
+            }, OVERHEAT_COOLDOWN_MS);
+          }
         }
-      }
 
-      setWheelAngle(wheelAngleRef.current);
-      setAngularVelocity(vel);
+        const inGreen = rpm >= DIESEL_GREEN_MIN / 100 && rpm <= DIESEL_GREEN_MAX / 100;
+        const efficiency = inGreen ? 1.5 : rpm < 0.5 ? 0.5 : 1.0;
+        const canGenerate = !isOverheatedRef.current && (liveEnergyRef.current ?? 0) > 0 && rpm > 0.05;
+
+        if (canGenerate) {
+          const wattsPerFrame = rpm * 0.15 * efficiency * faultEfficiencyRef.current * dt;
+          dieselAccumulatedRef.current += wattsPerFrame;
+          while (dieselAccumulatedRef.current >= 1) {
+            dieselAccumulatedRef.current -= 1;
+            registerCrankTapRef.current();
+          }
+        }
+
+        dieselRenderCounter += dt;
+        if (dieselRenderCounter >= 2) {
+          dieselRenderCounter = 0;
+          setStress(stressRef.current);
+          setDieselRpmPercent(rpm);
+          setDieselThrottlePos(dieselThrottleRef.current);
+          setDieselInGreenZone(inGreen);
+        }
+
+      } else {
+        let vel = angularVelocityRef.current;
+
+        if (isOverheatedRef.current) {
+          vel *= Math.pow(0.9, dt);
+          if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+        } else if (guest) {
+          if (!isDraggingRef.current) {
+            vel *= Math.pow(FRICTION, dt);
+            if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+          }
+          const absVel = Math.abs(vel);
+          if (absVel > 12) {
+            const drag = Math.min(0.95, (absVel - 12) * RESISTANCE_FACTOR * dt);
+            vel *= (1 - drag);
+          }
+        } else {
+          const currentEnergy = liveEnergyRef.current ?? 0;
+          if (currentEnergy <= 0) {
+            vel *= Math.pow(NO_ENERGY_FRICTION, dt);
+            if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+          } else if (!isDraggingRef.current) {
+            vel *= Math.pow(FRICTION, dt);
+            if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+          }
+          const absVel = Math.abs(vel);
+          if (absVel > 12) {
+            const drag = Math.min(0.95, (absVel - 12) * RESISTANCE_FACTOR * dt);
+            vel *= (1 - drag);
+          }
+        }
+
+        vel = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, vel));
+        angularVelocityRef.current = vel;
+
+        const speed = Math.abs(vel);
+        if (!isOverheatedRef.current) {
+          if (speed > 3) {
+            stressRef.current = Math.min(1, stressRef.current + STRESS_INCREASE_RATE * (speed / 10) * dt);
+          } else {
+            stressRef.current = Math.max(0, stressRef.current - STRESS_DECAY_RATE * dt);
+          }
+
+          if (stressRef.current >= 1 && !isOverheatedRef.current) {
+            isOverheatedRef.current = true;
+            setIsOverheated(true);
+            angularVelocityRef.current = 0;
+            vel = 0;
+            isDraggingRef.current = false;
+            setIsDragging(false);
+
+            if (overheatTimerRef.current) clearTimeout(overheatTimerRef.current);
+            overheatTimerRef.current = setTimeout(() => {
+              isOverheatedRef.current = false;
+              stressRef.current = 0.3;
+              setIsOverheated(false);
+              setStress(0.3);
+            }, OVERHEAT_COOLDOWN_MS);
+          }
+        }
+
+        stressUpdateCounter += dt;
+        if (stressUpdateCounter >= 3) {
+          stressUpdateCounter = 0;
+          setStress(stressRef.current);
+        }
+
+        const angleDelta = vel * dt;
+        wheelAngleRef.current = (wheelAngleRef.current + angleDelta) % 360;
+
+        const canGenerate = !isOverheatedRef.current && (guest || (liveEnergyRef.current ?? 0) > 0);
+        if (Math.abs(angleDelta) > 0.01 && canGenerate) {
+          accumulatedRotationRef.current += Math.abs(angleDelta);
+          while (accumulatedRotationRef.current >= 360) {
+            accumulatedRotationRef.current -= 360;
+            registerCrankTapRef.current();
+          }
+        }
+
+        setWheelAngle(wheelAngleRef.current);
+        setAngularVelocity(vel);
+      }
 
       animFrameRef.current = requestAnimationFrame(animate);
     };
@@ -1007,6 +1445,143 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     };
   }, [startDrag, moveDrag, endDrag]);
 
+  useEffect(() => {
+    const tier = guest ? "FREE" : (user?.tier || "FREE");
+    if (tier !== "BRONZE") return;
+    const el = dieselEngineRef.current;
+    if (!el) return;
+
+    const getThrottleFromY = (clientY: number) => {
+      const rect = el.getBoundingClientRect();
+      const relY = clientY - rect.top;
+      const pct = 1 - Math.max(0, Math.min(1, relY / rect.height));
+      return pct;
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      if (isOverheatedRef.current || showChallengeRef.current) return;
+      const t = e.touches[0];
+      if (!t) return;
+      isThrottlingRef.current = true;
+      setIsThrottling(true);
+      dieselThrottleRef.current = getThrottleFromY(t.clientY);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (!isThrottlingRef.current || isOverheatedRef.current || showChallengeRef.current) return;
+      const t = e.touches[0];
+      if (!t) return;
+      dieselThrottleRef.current = getThrottleFromY(t.clientY);
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      isThrottlingRef.current = false;
+      setIsThrottling(false);
+      dieselThrottleRef.current = 0;
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      if (isOverheatedRef.current || showChallengeRef.current) return;
+      e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      isThrottlingRef.current = true;
+      setIsThrottling(true);
+      dieselThrottleRef.current = getThrottleFromY(e.clientY);
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      if (!isThrottlingRef.current) return;
+      dieselThrottleRef.current = getThrottleFromY(e.clientY);
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      isThrottlingRef.current = false;
+      setIsThrottling(false);
+      dieselThrottleRef.current = 0;
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: false });
+    el.addEventListener("touchcancel", onTouchEnd);
+    el.addEventListener("pointerdown", onPointerDown);
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointerleave", onPointerUp);
+    el.addEventListener("pointercancel", onPointerUp);
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+      el.removeEventListener("pointerdown", onPointerDown);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("pointerleave", onPointerUp);
+      el.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [guest, user?.tier]);
+
+  useEffect(() => {
+    const tier = guest ? "FREE" : (user?.tier || "FREE");
+    if (tier !== "BRONZE") return;
+
+    const scheduleFault = () => {
+      const delay = DIESEL_FAULT_INTERVAL_MIN + Math.random() * (DIESEL_FAULT_INTERVAL_MAX - DIESEL_FAULT_INTERVAL_MIN);
+      faultTimerRef.current = setTimeout(() => {
+        if (isOverheatedRef.current || dieselRpmRef.current < 0.1) {
+          scheduleFault();
+          return;
+        }
+        const faultType = FAULT_TYPES[Math.floor(Math.random() * FAULT_TYPES.length)];
+        const SIZE = DIESEL_ENGINE_SIZE;
+        const fault: FaultEvent = {
+          id: ++faultIdRef.current,
+          type: faultType.type,
+          label: faultType.label,
+          x: SIZE * 0.3 + Math.random() * SIZE * 0.4,
+          y: SIZE * 0.35 + Math.random() * SIZE * 0.3,
+          spawnedAt: Date.now(),
+        };
+        dieselFaultsRef.current = [...dieselFaultsRef.current, fault];
+        setDieselFaults([...dieselFaultsRef.current]);
+
+        const removalTimer = setTimeout(() => {
+          dieselFaultsRef.current = dieselFaultsRef.current.filter(f => f.id !== fault.id);
+          setDieselFaults([...dieselFaultsRef.current]);
+          faultRemovalTimersRef.current = faultRemovalTimersRef.current.filter(t => t !== removalTimer);
+        }, DIESEL_FAULT_DURATION);
+        faultRemovalTimersRef.current.push(removalTimer);
+
+        scheduleFault();
+      }, delay);
+    };
+
+    scheduleFault();
+    return () => {
+      if (faultTimerRef.current) clearTimeout(faultTimerRef.current);
+      faultRemovalTimersRef.current.forEach(t => clearTimeout(t));
+      faultRemovalTimersRef.current = [];
+    };
+  }, [guest, user?.tier]);
+
+  const handleFaultTap = useCallback((faultId: number) => {
+    dieselFaultsRef.current = dieselFaultsRef.current.filter(f => f.id !== faultId);
+    setDieselFaults([...dieselFaultsRef.current]);
+    faultEfficiencyRef.current = 1;
+
+    registerCrankTapRef.current();
+    registerCrankTapRef.current();
+    registerCrankTapRef.current();
+
+    const SIZE = DIESEL_ENGINE_SIZE;
+    const id = ++wattIdRef.current;
+    setFloatingWatts(prev => [...prev, { id, x: SIZE / 2, y: SIZE * 0.4, amount: 3, isCombo: true }]);
+    setTimeout(() => setFloatingWatts(prev => prev.filter(w => w.id !== id)), 1000);
+  }, []);
+
   const handleTap = useCallback(
     (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
       if (showChallengeRef.current) return;
@@ -1078,7 +1653,8 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   const totalWatts = guest ? guestWatts : (user?.totalCoins || 0);
   const currentTier = guest ? "FREE" : (user?.tier || "FREE");
   const isFreeUser = guest || currentTier === "FREE";
-  const usesCrankWheel = isFreeUser || currentTier === "BRONZE";
+  const usesCrankWheel = isFreeUser;
+  const usesDieselEngine = currentTier === "BRONZE";
   const tierLabel = getTierLabel(user);
   const tierColors = TIER_COLORS[currentTier] || TIER_COLORS.FREE;
   const walletBalance = user?.walletBalance ?? 0;
@@ -1352,6 +1928,38 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
                 stress={stress}
                 isOverheated={isOverheated}
                 totalWatts={totalWatts}
+              />
+            </>
+          ) : usesDieselEngine ? (
+            <>
+              <div className="text-center mb-2">
+                <p className="text-[10px] text-white/50 uppercase tracking-[0.2em]">Throttle to Generate</p>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-3xl font-black tracking-tight text-white" data-testid="text-total-coins">
+                    {formatNumber(totalWatts)}
+                  </span>
+                  <span className="text-lg font-bold text-white/60">W</span>
+                </div>
+                {(tc.tapMultiplier ?? 1) > 1 && (
+                  <span className="text-xs text-emerald-400 font-semibold">
+                    +{tc.tapMultiplier} W/rev
+                  </span>
+                )}
+              </div>
+              <DieselEngineControl
+                rpmPercent={dieselRpmPercent}
+                throttlePosition={dieselThrottlePos}
+                hasEnergy={currentEnergy > 0}
+                isThrottling={isThrottling}
+                floatingWatts={floatingWatts}
+                multiplier={tc.tapMultiplier ?? 1}
+                engineRef={dieselEngineRef as React.RefObject<HTMLDivElement>}
+                stress={stress}
+                isOverheated={isOverheated}
+                totalWatts={totalWatts}
+                faults={dieselFaults}
+                onFaultTap={handleFaultTap}
+                inGreenZone={dieselInGreenZone}
               />
             </>
           ) : (
