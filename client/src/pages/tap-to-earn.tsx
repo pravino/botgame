@@ -155,9 +155,6 @@ function CrankWheel({
   isDragging,
   floatingWatts,
   multiplier,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
   wheelRef,
   stress,
   isOverheated,
@@ -169,9 +166,6 @@ function CrankWheel({
   isDragging: boolean;
   floatingWatts: FloatingWatt[];
   multiplier: number;
-  onPointerDown: (e: React.PointerEvent) => void;
-  onPointerMove: (e: React.PointerEvent) => void;
-  onPointerUp: (e: React.PointerEvent) => void;
   wheelRef: React.RefObject<HTMLDivElement>;
   stress: number;
   isOverheated: boolean;
@@ -214,11 +208,6 @@ function CrankWheel({
         ref={wheelRef}
         className={`relative select-none ${isOverheated ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing"}`}
         style={{ width: WHEEL_SIZE, height: WHEEL_SIZE, touchAction: "none" }}
-        onPointerDown={isOverheated ? undefined : onPointerDown}
-        onPointerMove={isOverheated ? undefined : onPointerMove}
-        onPointerUp={isOverheated ? undefined : onPointerUp}
-        onPointerLeave={isOverheated ? undefined : onPointerUp}
-        onPointerCancel={isOverheated ? undefined : onPointerUp}
         data-testid="crank-wheel"
       >
         <div
@@ -914,7 +903,10 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     };
   }, [guest, user?.tier]);
 
-  const getAngleFromPointer = useCallback((clientX: number, clientY: number): number | null => {
+  const guestRef = useRef(guest);
+  guestRef.current = guest;
+
+  const getAngle = useCallback((clientX: number, clientY: number): number | null => {
     const el = wheelRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
@@ -923,46 +915,33 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     return Math.atan2(clientY - cy, clientX - cx);
   }, []);
 
-  const handleCrankDown = useCallback((e: React.PointerEvent) => {
+  const startDrag = useCallback((clientX: number, clientY: number) => {
     if (isOverheatedRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch (_) {}
-    const angle = getAngleFromPointer(e.clientX, e.clientY);
+    const angle = getAngle(clientX, clientY);
     if (angle === null) return;
     lastAngleRef.current = angle;
     isDraggingRef.current = true;
     setIsDragging(true);
-  }, [getAngleFromPointer]);
+  }, [getAngle]);
 
-  const processCrankMove = useCallback((clientX: number, clientY: number) => {
+  const moveDrag = useCallback((clientX: number, clientY: number) => {
     if (isOverheatedRef.current) return;
     if (!isDraggingRef.current || lastAngleRef.current === null) return;
-    if (!guest) {
+    if (!guestRef.current) {
       const currentEnergy = liveEnergyRef.current ?? 0;
       if (currentEnergy <= 0) return;
     }
-
-    const angle = getAngleFromPointer(clientX, clientY);
+    const angle = getAngle(clientX, clientY);
     if (angle === null) return;
-
     let delta = (angle - lastAngleRef.current) * (180 / Math.PI);
     if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
-
     angularVelocityRef.current = delta * 0.85;
     angularVelocityRef.current = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, angularVelocityRef.current));
-
     lastAngleRef.current = angle;
-  }, [getAngleFromPointer, guest]);
+  }, [getAngle]);
 
-  const handleCrankMove = useCallback((e: React.PointerEvent) => {
-    processCrankMove(e.clientX, e.clientY);
-  }, [processCrankMove]);
-
-  const handleCrankUp = useCallback(() => {
+  const endDrag = useCallback(() => {
     isDraggingRef.current = false;
     lastAngleRef.current = null;
     setIsDragging(false);
@@ -973,43 +952,56 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     if (!el) return;
 
     const onTouchStart = (e: TouchEvent) => {
-      if (isOverheatedRef.current) return;
       e.preventDefault();
-      e.stopPropagation();
-      const touch = e.touches[0];
-      if (!touch) return;
-      const angle = getAngleFromPointer(touch.clientX, touch.clientY);
-      if (angle === null) return;
-      lastAngleRef.current = angle;
-      isDraggingRef.current = true;
-      setIsDragging(true);
+      const t = e.touches[0];
+      if (t) startDrag(t.clientX, t.clientY);
     };
-
     const onTouchMove = (e: TouchEvent) => {
       e.preventDefault();
-      const touch = e.touches[0];
-      if (!touch) return;
-      processCrankMove(touch.clientX, touch.clientY);
+      const t = e.touches[0];
+      if (t) moveDrag(t.clientX, t.clientY);
     };
-
-    const onTouchEnd = () => {
-      isDraggingRef.current = false;
-      lastAngleRef.current = null;
-      setIsDragging(false);
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      endDrag();
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      startDrag(e.clientX, e.clientY);
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      moveDrag(e.clientX, e.clientY);
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      endDrag();
     };
 
     el.addEventListener("touchstart", onTouchStart, { passive: false });
     el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchend", onTouchEnd, { passive: false });
     el.addEventListener("touchcancel", onTouchEnd);
+    el.addEventListener("pointerdown", onPointerDown);
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointerleave", onPointerUp);
+    el.addEventListener("pointercancel", onPointerUp);
 
     return () => {
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchEnd);
+      el.removeEventListener("pointerdown", onPointerDown);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("pointerleave", onPointerUp);
+      el.removeEventListener("pointercancel", onPointerUp);
     };
-  }, [getAngleFromPointer, processCrankMove]);
+  }, [startDrag, moveDrag, endDrag]);
 
   const handleTap = useCallback(
     (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
@@ -1141,9 +1133,6 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
               isDragging={isDragging}
               floatingWatts={floatingWatts}
               multiplier={1}
-              onPointerDown={handleCrankDown}
-              onPointerMove={handleCrankMove}
-              onPointerUp={handleCrankUp}
               wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
               stress={stress}
               isOverheated={isOverheated}
@@ -1352,9 +1341,6 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
                 isDragging={isDragging}
                 floatingWatts={floatingWatts}
                 multiplier={tc.tapMultiplier ?? 1}
-                onPointerDown={handleCrankDown}
-                onPointerMove={handleCrankMove}
-                onPointerUp={handleCrankUp}
                 wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
                 stress={stress}
                 isOverheated={isOverheated}
