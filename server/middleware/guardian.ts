@@ -66,27 +66,6 @@ export async function triggerCooldown(userId: string): Promise<void> {
 }
 
 export async function checkChallenge(userId: string): Promise<{ challengeRequired: boolean }> {
-  const user = await storage.getUser(userId);
-  if (!user) return { challengeRequired: false };
-
-  if (user.challengePausedUntil && new Date(user.challengePausedUntil) > new Date()) {
-    return { challengeRequired: false };
-  }
-
-  if (user.challengePausedUntil && new Date(user.challengePausedUntil) <= new Date() && user.coinsSinceLastChallenge > 0) {
-    await storage.updateUser(userId, { coinsSinceLastChallenge: 0 });
-    return { challengeRequired: false };
-  }
-
-  if (user.challengePending) {
-    return { challengeRequired: true };
-  }
-
-  if (user.coinsSinceLastChallenge >= CHALLENGE_COIN_THRESHOLD) {
-    await storage.updateUser(userId, { challengePending: true });
-    return { challengeRequired: true };
-  }
-
   return { challengeRequired: false };
 }
 
