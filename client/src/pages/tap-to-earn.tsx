@@ -34,15 +34,23 @@ interface FloatingWatt {
   id: number;
   x: number;
   y: number;
+  amount?: number;
+  isCombo?: boolean;
 }
 
 const SOLAR_THRESHOLD = 1_000_000;
-const FRICTION = 0.975;
-const STOP_THRESHOLD = 0.3;
+const FRICTION = 0.985;
+const STOP_THRESHOLD = 0.15;
 const NO_ENERGY_FRICTION = 0.9;
-const WHEEL_SIZE = 180;
+const WHEEL_SIZE = 220;
 const SPOKE_COUNT = 8;
 const ORB_SIZE = 220;
+const BOLT_COUNT = 12;
+const STRESS_INCREASE_RATE = 0.003;
+const STRESS_DECAY_RATE = 0.004;
+const OVERHEAT_COOLDOWN_MS = 7000;
+const MAX_VELOCITY = 20;
+const RESISTANCE_FACTOR = 0.015;
 
 function getGeneratorName(user: UserWithTierConfig | undefined): string {
   if (!user) return "Hand-Crank Dynamo";
@@ -70,6 +78,76 @@ const TIER_COLORS: Record<string, { label: string; accent: string; glow: string;
   GOLD: { label: "text-purple-400", accent: "from-purple-500 via-violet-500 to-fuchsia-500", glow: "rgba(139,92,246,0.4)", glowRgba: "139,92,246", border: "border-purple-500/40" },
 };
 
+function StressMeter({ stress, isOverheated }: { stress: number; isOverheated: boolean }) {
+  const pct = Math.min(100, stress * 100);
+  const barColor = isOverheated
+    ? "bg-red-500"
+    : pct > 75
+    ? "bg-orange-500"
+    : pct > 40
+    ? "bg-yellow-500"
+    : "bg-cyan-500/60";
+
+  return (
+    <div className="w-full max-w-[180px] space-y-0.5" data-testid="stress-meter">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] uppercase tracking-wider text-white/40 font-medium">System Stress</span>
+        <span className={`text-[9px] font-mono ${isOverheated ? "text-red-400 animate-pulse" : "text-white/40"}`}>
+          {Math.round(pct)}%
+        </span>
+      </div>
+      <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+        <div
+          className={`h-full rounded-full transition-all duration-200 ${barColor}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {isOverheated && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center mt-1"
+        >
+          <span className="text-[10px] font-black text-red-400 uppercase tracking-widest animate-pulse">
+            SYSTEM OVERHEATED
+          </span>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+function MilestoneProgress({ totalWatts }: { totalWatts: number }) {
+  const watts = totalWatts ?? 0;
+  const pct = Math.min(100, (watts / SOLAR_THRESHOLD) * 100);
+  const remaining = Math.max(0, SOLAR_THRESHOLD - watts);
+
+  if (watts >= SOLAR_THRESHOLD) return null;
+
+  return (
+    <div className="w-full max-w-[220px] space-y-1" data-testid="milestone-progress">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] uppercase tracking-wider text-amber-400/70 font-medium">Next Milestone</span>
+        <span className="text-[9px] font-mono text-amber-400/60">{formatNumber(watts)} / 1M W</span>
+      </div>
+      <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" }}>
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{
+            width: `${Math.max(1, pct)}%`,
+            background: "linear-gradient(90deg, #f59e0b, #fbbf24)",
+          }}
+        />
+      </div>
+      <div className="text-center">
+        <span className="text-[9px] text-amber-400/50">
+          {formatNumber(remaining)} W to Solar License
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function CrankWheel({
   angularVelocity,
   wheelAngle,
@@ -81,6 +159,9 @@ function CrankWheel({
   onPointerMove,
   onPointerUp,
   wheelRef,
+  stress,
+  isOverheated,
+  totalWatts,
 }: {
   angularVelocity: number;
   wheelAngle: number;
@@ -92,16 +173,33 @@ function CrankWheel({
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
   wheelRef: React.RefObject<HTMLDivElement>;
+  stress: number;
+  isOverheated: boolean;
+  totalWatts: number;
 }) {
   const speed = Math.abs(angularVelocity);
-  const glowIntensity = Math.min(1, speed / 15);
+  const glowIntensity = Math.min(1, speed / 12);
   const rpm = Math.round(speed * 10);
   const half = WHEEL_SIZE / 2;
-  const spokeLen = half - 20;
-  const handleRadius = half - 14;
+  const spokeLen = half - 28;
+  const handleRadius = half - 18;
   const handleAngleRad = (wheelAngle * Math.PI) / 180;
   const handleX = half + Math.cos(handleAngleRad) * handleRadius;
   const handleY = half + Math.sin(handleAngleRad) * handleRadius;
+
+  const speedTier = speed < 3 ? "low" : speed < 8 ? "medium" : "high";
+
+  const sparkCount = speedTier === "low" ? 3 : speedTier === "medium" ? 6 : 10;
+  const sparks = Array.from({ length: sparkCount }).map((_, i) => {
+    const sparkAngle = (wheelAngle + i * (360 / sparkCount) + i * 37) * (Math.PI / 180);
+    const dist = half - 8 + Math.sin(Date.now() / 200 + i) * 4;
+    return {
+      x: half + Math.cos(sparkAngle) * dist,
+      y: half + Math.sin(sparkAngle) * dist,
+      opacity: 0.3 + glowIntensity * 0.7,
+      size: speedTier === "high" ? 3 : 2,
+    };
+  });
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -111,73 +209,180 @@ function CrankWheel({
           {rpm} RPM
         </span>
       </div>
+
       <div
         ref={wheelRef}
-        className="relative select-none touch-none cursor-grab active:cursor-grabbing"
+        className={`relative select-none touch-none ${isOverheated ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing"}`}
         style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onPointerDown={isOverheated ? undefined : onPointerDown}
+        onPointerMove={isOverheated ? undefined : onPointerMove}
+        onPointerUp={isOverheated ? undefined : onPointerUp}
+        onPointerLeave={isOverheated ? undefined : onPointerUp}
+        onPointerCancel={isOverheated ? undefined : onPointerUp}
         data-testid="crank-wheel"
       >
         <div
-          className={`w-full h-full rounded-full ${hasEnergy ? "" : "opacity-40"}`}
+          className={`w-full h-full rounded-full ${hasEnergy && !isOverheated ? "" : "opacity-50"}`}
           style={{
-            background: `radial-gradient(circle at 40% 40%, rgba(6,182,212,0.15), transparent 70%)`,
-            boxShadow: hasEnergy
-              ? `0 0 ${20 + glowIntensity * 40}px rgba(6,182,212,${0.15 + glowIntensity * 0.4}), inset 0 0 ${10 + glowIntensity * 20}px rgba(6,182,212,${0.1 + glowIntensity * 0.2})`
-              : "inset 0 -4px 12px rgba(0,0,0,0.15)",
+            background: `radial-gradient(circle at 40% 40%, rgba(120,80,30,0.15), rgba(40,25,10,0.3) 60%, transparent 80%)`,
+            boxShadow: hasEnergy && !isOverheated
+              ? `0 0 ${15 + glowIntensity * 50}px rgba(6,182,212,${0.1 + glowIntensity * 0.5}), inset 0 0 ${8 + glowIntensity * 25}px rgba(6,182,212,${0.05 + glowIntensity * 0.25}), 0 4px 20px rgba(0,0,0,0.6)`
+              : "inset 0 -4px 12px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.6)",
             transition: "box-shadow 0.15s ease-out",
           }}
         >
           <svg width={WHEEL_SIZE} height={WHEEL_SIZE} className="absolute inset-0">
-            <circle cx={half} cy={half} r={half - 4} fill="none" stroke="rgba(6,182,212,0.3)" strokeWidth="3" />
-            <circle cx={half} cy={half} r={half - 12} fill="none" stroke="rgba(6,182,212,0.15)" strokeWidth="1.5" strokeDasharray="4 4" />
-            <circle cx={half} cy={half} r={20} fill="rgba(15,23,42,0.8)" stroke="rgba(6,182,212,0.3)" strokeWidth="2" />
-            <circle cx={half} cy={half} r={8} fill={`rgba(6,182,212,${0.4 + glowIntensity * 0.6})`} />
-            {Array.from({ length: SPOKE_COUNT }).map((_, i) => {
-              const angle = (wheelAngle + (i * 360) / SPOKE_COUNT) * (Math.PI / 180);
-              const x1 = half + Math.cos(angle) * 22;
-              const y1 = half + Math.sin(angle) * 22;
-              const x2 = half + Math.cos(angle) * spokeLen;
-              const y2 = half + Math.sin(angle) * spokeLen;
+            <defs>
+              <radialGradient id="rustCenter" cx="45%" cy="45%">
+                <stop offset="0%" stopColor="rgba(80,60,30,0.9)" />
+                <stop offset="100%" stopColor="rgba(30,20,10,0.95)" />
+              </radialGradient>
+              <radialGradient id="brassHub">
+                <stop offset="0%" stopColor="rgba(200,170,80,0.8)" />
+                <stop offset="60%" stopColor="rgba(140,110,40,0.6)" />
+                <stop offset="100%" stopColor="rgba(80,60,20,0.4)" />
+              </radialGradient>
+              <filter id="metalNoise">
+                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise" />
+                <feComposite in="SourceGraphic" in2="noise" operator="in" />
+              </filter>
+            </defs>
+
+            <circle cx={half} cy={half} r={half - 3} fill="none" stroke="rgba(100,75,40,0.5)" strokeWidth="5" />
+            <circle cx={half} cy={half} r={half - 6} fill="none" stroke="rgba(60,45,20,0.6)" strokeWidth="2" />
+            <circle cx={half} cy={half} r={half - 10} fill="none" stroke="rgba(80,60,30,0.3)" strokeWidth="1" strokeDasharray="3 6" />
+
+            {Array.from({ length: BOLT_COUNT }).map((_, i) => {
+              const boltAngle = ((i * 360) / BOLT_COUNT) * (Math.PI / 180);
+              const boltR = half - 8;
+              const bx = half + Math.cos(boltAngle) * boltR;
+              const by = half + Math.sin(boltAngle) * boltR;
               return (
-                <line
-                  key={i} x1={x1} y1={y1} x2={x2} y2={y2}
-                  stroke={`rgba(6,182,212,${0.3 + glowIntensity * 0.5})`}
-                  strokeWidth="2.5" strokeLinecap="round"
-                />
+                <g key={`bolt-${i}`}>
+                  <circle cx={bx} cy={by} r={4} fill="rgba(160,130,60,0.7)" stroke="rgba(100,80,30,0.8)" strokeWidth="1" />
+                  <circle cx={bx - 0.5} cy={by - 0.5} r={1.5} fill="rgba(200,170,80,0.5)" />
+                  <line x1={bx - 2} y1={by} x2={bx + 2} y2={by} stroke="rgba(60,40,15,0.6)" strokeWidth="1" />
+                </g>
               );
             })}
+
+            <circle cx={half} cy={half} r={26} fill="url(#brassHub)" stroke="rgba(160,130,60,0.6)" strokeWidth="2.5" />
+            <circle cx={half} cy={half} r={14} fill="rgba(20,15,8,0.9)" stroke="rgba(100,80,30,0.5)" strokeWidth="1.5" />
+            <circle cx={half} cy={half} r={7} fill={`rgba(6,182,212,${0.3 + glowIntensity * 0.7})`} />
+            {glowIntensity > 0.3 && (
+              <circle cx={half} cy={half} r={10} fill="none" stroke={`rgba(6,182,212,${glowIntensity * 0.4})`} strokeWidth="1" />
+            )}
+
+            {Array.from({ length: SPOKE_COUNT }).map((_, i) => {
+              const angle = (wheelAngle + (i * 360) / SPOKE_COUNT) * (Math.PI / 180);
+              const x1 = half + Math.cos(angle) * 28;
+              const y1 = half + Math.sin(angle) * 28;
+              const x2 = half + Math.cos(angle) * spokeLen;
+              const y2 = half + Math.sin(angle) * spokeLen;
+              const spokeGlow = speedTier !== "low" ? glowIntensity * 0.6 : 0;
+              return (
+                <g key={i}>
+                  <line x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke="rgba(90,70,35,0.8)"
+                    strokeWidth="4" strokeLinecap="round"
+                  />
+                  <line x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke={`rgba(140,110,50,0.5)`}
+                    strokeWidth="2" strokeLinecap="round"
+                  />
+                  {spokeGlow > 0 && (
+                    <line x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke={`rgba(6,182,212,${spokeGlow})`}
+                      strokeWidth="1.5" strokeLinecap="round"
+                    />
+                  )}
+                </g>
+              );
+            })}
+
+            {speed > STOP_THRESHOLD && sparks.map((spark, i) => (
+              <circle
+                key={`spark-${i}`}
+                cx={spark.x}
+                cy={spark.y}
+                r={spark.size}
+                fill={speedTier === "high" ? `rgba(6,182,212,${spark.opacity})` : `rgba(200,180,100,${spark.opacity * 0.8})`}
+              >
+                {speedTier !== "low" && (
+                  <animate attributeName="opacity" values={`${spark.opacity};0.1;${spark.opacity}`} dur="0.3s" repeatCount="indefinite" />
+                )}
+              </circle>
+            ))}
+
+            {speedTier === "high" && (
+              <>
+                <path
+                  d={`M ${half - 30} ${half - half + 20} Q ${half - 10} ${half - half + 40} ${half + 5} ${half - half + 15} Q ${half + 20} ${half - half + 5} ${half + 35} ${half - half + 25}`}
+                  fill="none" stroke={`rgba(6,182,212,${0.4 + glowIntensity * 0.5})`}
+                  strokeWidth="1.5" strokeLinecap="round"
+                >
+                  <animate attributeName="opacity" values="0.8;0.2;0.8" dur="0.4s" repeatCount="indefinite" />
+                </path>
+                <path
+                  d={`M ${half + 20} ${half + half - 30} Q ${half + 5} ${half + half - 45} ${half - 15} ${half + half - 25} Q ${half - 30} ${half + half - 15} ${half - 40} ${half + half - 35}`}
+                  fill="none" stroke={`rgba(100,200,255,${0.3 + glowIntensity * 0.4})`}
+                  strokeWidth="1" strokeLinecap="round"
+                >
+                  <animate attributeName="opacity" values="0.6;0.15;0.6" dur="0.35s" repeatCount="indefinite" />
+                </path>
+              </>
+            )}
+
             <circle
-              cx={handleX} cy={handleY} r={12}
-              fill={isDragging ? "rgba(6,182,212,0.9)" : "rgba(6,182,212,0.6)"}
-              stroke="rgba(255,255,255,0.5)" strokeWidth="2"
+              cx={handleX} cy={handleY} r={14}
+              fill={isDragging ? "rgba(160,130,60,0.95)" : "rgba(120,95,40,0.8)"}
+              stroke="rgba(200,170,80,0.6)" strokeWidth="2.5"
             />
-            <circle cx={handleX} cy={handleY} r={5} fill="rgba(255,255,255,0.7)" />
+            <circle
+              cx={handleX} cy={handleY} r={8}
+              fill={isDragging ? "rgba(200,170,80,0.9)" : "rgba(160,130,60,0.6)"}
+            />
+            <circle cx={handleX - 1} cy={handleY - 1} r={3} fill="rgba(255,230,150,0.4)" />
+            {isDragging && (
+              <circle cx={handleX} cy={handleY} r={18} fill="none"
+                stroke={`rgba(6,182,212,${0.3 + glowIntensity * 0.4})`} strokeWidth="1.5"
+              />
+            )}
           </svg>
         </div>
+
+        {isOverheated && (
+          <div className="absolute inset-0 rounded-full pointer-events-none"
+            style={{
+              background: "radial-gradient(circle, rgba(255,60,20,0.15) 0%, rgba(255,100,30,0.08) 50%, transparent 70%)",
+              animation: "pulse 1s ease-in-out infinite",
+            }}
+          />
+        )}
 
         <AnimatePresence>
           {floatingWatts.map((watt) => (
             <motion.div
               key={watt.id}
-              initial={{ x: watt.x - 20, y: watt.y - 20, opacity: 1, scale: 1 }}
-              animate={{ y: watt.y - 80, opacity: 0, scale: 0.5 }}
+              initial={{ x: watt.x - 30, y: watt.y - 15, opacity: 1, scale: 1 }}
+              animate={{ y: watt.y - 90, opacity: 0, scale: 0.6 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.7, ease: "easeOut" }}
-              className="absolute top-0 left-0 pointer-events-none text-cyan-400 font-bold text-lg"
+              transition={{ duration: 0.9, ease: "easeOut" }}
+              className={`absolute top-0 left-0 pointer-events-none font-black ${watt.isCombo ? "text-amber-400 text-base" : "text-cyan-400 text-sm"}`}
             >
-              +{multiplier} W
+              +{watt.amount ?? multiplier} W{watt.isCombo ? " COMBO" : ""}
             </motion.div>
           ))}
         </AnimatePresence>
       </div>
+
+      <StressMeter stress={stress} isOverheated={isOverheated} />
+
       <p className="text-[10px] text-muted-foreground">
-        {isDragging ? "Cranking..." : speed > STOP_THRESHOLD ? "Spinning..." : hasEnergy ? "Drag in a circle to crank" : "No energy"}
+        {isOverheated ? "Cooling down..." : isDragging ? "Cranking..." : speed > STOP_THRESHOLD ? "Spinning..." : hasEnergy ? "Drag in a circle to crank" : "No energy"}
       </p>
+
+      <MilestoneProgress totalWatts={totalWatts} />
     </div>
   );
 }
@@ -406,8 +611,15 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   const [wheelAngle, setWheelAngle] = useState(0);
   const [angularVelocity, setAngularVelocity] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [stress, setStress] = useState(0);
+  const [isOverheated, setIsOverheated] = useState(false);
 
   const wattIdRef = useRef(0);
+  const stressRef = useRef(0);
+  const isOverheatedRef = useRef(false);
+  const overheatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const comboCountRef = useRef(0);
+  const lastTapTimeRef = useRef(0);
   const pendingTapsRef = useRef(0);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wheelRef = useRef<HTMLDivElement>(null);
@@ -526,15 +738,37 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   }, [tapMutation]);
 
   const registerCrankTap = useCallback(() => {
+    if (isOverheatedRef.current) return;
+
+    const now = Date.now();
+    const timeSinceLast = now - lastTapTimeRef.current;
+    lastTapTimeRef.current = now;
+
+    const speed = Math.abs(angularVelocityRef.current);
+    const isCombo = timeSinceLast < 400 && speed > 5;
+    if (isCombo) {
+      comboCountRef.current += 1;
+    } else {
+      comboCountRef.current = 0;
+    }
+
+    const speedBonus = Math.floor(speed * 8);
+    const comboBonus = isCombo ? comboCountRef.current * 15 : 0;
+    const displayAmount = Math.max(1, speedBonus + comboBonus);
+    const showCombo = comboCountRef.current >= 3;
+
+    const half = WHEEL_SIZE / 2;
+    const angle = wheelAngleRef.current * (Math.PI / 180);
+    const offsetAngle = angle + (Math.random() - 0.5) * 0.8;
+    const dist = half * (0.5 + Math.random() * 0.2);
+    const spawnX = half + Math.cos(offsetAngle) * dist;
+    const spawnY = half + Math.sin(offsetAngle) * dist;
+
     if (guest) {
       setGuestWatts((prev) => prev + 1);
-      const half = WHEEL_SIZE / 2;
-      const angle = wheelAngleRef.current * (Math.PI / 180);
-      const spawnX = half + Math.cos(angle) * (half * 0.6);
-      const spawnY = half + Math.sin(angle) * (half * 0.6);
       const id = ++wattIdRef.current;
-      setFloatingWatts((prev) => [...prev, { id, x: spawnX, y: spawnY }]);
-      setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 800);
+      setFloatingWatts((prev) => [...prev, { id, x: spawnX, y: spawnY, amount: displayAmount, isCombo: showCombo }]);
+      setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 1000);
       return;
     }
 
@@ -550,13 +784,9 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
       old ? { ...old, energy: Math.max(0, old.energy - 1), totalCoins: old.totalCoins + mult } : old
     );
 
-    const half = WHEEL_SIZE / 2;
-    const angle = wheelAngleRef.current * (Math.PI / 180);
-    const spawnX = half + Math.cos(angle) * (half * 0.6);
-    const spawnY = half + Math.sin(angle) * (half * 0.6);
     const id = ++wattIdRef.current;
-    setFloatingWatts((prev) => [...prev, { id, x: spawnX, y: spawnY }]);
-    setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 800);
+    setFloatingWatts((prev) => [...prev, { id, x: spawnX, y: spawnY, amount: displayAmount, isCombo: showCombo }]);
+    setTimeout(() => setFloatingWatts((prev) => prev.filter((c) => c.id !== id)), 1000);
 
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
     if (pendingTapsRef.current >= 50) {
@@ -571,6 +801,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     if (!isFree) return;
 
     let lastTime = performance.now();
+    let stressUpdateCounter = 0;
 
     const animate = (now: number) => {
       const dt = Math.min((now - lastTime) / 16.667, 3);
@@ -578,10 +809,18 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
 
       let vel = angularVelocityRef.current;
 
-      if (guest) {
+      if (isOverheatedRef.current) {
+        vel *= Math.pow(0.9, dt);
+        if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+      } else if (guest) {
         if (!isDraggingRef.current) {
           vel *= Math.pow(FRICTION, dt);
           if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
+        }
+        const absVel = Math.abs(vel);
+        if (absVel > 8) {
+          const resistance = (absVel - 8) * RESISTANCE_FACTOR;
+          vel *= (1 - resistance * dt);
         }
       } else {
         const currentEnergy = liveEnergyRef.current ?? 0;
@@ -592,13 +831,52 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           vel *= Math.pow(FRICTION, dt);
           if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
         }
+        const absVel = Math.abs(vel);
+        if (absVel > 8) {
+          const resistance = (absVel - 8) * RESISTANCE_FACTOR;
+          vel *= (1 - resistance * dt);
+        }
       }
 
+      vel = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, vel));
       angularVelocityRef.current = vel;
+
+      const speed = Math.abs(vel);
+      if (!isOverheatedRef.current) {
+        if (speed > 3) {
+          stressRef.current = Math.min(1, stressRef.current + STRESS_INCREASE_RATE * (speed / 10) * dt);
+        } else {
+          stressRef.current = Math.max(0, stressRef.current - STRESS_DECAY_RATE * dt);
+        }
+
+        if (stressRef.current >= 1 && !isOverheatedRef.current) {
+          isOverheatedRef.current = true;
+          setIsOverheated(true);
+          angularVelocityRef.current = 0;
+          vel = 0;
+          isDraggingRef.current = false;
+          setIsDragging(false);
+
+          if (overheatTimerRef.current) clearTimeout(overheatTimerRef.current);
+          overheatTimerRef.current = setTimeout(() => {
+            isOverheatedRef.current = false;
+            stressRef.current = 0.3;
+            setIsOverheated(false);
+            setStress(0.3);
+          }, OVERHEAT_COOLDOWN_MS);
+        }
+      }
+
+      stressUpdateCounter += dt;
+      if (stressUpdateCounter >= 3) {
+        stressUpdateCounter = 0;
+        setStress(stressRef.current);
+      }
+
       const angleDelta = vel * dt;
       wheelAngleRef.current = (wheelAngleRef.current + angleDelta) % 360;
 
-      const canGenerate = guest || (liveEnergyRef.current ?? 0) > 0;
+      const canGenerate = !isOverheatedRef.current && (guest || (liveEnergyRef.current ?? 0) > 0);
       if (Math.abs(angleDelta) > 0.01 && canGenerate) {
         accumulatedRotationRef.current += Math.abs(angleDelta);
         while (accumulatedRotationRef.current >= 360) {
@@ -620,6 +898,9 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
         clearTimeout(flushTimerRef.current);
         flushTaps();
       }
+      if (overheatTimerRef.current) {
+        clearTimeout(overheatTimerRef.current);
+      }
     };
   }, [guest, user?.tier, registerCrankTap, flushTaps]);
 
@@ -633,6 +914,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   }, []);
 
   const handleCrankDown = useCallback((e: React.PointerEvent) => {
+    if (isOverheatedRef.current) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     const angle = getAngleFromPointer(e.clientX, e.clientY);
@@ -643,6 +925,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   }, [getAngleFromPointer]);
 
   const handleCrankMove = useCallback((e: React.PointerEvent) => {
+    if (isOverheatedRef.current) return;
     if (!isDraggingRef.current || lastAngleRef.current === null) return;
     if (!guest) {
       const currentEnergy = liveEnergyRef.current ?? 0;
@@ -656,9 +939,10 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
 
-    angularVelocityRef.current += delta * 0.4;
-    const maxVel = 25;
-    angularVelocityRef.current = Math.max(-maxVel, Math.min(maxVel, angularVelocityRef.current));
+    const currentVel = Math.abs(angularVelocityRef.current);
+    const inputScale = currentVel > 10 ? 0.2 : currentVel > 6 ? 0.3 : 0.4;
+    angularVelocityRef.current += delta * inputScale;
+    angularVelocityRef.current = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, angularVelocityRef.current));
 
     lastAngleRef.current = angle;
   }, [getAngleFromPointer, guest]);
@@ -803,6 +1087,9 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
               onPointerMove={handleCrankMove}
               onPointerUp={handleCrankUp}
               wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
+              stress={stress}
+              isOverheated={isOverheated}
+              totalWatts={guestWatts}
             />
           </div>
 
@@ -1011,6 +1298,9 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
                 onPointerMove={handleCrankMove}
                 onPointerUp={handleCrankUp}
                 wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
+                stress={stress}
+                isOverheated={isOverheated}
+                totalWatts={totalWatts}
               />
             </>
           ) : (

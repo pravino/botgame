@@ -55,7 +55,13 @@ The application is built with a modern web stack, featuring a React + TypeScript
 **Technical Implementations:**
 - **Authentication**: Telegram-based authentication supporting both Mini App (WebApp initData with HMAC verification) and browser Login Widget. Connected as @Vault60Bot. Guest landing: unauthenticated users see the energy orb immediately (guest mode, local-only watts, no API calls). "Sign in" button in header opens Telegram login modal. Mini App users auto-auth as before.
 - **Power Plant (Tap-to-Earn)**: Energy orb tapping with energy system (passive refill). Features a multiplier upgrade system. This is the ONLY active game — 100% of treasury goes to tap pot.
-  - FREE tier uses crank wheel (spin to generate); paid tiers use tap-on-orb mechanic
+  - FREE tier uses **industrial CrankWheel** (drag in circle to generate watts). Visual: rusted iron + brass bolts, oil-stain textures, metallic spokes. Features:
+    - Speed-based visual effects: sparks (low), blue energy flow (medium), electric arcs (high)
+    - Stress/overheat system: meter fills during fast spinning, locks wheel for 7s at 100%
+    - Floating micro-rewards with variable amounts and "COMBO" text at high speed
+    - 1 MW milestone progress bar toward Solar License unlock
+    - Enhanced physics: momentum, friction decay, non-linear resistance at high velocity
+  - Paid tiers use tap-on-orb mechanic (EnergyOrb)
   - Tap → scale animation → floating "+X W" particle
   - Uses batched taps (max 50, flush every 2s) via POST /api/tap
   - Daily Pot Distribution cards show Diesel/LNG/Fusion pot values
