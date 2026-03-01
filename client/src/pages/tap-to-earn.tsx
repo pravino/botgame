@@ -46,11 +46,11 @@ const WHEEL_SIZE = 220;
 const SPOKE_COUNT = 8;
 const ORB_SIZE = 220;
 const BOLT_COUNT = 12;
-const STRESS_INCREASE_RATE = 0.003;
-const STRESS_DECAY_RATE = 0.004;
-const OVERHEAT_COOLDOWN_MS = 7000;
-const MAX_VELOCITY = 20;
-const RESISTANCE_FACTOR = 0.015;
+const STRESS_INCREASE_RATE = 0.0012;
+const STRESS_DECAY_RATE = 0.006;
+const OVERHEAT_COOLDOWN_MS = 6000;
+const MAX_VELOCITY = 22;
+const RESISTANCE_FACTOR = 0.004;
 
 function getGeneratorName(user: UserWithTierConfig | undefined): string {
   if (!user) return "Hand-Crank Dynamo";
@@ -818,9 +818,9 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
         }
         const absVel = Math.abs(vel);
-        if (absVel > 8) {
-          const resistance = (absVel - 8) * RESISTANCE_FACTOR;
-          vel *= (1 - resistance * dt);
+        if (absVel > 12) {
+          const drag = Math.min(0.95, (absVel - 12) * RESISTANCE_FACTOR * dt);
+          vel *= (1 - drag);
         }
       } else {
         const currentEnergy = liveEnergyRef.current ?? 0;
@@ -832,9 +832,9 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
           if (Math.abs(vel) < STOP_THRESHOLD) vel = 0;
         }
         const absVel = Math.abs(vel);
-        if (absVel > 8) {
-          const resistance = (absVel - 8) * RESISTANCE_FACTOR;
-          vel *= (1 - resistance * dt);
+        if (absVel > 12) {
+          const drag = Math.min(0.95, (absVel - 12) * RESISTANCE_FACTOR * dt);
+          vel *= (1 - drag);
         }
       }
 
@@ -940,7 +940,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     if (delta < -180) delta += 360;
 
     const currentVel = Math.abs(angularVelocityRef.current);
-    const inputScale = currentVel > 10 ? 0.2 : currentVel > 6 ? 0.3 : 0.4;
+    const inputScale = currentVel > 15 ? 0.25 : currentVel > 10 ? 0.3 : 0.4;
     angularVelocityRef.current += delta * inputScale;
     angularVelocityRef.current = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, angularVelocityRef.current));
 
