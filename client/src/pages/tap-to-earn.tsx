@@ -158,9 +158,6 @@ function CrankWheel({
   onPointerDown,
   onPointerMove,
   onPointerUp,
-  onTouchStart,
-  onTouchMove,
-  onTouchEnd,
   wheelRef,
   stress,
   isOverheated,
@@ -175,9 +172,6 @@ function CrankWheel({
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
-  onTouchStart: (e: React.TouchEvent) => void;
-  onTouchMove: (e: React.TouchEvent) => void;
-  onTouchEnd: (e: React.TouchEvent) => void;
   wheelRef: React.RefObject<HTMLDivElement>;
   stress: number;
   isOverheated: boolean;
@@ -225,10 +219,6 @@ function CrankWheel({
         onPointerUp={isOverheated ? undefined : onPointerUp}
         onPointerLeave={isOverheated ? undefined : onPointerUp}
         onPointerCancel={isOverheated ? undefined : onPointerUp}
-        onTouchStart={isOverheated ? undefined : onTouchStart}
-        onTouchMove={isOverheated ? undefined : onTouchMove}
-        onTouchEnd={isOverheated ? undefined : onTouchEnd}
-        onTouchCancel={isOverheated ? undefined : onTouchEnd}
         data-testid="crank-wheel"
       >
         <div
@@ -978,31 +968,48 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     setIsDragging(false);
   }, []);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (isOverheatedRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const touch = e.touches[0];
-    if (!touch) return;
-    const angle = getAngleFromPointer(touch.clientX, touch.clientY);
-    if (angle === null) return;
-    lastAngleRef.current = angle;
-    isDraggingRef.current = true;
-    setIsDragging(true);
-  }, [getAngleFromPointer]);
+  useEffect(() => {
+    const el = wheelRef.current;
+    if (!el) return;
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (!touch) return;
-    processCrankMove(touch.clientX, touch.clientY);
-  }, [processCrankMove]);
+    const onTouchStart = (e: TouchEvent) => {
+      if (isOverheatedRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const touch = e.touches[0];
+      if (!touch) return;
+      const angle = getAngleFromPointer(touch.clientX, touch.clientY);
+      if (angle === null) return;
+      lastAngleRef.current = angle;
+      isDraggingRef.current = true;
+      setIsDragging(true);
+    };
 
-  const handleTouchEnd = useCallback(() => {
-    isDraggingRef.current = false;
-    lastAngleRef.current = null;
-    setIsDragging(false);
-  }, []);
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      if (!touch) return;
+      processCrankMove(touch.clientX, touch.clientY);
+    };
+
+    const onTouchEnd = () => {
+      isDraggingRef.current = false;
+      lastAngleRef.current = null;
+      setIsDragging(false);
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [getAngleFromPointer, processCrankMove]);
 
   const handleTap = useCallback(
     (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
@@ -1137,9 +1144,6 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
               onPointerDown={handleCrankDown}
               onPointerMove={handleCrankMove}
               onPointerUp={handleCrankUp}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
               wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
               stress={stress}
               isOverheated={isOverheated}
@@ -1351,9 +1355,6 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
                 onPointerDown={handleCrankDown}
                 onPointerMove={handleCrankMove}
                 onPointerUp={handleCrankUp}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
                 wheelRef={wheelRef as React.RefObject<HTMLDivElement>}
                 stress={stress}
                 isOverheated={isOverheated}
