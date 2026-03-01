@@ -695,8 +695,6 @@ function DieselEngineControl({
       <p className="text-[10px] text-muted-foreground" data-testid="text-diesel-status">
         {isOverheated ? "Cooling engine..." : !hasEnergy ? "No fuel" : isThrottling ? (inGreenZone ? "Optimal efficiency!" : rpmPercent > 0.9 ? "Careful - overheating risk!" : "Hold to rev up") : rpmPercent > 0.1 ? "Engine running..." : "Touch to throttle"}
       </p>
-
-      <MilestoneProgress totalWatts={totalWatts} />
     </div>
   );
 }
