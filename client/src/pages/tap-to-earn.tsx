@@ -621,6 +621,8 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   const comboCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
   const pendingTapsRef = useRef(0);
+  const registerCrankTapRef = useRef<() => void>(() => {});
+  const flushTapsRef = useRef<() => void>(() => {});
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wheelRef = useRef<HTMLDivElement>(null);
   const orbRef = useRef<HTMLDivElement>(null);
@@ -797,6 +799,14 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   }, [guest, tc.tapMultiplier, flushTaps]);
 
   useEffect(() => {
+    registerCrankTapRef.current = registerCrankTap;
+  }, [registerCrankTap]);
+
+  useEffect(() => {
+    flushTapsRef.current = flushTaps;
+  }, [flushTaps]);
+
+  useEffect(() => {
     const isFree = guest || (user?.tier || "FREE") === "FREE";
     if (!isFree) return;
 
@@ -881,7 +891,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
         accumulatedRotationRef.current += Math.abs(angleDelta);
         while (accumulatedRotationRef.current >= 360) {
           accumulatedRotationRef.current -= 360;
-          registerCrankTap();
+          registerCrankTapRef.current();
         }
       }
 
@@ -896,13 +906,13 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
       cancelAnimationFrame(animFrameRef.current);
       if (flushTimerRef.current) {
         clearTimeout(flushTimerRef.current);
-        flushTaps();
+        flushTapsRef.current();
       }
       if (overheatTimerRef.current) {
         clearTimeout(overheatTimerRef.current);
       }
     };
-  }, [guest, user?.tier, registerCrankTap, flushTaps]);
+  }, [guest, user?.tier]);
 
   const getAngleFromPointer = useCallback((clientX: number, clientY: number): number | null => {
     const el = wheelRef.current;
