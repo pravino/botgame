@@ -1,0 +1,281 @@
+⚡ VOLT60 – Free Tier Generator
+“Manual Dynamo Wheel” — Interaction Design Spec
+🎯 Core Concept
+
+Free users generate electricity (Watts) by manually rotating a physical power wheel.
+
+This should feel:
+
+Mechanical
+
+Heavy
+
+Industrial
+
+Rewarding with motion physics
+
+NOT a simple tap button.
+
+The user should feel like they are physically producing energy.
+
+🧭 Screen Layout (Free Tier)
+Centerpiece (70% of screen)
+
+3D Industrial Generator Wheel
+
+Visual style:
+
+Rusted iron + brass bolts
+
+Slight oil stains
+
+Neon electric-blue energy pulses
+
+Connected to cables going into the grid
+
+Think:
+
+submarine engine + power plant turbine.
+
+Around the Wheel
+
+Top HUD
+
+⚡ Current Power Generated (Watts)
+
+Goal: 1 MW Milestone
+
+Progress Bar (0 → 1,000,000 W)
+
+Bottom HUD
+
+Manual Stress Meter
+
+Grid Status (Supply vs Demand)
+
+USDT Balance (locked for free users)
+
+🎮 User Interaction (IMPORTANT)
+✅ The user DOES NOT TAP repeatedly.
+
+Instead:
+
+👉 User GRABS AND ROTATES the wheel
+
+Interaction:
+
+Touch wheel
+
+Drag clockwise
+
+Wheel follows finger rotation
+
+This creates natural engagement.
+
+Gesture Mechanics
+Input Logic
+
+User touches wheel edge.
+
+App calculates finger angle around center.
+
+Movement rotates wheel accordingly.
+
+Example logic:
+
+angle = atan2(touchY - centerY, touchX - centerX)
+rotation += deltaAngle
+Energy Generation Formula
+
+Power generated depends on rotation speed:
+
+Watts Generated = Rotation Speed × Torque Multiplier
+
+So:
+
+Slow spin → small watts
+Fast spin → high watts
+
+⚙️ Wheel Physics (VERY IMPORTANT)
+
+Without physics it feels fake.
+
+Add:
+
+✅ Momentum
+
+Wheel continues spinning briefly after release
+
+✅ Friction
+
+Slowly loses speed
+
+✅ Resistance
+
+Harder to spin fast
+
+Feeling Target:
+
+Like turning:
+
+Ship steering wheel
+
+Old generator crank
+
+Heavy industrial machinery
+
+✨ Animation Behavior
+While spinning:
+1️⃣ Mechanical Motion
+
+Wheel rotates smoothly
+
+Bolts blur slightly at high speed
+
+2️⃣ Energy Activation
+
+As speed increases:
+
+Speed	Visual Effect
+Low	Small sparks
+Medium	Blue energy flowing
+High	Electric arcs + glow
+3️⃣ Cable Energy Flow
+
+Energy pulses travel through cables into world map nodes.
+
+Nodes start glowing brighter.
+
+This creates:
+👉 Cause → Effect satisfaction.
+
+🧠 Manual Stress System
+
+Prevents infinite grinding.
+
+Stress Meter increases when spinning fast.
+
+If meter hits 100%:
+
+Wheel jams briefly
+
+Steam burst animation
+
+Cooldown 5–10 seconds
+
+UI Message:
+
+“SYSTEM OVERHEATED”
+
+Then resets slowly.
+
+🔊 Feedback (CRITICAL FOR ADDICTION)
+Sound Layers
+
+Metal creaking loop
+
+Generator hum increasing with speed
+
+Electrical crackle at high power
+
+Reward chime every milestone
+
+🧩 Micro Rewards
+
+Every few rotations:
+
+⚡ "+120W"
+
+"+450W COMBO"
+
+Small floating numbers appear near wheel.
+
+🎯 Goal Psychology
+
+User sees:
+
+NEXT MILESTONE:
+1 MW → Unlock Solar License
+
+This pushes upgrade conversion.
+
+🛠️ Replit Implementation Instructions (Send This)
+Tech Stack (Telegram Mini App Friendly)
+
+React + Vite
+
+Canvas OR SVG wheel
+
+Framer Motion OR GSAP for animation
+
+Telegram WebApp SDK
+
+Required Components
+1. Wheel Component
+<GeneratorWheel />
+
+Handles:
+
+drag rotation
+
+inertia physics
+
+power calculation
+
+2. Physics Loop
+
+Use requestAnimationFrame:
+
+velocity *= 0.97 // friction
+rotation += velocity
+generatePower(velocity)
+3. Touch Handling
+
+Use pointer events:
+
+onPointerDown
+onPointerMove
+onPointerUp
+4. Power Engine
+
+Backend-safe calculation:
+
+server validates watts/sec limit
+
+(prevents cheating)
+
+🎨 Visual Upgrade Path (Psychology Trick)
+
+Free wheel should look:
+
+OLD
+
+HARD WORK
+
+NOISY
+
+So when users see:
+
+Solar → clean
+
+Diesel → powerful
+
+Fusion → godlike
+
+…the upgrade feels emotionally necessary.
+
+⭐ GOLDEN RULE
+
+Free tier must feel:
+
+“I am working hard for small energy.”
+
+Paid tiers must feel:
+
+“The machine works for me.”
+
+If you want next, I can design the exact motion progression between:
+
+👉 Wheel (Free) → Solar tracking → Diesel throttle → Fusion automation
+
+…so the gameplay evolution feels addictive and logical.
