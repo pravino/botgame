@@ -949,9 +949,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
     if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
 
-    const currentVel = Math.abs(angularVelocityRef.current);
-    const inputScale = currentVel > 15 ? 0.25 : currentVel > 10 ? 0.3 : 0.4;
-    angularVelocityRef.current += delta * inputScale;
+    angularVelocityRef.current = delta * 0.85;
     angularVelocityRef.current = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, angularVelocityRef.current));
 
     lastAngleRef.current = angle;
