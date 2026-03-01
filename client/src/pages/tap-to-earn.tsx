@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp, Flame, Rocket, Crown, Trophy, ChevronRight, Gauge, Settings } from "lucide-react";
+import { Zap, Clock, BatteryCharging, Lock, DollarSign, TrendingUp, Flame, Rocket, Crown, Trophy, ChevronRight, Gauge, Settings, Fuel } from "lucide-react";
 import {
   formatNumber,
   getEnergyPercentage,
@@ -91,7 +91,7 @@ function StressMeter({ stress, isOverheated }: { stress: number; isOverheated: b
   return (
     <div className="w-full max-w-[180px] space-y-0.5" data-testid="stress-meter">
       <div className="flex items-center justify-between">
-        <span className="text-[9px] uppercase tracking-wider text-white/40 font-medium">System Stress</span>
+        <span className="text-[9px] uppercase tracking-wider text-white/40 font-medium">Engine Temperature</span>
         <span className={`text-[9px] font-mono ${isOverheated ? "text-red-400 animate-pulse" : "text-white/40"}`}>
           {Math.round(pct)}%
         </span>
@@ -109,7 +109,7 @@ function StressMeter({ stress, isOverheated }: { stress: number; isOverheated: b
           className="text-center mt-1"
         >
           <span className="text-[10px] font-black text-red-400 uppercase tracking-widest animate-pulse">
-            SYSTEM OVERHEATED
+            ENGINE OVERHEATED
           </span>
         </motion.div>
       )}
@@ -368,7 +368,7 @@ function CrankWheel({
       <StressMeter stress={stress} isOverheated={isOverheated} />
 
       <p className="text-[10px] text-muted-foreground">
-        {isOverheated ? "Cooling down..." : isDragging ? "Cranking..." : speed > STOP_THRESHOLD ? "Spinning..." : hasEnergy ? "Drag in a circle to crank" : "No energy"}
+        {isOverheated ? "Cooling engine..." : isDragging ? "Cranking..." : speed > STOP_THRESHOLD ? "Spinning..." : hasEnergy ? "Drag in a circle to crank" : "No fuel"}
       </p>
 
       <MilestoneProgress totalWatts={totalWatts} />
@@ -595,6 +595,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   const [canRefill, setCanRefill] = useState(false);
   const [cooldownProgress, setCooldownProgress] = useState(0);
   const [showChallenge, setShowChallenge] = useState(false);
+  const showChallengeRef = useRef(false);
   const [guestWatts, setGuestWatts] = useState(0);
 
   const [wheelAngle, setWheelAngle] = useState(0);
@@ -699,9 +700,9 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
       const jsonPart = msg.includes(": ") ? msg.substring(msg.indexOf(": ") + 2) : msg;
       try {
         const parsed = JSON.parse(jsonPart);
-        if (parsed.challengeRequired) { setShowChallenge(true); return; }
+        if (parsed.challengeRequired) { showChallengeRef.current = true; pendingTapsRef.current = 0; setShowChallenge(true); return; }
       } catch {}
-      if (msg.includes("challengeRequired") || msg.includes("challenge")) { setShowChallenge(true); }
+      if (msg.includes("challengeRequired") || msg.includes("challenge")) { showChallengeRef.current = true; pendingTapsRef.current = 0; setShowChallenge(true); }
     },
   });
 
@@ -721,6 +722,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   });
 
   const flushTaps = useCallback(() => {
+    if (showChallengeRef.current) return;
     if (pendingTapsRef.current > 0) {
       const taps = pendingTapsRef.current;
       pendingTapsRef.current = 0;
@@ -730,6 +732,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
 
   const registerCrankTap = useCallback(() => {
     if (isOverheatedRef.current) return;
+    if (showChallengeRef.current) return;
 
     const now = Date.now();
     const timeSinceLast = now - lastTapTimeRef.current;
@@ -796,8 +799,9 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   }, [flushTaps]);
 
   useEffect(() => {
-    const isFree = guest || (user?.tier || "FREE") === "FREE";
-    if (!isFree) return;
+    const tier = guest ? "FREE" : (user?.tier || "FREE");
+    const crankTier = tier === "FREE" || tier === "BRONZE";
+    if (!crankTier) return;
 
     let lastTime = performance.now();
     let stressUpdateCounter = 0;
@@ -1005,6 +1009,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
 
   const handleTap = useCallback(
     (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+      if (showChallengeRef.current) return;
       const currentEnergy = liveEnergy ?? user?.energy ?? 0;
       if (!user || currentEnergy <= 0) return;
 
@@ -1073,11 +1078,13 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
   const totalWatts = guest ? guestWatts : (user?.totalCoins || 0);
   const currentTier = guest ? "FREE" : (user?.tier || "FREE");
   const isFreeUser = guest || currentTier === "FREE";
+  const usesCrankWheel = isFreeUser || currentTier === "BRONZE";
   const tierLabel = getTierLabel(user);
   const tierColors = TIER_COLORS[currentTier] || TIER_COLORS.FREE;
   const walletBalance = user?.walletBalance ?? 0;
 
   const handleChallengeResolved = useCallback((passed: boolean) => {
+    showChallengeRef.current = false;
     setShowChallenge(false);
     queryClient.invalidateQueries({ queryKey: ["/api/user"] });
   }, []);
@@ -1318,7 +1325,7 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
         </div>
 
         <div className="flex flex-col items-center mx-auto">
-          {isFreeUser ? (
+          {usesCrankWheel ? (
             <>
               <div className="text-center mb-2">
                 <p className="text-[10px] text-white/50 uppercase tracking-[0.2em]">Spin to Generate</p>
@@ -1380,8 +1387,8 @@ export default function TapToEarn({ guest = false }: { guest?: boolean } = {}) {
       <div className="w-full space-y-1.5 z-10">
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-1.5">
-            <Zap className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="text-white/50">Energy</span>
+            <Fuel className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-white/50">Diesel Fuel</span>
           </div>
           <span className="font-mono text-white/50" data-testid="text-energy">
             {currentEnergy}/{maxEnergy}

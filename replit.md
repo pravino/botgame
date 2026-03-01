@@ -57,11 +57,13 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - **Power Plant (Tap-to-Earn)**: Energy orb tapping with energy system (passive refill). Features a multiplier upgrade system. This is the ONLY active game — 100% of treasury goes to tap pot.
   - FREE tier uses **industrial CrankWheel** (drag in circle to generate watts). Visual: rusted iron + brass bolts, oil-stain textures, metallic spokes. Features:
     - Speed-based visual effects: sparks (low), blue energy flow (medium), electric arcs (high)
-    - Stress/overheat system: meter fills during fast spinning, locks wheel for 7s at 100%
+    - Engine Temperature meter (was "System Stress"): fills during fast spinning, "ENGINE OVERHEATED" lockout for 7s at 100%
+    - Energy bar labeled "Diesel Fuel" with fuel icon
     - Floating micro-rewards with variable amounts and "COMBO" text at high speed
     - 1 MW milestone progress bar toward Solar License unlock
     - Enhanced physics: momentum, friction decay, non-linear resistance at high velocity
-  - Paid tiers use tap-on-orb mechanic (EnergyOrb)
+  - BRONZE tier also uses **CrankWheel** (same drag mechanic as FREE, themed as "Diesel V8")
+  - SILVER/GOLD tiers use tap-on-orb mechanic (EnergyOrb)
   - Tap → scale animation → floating "+X W" particle
   - Uses batched taps (max 50, flush every 2s) via POST /api/tap
   - Daily Pot Distribution cards show Diesel/LNG/Fusion pot values
@@ -74,7 +76,7 @@ The application is built with a modern web stack, featuring a React + TypeScript
 - **Leaderboards**: Watts-based leaderboard showcasing top players.
 - **Subscription System**: Tiered plans with sandbox payment flow via TON Pay. Silver and Gold tiers blocked server-side with "This tier is not available yet" error.
 - **Energy System**: Hybrid passive regeneration with "Full Tank" rolling cooldown refill, tiered for subscribers.
-- **Proof of Humanity**: "Spatial Tap Challenge" triggers periodically to mitigate bot activity.
+- **Proof of Humanity**: "Spatial Tap Challenge" triggers every 25,000 coins earned. 15-minute grace period after passing. 1-hour pause penalty for failing. Client blocks tap/crank submissions during challenge overlay.
 - **Referral System**: Simple $1 USDT per referral payment model.
 - **Task Verification System**: Social tasks with Telegram membership verification and external link visit-then-claim flow.
 - **League System**: Bronze → Silver → Gold → Platinum → Diamond leagues based on lifetime watts generated. Higher leagues get bigger payout multipliers.

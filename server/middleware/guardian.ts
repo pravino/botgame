@@ -7,8 +7,9 @@ const MAX_REQUESTS_PER_WINDOW = 10;
 const RATE_WINDOW_MS = 3000;
 const MAX_TAPS_PER_WINDOW = 200;
 const COOLDOWN_DURATION_MS = 60 * 1000;
-const CHALLENGE_COIN_THRESHOLD = 5000;
+const CHALLENGE_COIN_THRESHOLD = 25000;
 const CHALLENGE_PAUSE_DURATION_MS = 60 * 60 * 1000;
+const CHALLENGE_GRACE_MS = 15 * 60 * 1000;
 
 const tapHistory: Map<string, { timestamps: number[]; tapCounts: number[] }> = new Map();
 
@@ -72,6 +73,11 @@ export async function checkChallenge(userId: string): Promise<{ challengeRequire
     return { challengeRequired: false };
   }
 
+  if (user.challengePausedUntil && new Date(user.challengePausedUntil) <= new Date() && user.coinsSinceLastChallenge > 0) {
+    await storage.updateUser(userId, { coinsSinceLastChallenge: 0 });
+    return { challengeRequired: false };
+  }
+
   if (user.challengePending) {
     return { challengeRequired: true };
   }
@@ -86,9 +92,11 @@ export async function checkChallenge(userId: string): Promise<{ challengeRequire
 
 export async function resolveChallenge(userId: string, passed: boolean): Promise<{ success: boolean; pausedUntil?: Date }> {
   if (passed) {
+    const graceUntil = new Date(Date.now() + CHALLENGE_GRACE_MS);
     await storage.updateUser(userId, {
       challengePending: false,
       coinsSinceLastChallenge: 0,
+      challengePausedUntil: graceUntil,
     });
     return { success: true };
   }
